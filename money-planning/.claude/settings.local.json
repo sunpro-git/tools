@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx:*)",
+      "Bash(node --version:*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(netstat:*)",
+      "Bash(ss -tlnp:*)",
+      "Bash(tasklist:*)",
+      "Bash(wmic process:*)",
+      "Bash(taskkill:*)"
+    ]
+  }
+}

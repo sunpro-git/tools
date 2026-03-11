@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm *)",
+      "Bash(npx *)",
+      "Bash(node *)",
+      "Bash(mkdir *)",
+      "Bash(rm *)",
+      "Bash(rmdir *)",
+      "Bash(ls *)",
+      "Bash(cd *)",
+      "Bash(echo *)",
+      "Bash(curl *)",
+      "Bash(netstat *)",
+      "Bash(supabase *)",
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "WebFetch",
+      "mcp__Claude_Preview__*",
+      "Bash(scoop --version)",
+      "Bash(powershell -Command \"Get-Command scoop -ErrorAction SilentlyContinue\")",
+      "Bash(\"/c/Users/imoto/scoop/shims/supabase\" --version)",
+      "Bash(\"/c/Users/imoto/scoop/apps/supabase/current/supabase\" --version)",
+      "Bash(\"/c/Users/imoto/scoop/shims/supabase\" link --project-ref vkovflhltggyrgimeabp)",
+      "Bash(\"/c/Users/imoto/scoop/shims/supabase\" secrets set GOOGLE_SERVICE_ACCOUNT_EMAIL=\"shootlog@stager-b73d6.iam.gserviceaccount.com\")",
+      "Bash(\"/c/Users/imoto/scoop/shims/supabase\" secrets set GOOGLE_PRIVATE_KEY=\"-----BEGIN PRIVATE KEY-----\\\\nMIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDL93TZ23DMALHG\\\\nF6+ZfUDxLgVv1YX7ejcGf2xvSRSzGg3Q0Al7aTdWeyAPwsMitAbqbAr94AVEgl+L\\\\n6aeszCD0+h9SDwVjQ5MUjdapwdntpY/asoZPsBbHqIBh+hqtTq7k4v1d+ZwTcmCb\\\\nB8OSL6huFnXhqBfBmIhApL1EXsyNE0YIe4puJuX2ymuAOebcNckmwUcNI6KbfSKI\\\\nEIqC8nZY8OybWyWLt2eP6JU6D0ZkDgeIqYxSA22hsXP0hqNV3DD18hocKYCq1YLu\\\\nKz7kuzchcyiNw6ATONstlC8ls1hN/q2flbL9j+T7RGazKB3eBqDCI/bpZfZ4ZNOM\\\\n25h8GRVZAgMBAAECggEABHfXnnd5LBmOdhQfa6cGcizGP7dCEnU7RAWB6ZovPZEs\\\\n4Ph9t1oMX/TzNIUuuHw7Ho2JXBsOjSanUy2mLQSNFZtubjdtWx79gi4X7Wtqtmhc\\\\naLe6dipvBVFX+/gk93ZJdzLQcWuTaLWmZMmxwL+8hSoxdjpeyDCVjjJNrHQV2mKa\\\\nBL4dELTGpw3IACFRtrIgKFUOSAN9TYPedXqG/cUZxkGqjba1yPFgipXm1QZmmwuz\\\\nsJ7PIi40Mushmb/cosF4vKlW5FxR4+rpUqb4P2d8XEhAGakNVlTy54wu+vODm4Cu\\\\nQyMufAX/BqwEQKKH8uUZd9igD+KaLwwqhbjIw8y8pQKBgQDsSuxnUO1U9KpDb5GW\\\\nC21uKef5wEh7+iL3aiUEu8l1Z7LJA1oa7j2mfQIupBJ23d24DK9L3yamC+mCWwTo\\\\nbQWuJH5+0ljOSBjaA2s2CTWRAwm9TkR0UDL7WjPz8iviRAfV056vniXTqsRuX9x4\\\\nT9ytWRkkkKe6+uJyP/NtepfrowKBgQDc+lc9ejbjH2kjB1QANvxFY7K8b+fu4GKs\\\\nNsSBvhvy+Fstv9cMdc0trIcqcpSQBing/aRZHgsiFmfbzp8VUts81fSMTdG40nTg\\\\nCNVFmJU0Rtb0Y0BYZAybrjYdR6ZjX1NPqAtojy0ifecrB19GrPG3kNlisLZBYK3J\\\\ng/ONgnSK0wKBgH0rAyeHevDx2e92/kvZKdKdaECoVr01t6gQFiP3xbPnhpFssSJq\\\\n6UV0Gt/SEeXdiUGhloo+Xx6+WKewx1zHw6aHtmo/ysMa9e8muHgbUMDMNzCMcT6b\\\\n7SWwlqy2sABfwTbHrtugjrEdWIiPRx6ET4WUGPmBlxg5JhMXRT/NHQS5AoGAEHz1\\\\naXbnBYdgduajE+kGZb8MpRbMfXxsoGDtxKiEuVpio0U/LITVrGTFKRunjh+HnGwQ\\\\niT2+oup9EV+XayXlieKE/rsHvPynD9hY4XqDF4V5oH6PXIkKj8st6n1gIuYH91eY\\\\nklKskXhHeWRxbXqWBpZeQgjhcHtgPDsGPzbOr1UCgYAR3IJ/le1wuhUHa/SlF98t\\\\nvN2AD6PJfg3rPV8qblm7XIXvJDP1gEVDpCXe/khNkzvZnRhXAUxsqBoJbKDRAole\\\\nIxEDjg//Jg5T52Vqp+D9oeA3mVeUqnFmaJtBUaKKNO1vwuqzdIj6hjqnBVzZ2bDh\\\\nnbZDjbdX3qDHjj9zluCx2A==\\\\n-----END PRIVATE KEY-----\\\\n\")",
+      "Bash(\"/c/Users/imoto/scoop/shims/supabase\" functions deploy andpad-sync --no-verify-jwt)",
+      "Bash(\"/c/Users/imoto/scoop/shims/supabase\" functions deploy andpad-sync --no-verify-jwt --debug)",
+      "Bash(\"/c/Users/imoto/scoop/shims/supabase\" functions logs andpad-sync --limit 20)",
+      "Bash(supabase db execute --project-ref vkovflhltggyrgimeabp \":*)"
+    ]
+  }
+}

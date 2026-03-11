@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "serve-06-claude",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["C:\\Users\\imoto\\AppData\\Roaming\\npm\\node_modules\\serve\\build\\main.js", "C:\\Users\\imoto\\OneDrive\\デスクトップ\\06_CLAUDE", "--no-clipboard"],
+      "port": 3000
+    }
+  ]
+}

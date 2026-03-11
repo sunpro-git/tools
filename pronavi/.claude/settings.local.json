@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip --version)",
+      "Bash(pip3 --version)",
+      "Bash(python -c \"import pymssql\")",
+      "Bash(python -c \"import openpyxl\")",
+      "Bash(python -c \"import flask\")",
+      "Bash(python -c \"import fastapi\")",
+      "Bash(python -c \"import pymssql; print\\(''pymssql OK''\\)\")",
+      "Bash(python -c \"import openpyxl; print\\(''openpyxl OK''\\)\")",
+      "Bash(node --version)",
+      "Bash(npm --version)"
+    ]
+  }
+}

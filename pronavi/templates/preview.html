@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="mb-6 grid grid-cols-4 gap-4">
+    <div class="bg-white rounded-lg border border-gray-200 p-4 text-center">
+        <p class="text-2xl font-bold text-gray-800">{{ total }}</p>
+        <p class="text-sm text-gray-500">Excel行数</p>
+    </div>
+    <div class="bg-white rounded-lg border border-green-200 p-4 text-center">
+        <p class="text-2xl font-bold text-green-600">{{ valid }}</p>
+        <p class="text-sm text-gray-500">登録対象</p>
+    </div>
+    <div class="bg-white rounded-lg border border-yellow-200 p-4 text-center">
+        <p class="text-2xl font-bold text-yellow-600">{{ duplicates }}</p>
+        <p class="text-sm text-gray-500">重複スキップ</p>
+    </div>
+    <div class="bg-white rounded-lg border border-red-200 p-4 text-center">
+        <p class="text-2xl font-bold text-red-600">{{ skipped|length }}</p>
+        <p class="text-sm text-gray-500">エラースキップ</p>
+    </div>
+</div>
+
+{% if skipped %}
+<details class="mb-6">
+    <summary class="cursor-pointer text-sm text-red-600 font-medium hover:underline">
+        スキップ行の詳細を表示 ({{ skipped|length }}件)
+    </summary>
+    <div class="mt-2 bg-white rounded-lg border border-red-200 overflow-hidden">
+        <table class="w-full text-sm">
+            <thead class="bg-red-50">
+                <tr>
+                    <th class="px-4 py-2 text-left">行番号</th>
+                    <th class="px-4 py-2 text-left">顧客名</th>
+                    <th class="px-4 py-2 text-left">理由</th>
+                </tr>
+            </thead>
+            <tbody>
+            {% for item in skipped %}
+                <tr class="border-t border-red-100">
+                    <td class="px-4 py-2">{{ item.row }}</td>
+                    <td class="px-4 py-2">{{ item.title }}</td>
+                    <td class="px-4 py-2 text-red-600">{{ item.reason }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</details>
+{% endif %}
+
+{% if data %}
+<div class="bg-white rounded-lg border border-gray-200 overflow-hidden mb-6">
+    <div class="overflow-x-auto" style="max-height: 500px; overflow-y: auto;">
+        <table class="w-full text-sm">
+            <thead class="bg-gray-50 sticky top-0">
+                <tr>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">#</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">顧客名</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">システムID</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">緯度</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">経度</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">都道府県</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">案件種別</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">案件フロー</th>
+                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500">担当者</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+            {% for row in data %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-3 py-2 text-gray-400">{{ loop.index }}</td>
+                    <td class="px-3 py-2 font-medium">{{ row.TITLE }}</td>
+                    <td class="px-3 py-2 text-gray-600">{{ row.CODE }}</td>
+                    <td class="px-3 py-2 text-gray-600">{{ "%.6f"|format(row.POSITION_LAT) }}</td>
+                    <td class="px-3 py-2 text-gray-600">{{ "%.6f"|format(row.POSITION_LON) }}</td>
+                    <td class="px-3 py-2 text-gray-600">{{ row.PREFECTURE or '-' }}</td>
+                    <td class="px-3 py-2">
+                        <span class="inline-block px-2 py-0.5 text-xs rounded-full
+                            {% if row.SECTION_ID == 11 %}bg-blue-100 text-blue-700
+                            {% elif row.SECTION_ID == 12 %}bg-green-100 text-green-700
+                            {% elif row.SECTION_ID == 21 %}bg-purple-100 text-purple-700
+                            {% endif %}">
+                            {{ section_names.get(row.SECTION_ID, '-') }}
+                        </span>
+                    </td>
+                    <td class="px-3 py-2">
+                        {% if row.CATEGORY_ID %}
+                        <span class="inline-block px-2 py-0.5 text-xs rounded-full bg-gray-100 text-gray-700">
+                            {{ category_names.get(row.CATEGORY_ID, '-') }}
+                        </span>
+                        {% else %}-{% endif %}
+                    </td>
+                    <td class="px-3 py-2 text-gray-600">{{ row.STAFF_RAW.split(':')[-1] if ':' in row.STAFF_RAW else row.STAFF_RAW }}</td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="flex gap-4">
+    <a href="/" class="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors">
+        戻る
+    </a>
+    <form action="/insert" method="POST" class="flex-1" id="insertForm">
+        <input type="hidden" name="batch_id" value="{{ batch_id }}">
+        <button type="submit" id="insertBtn"
+                class="w-full py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 transition-colors">
+            {{ valid }}件をデータベースに登録する
+        </button>
+    </form>
+</div>
+{% else %}
+<div class="text-center py-12 text-gray-500">
+    <p>登録対象のデータがありません。</p>
+    <a href="/" class="inline-block mt-4 px-6 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300">戻る</a>
+</div>
+{% endif %}
+
+<script>
+document.getElementById('insertForm')?.addEventListener('submit', function() {
+    const btn = document.getElementById('insertBtn');
+    btn.disabled = true;
+    btn.textContent = '登録中...';
+    btn.classList.add('bg-gray-400');
+    btn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+});
+</script>
+{% endblock %}

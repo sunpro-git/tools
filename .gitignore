@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.next/
+.env
+.env.local
+.env*.local
+*.log
+.DS_Store
+Thumbs.db
+.claude/worktrees/
+.claude/settings.local.json
+.claude/launch.json
+cookies.txt
+pdf_page_*.png
+supabase/.temp/
