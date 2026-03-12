@@ -8,9 +8,11 @@ import AppIcon from './components/AppIcon'
 import UserSelectScreen from './components/UserSelectScreen'
 import UserAvatar from './components/UserAvatar'
 import UserEditModal from './components/UserEditModal'
-import { fetchContents, addContent, processContent, getCategories, getAllTags, updateContentFeedback, fetchUsers, fetchLikesForContents, toggleLike, addUser, updateUser, deleteUser } from './lib/api'
+import TeamManageModal from './components/TeamManageModal'
+import InstallPrompt from './components/InstallPrompt'
+import { fetchContents, addContent, processContent, getCategories, getAllTags, updateContentFeedback, fetchUsers, fetchLikesForContents, toggleLike, addUser, updateUser, deleteUser, fetchTeams, addTeam as apiAddTeam, updateTeam as apiUpdateTeam, deleteTeam as apiDeleteTeam } from './lib/api'
 import { getPlatformLabel } from './lib/platform'
-import type { Content, Platform, User } from './types/database'
+import type { Content, Platform, User, Team } from './types/database'
 
 const STORAGE_KEY = 'my-input-user'
 
@@ -48,12 +50,14 @@ export default function App() {
   const [users, setUsers] = useState<User[]>([])
   const [userLoading, setUserLoading] = useState(true)
   const [showUserMenu, setShowUserMenu] = useState(false)
-  const [viewMode, setViewMode] = useState<'mine' | 'all'>('mine')
+  const [viewMode, setViewMode] = useState<string>('mine') // 'mine' | 'all' | team UUID
   const [showAddUserForm, setShowAddUserForm] = useState(false)
   const [showEditModal, setShowEditModal] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
   const [editSaving, setEditSaving] = useState(false)
   const [editError, setEditError] = useState('')
+  const [teams, setTeams] = useState<Team[]>([])
+  const [showTeamManageModal, setShowTeamManageModal] = useState(false)
 
   // Content state
   const [contents, setContents] = useState<Content[]>([])
@@ -151,8 +155,9 @@ export default function App() {
     async function initUser() {
       setUserLoading(true)
       try {
-        const allUsers = await fetchUsers()
+        const [allUsers, allTeams] = await Promise.all([fetchUsers(), fetchTeams()])
         setUsers(allUsers)
+        setTeams(allTeams)
 
         const saved = getSavedUser()
         if (saved) {
@@ -203,11 +208,11 @@ export default function App() {
     }
   }
 
-  async function handleAddUserFromMenu(data: { name: string; color: string; icon: string }) {
+  async function handleAddUserFromMenu(data: { name: string; color: string; icon: string; teamId: string | null }) {
     setEditSaving(true)
     setEditError('')
     try {
-      const user = await addUser(data.name, data.color, data.icon)
+      const user = await addUser(data.name, data.color, data.icon, data.teamId)
       setUsers(prev => [...prev, user].sort((a, b) => a.name.localeCompare(b.name)))
       handleSwitchUser(user)
       setShowAddUserForm(false)
@@ -219,17 +224,18 @@ export default function App() {
     }
   }
 
-  async function handleAddUserFromSelect(name: string, color: string, icon: string): Promise<User> {
-    const user = await addUser(name, color, icon)
+  async function handleAddUserFromSelect(name: string, color: string, icon: string, teamId?: string | null): Promise<User> {
+    const user = await addUser(name, color, icon, teamId)
     setUsers(prev => [...prev, user].sort((a, b) => a.name.localeCompare(b.name)))
     return user
   }
 
-  async function handleEditUser(id: string, data: { name: string; color: string; icon: string }) {
+  async function handleEditUser(id: string, data: { name: string; color: string; icon: string; teamId: string | null }) {
     setEditSaving(true)
     setEditError('')
     try {
-      const updated = await updateUser(id, data)
+      const { teamId, ...rest } = data
+      const updated = await updateUser(id, { ...rest, team_id: teamId })
       setUsers(prev => prev.map(u => u.id === id ? updated : u).sort((a, b) => a.name.localeCompare(b.name)))
       if (currentUser?.id === id) {
         setCurrentUser(updated)
@@ -245,8 +251,9 @@ export default function App() {
     }
   }
 
-  async function handleEditUserFromSelect(id: string, data: { name: string; color: string; icon: string }) {
-    const updated = await updateUser(id, data)
+  async function handleEditUserFromSelect(id: string, data: { name: string; color: string; icon: string; teamId: string | null }) {
+    const { teamId, ...rest } = data
+    const updated = await updateUser(id, { ...rest, team_id: teamId })
     setUsers(prev => prev.map(u => u.id === id ? updated : u).sort((a, b) => a.name.localeCompare(b.name)))
     if (currentUser?.id === id) {
       setCurrentUser(updated)
@@ -254,12 +261,53 @@ export default function App() {
     }
   }
 
+  // ---- Team handlers ----
+  async function handleAddTeam(name: string) {
+    const team = await apiAddTeam(name)
+    setTeams(prev => [...prev, team].sort((a, b) => a.name.localeCompare(b.name)))
+  }
+
+  async function handleUpdateTeam(id: string, name: string) {
+    const updated = await apiUpdateTeam(id, name)
+    setTeams(prev => prev.map(t => t.id === id ? updated : t).sort((a, b) => a.name.localeCompare(b.name)))
+  }
+
+  async function handleDeleteTeam(id: string) {
+    await apiDeleteTeam(id)
+    setTeams(prev => prev.filter(t => t.id !== id))
+    // Refresh users to clear team assignments
+    const allUsers = await fetchUsers()
+    setUsers(allUsers)
+    if (currentUser) {
+      const refreshed = allUsers.find(u => u.id === currentUser.id)
+      if (refreshed) setCurrentUser(refreshed)
+    }
+  }
+
   // ---- Data loading ----
-  const apiFilters = useMemo(() => ({
-    ...filters,
-    userId: viewMode === 'mine' && currentUser ? currentUser.id : undefined,
-    userIds: viewMode === 'all' && filters.filterUserIds && filters.filterUserIds.length > 0 ? filters.filterUserIds : undefined,
-  }), [filters, viewMode, currentUser])
+  const apiFilters = useMemo(() => {
+    let userId: string | undefined
+    let userIds: string[] | undefined
+
+    if (viewMode === 'mine' && currentUser) {
+      userId = currentUser.id
+    } else if (viewMode === 'all') {
+      if (filters.filterUserIds && filters.filterUserIds.length > 0) {
+        userIds = filters.filterUserIds
+      }
+    } else {
+      // Team mode: filter by users in that team
+      const teamUserIds = users.filter(u => u.team_id === viewMode).map(u => u.id)
+      if (teamUserIds.length > 0) {
+        userIds = teamUserIds
+      } else {
+        // No users in team — use impossible ID to return empty
+        userIds = ['00000000-0000-0000-0000-000000000000']
+      }
+    }
+
+    return { ...filters, userId, userIds }
+  }, [filters, viewMode, currentUser, users])
 
   const loadContents = useCallback(async () => {
     if (!currentUser) return
@@ -375,7 +423,7 @@ export default function App() {
 
   // ---- User selection screen ----
   if (!currentUser) {
-    return <UserSelectScreen users={users} onSelect={handleUserSelect} onAddUser={handleAddUserFromSelect} onEditUser={handleEditUserFromSelect} loading={userLoading} />
+    return <UserSelectScreen users={users} teams={teams} onSelect={handleUserSelect} onAddUser={handleAddUserFromSelect} onEditUser={handleEditUserFromSelect} onAddTeam={handleAddTeam} onUpdateTeam={handleUpdateTeam} onDeleteTeam={handleDeleteTeam} loading={userLoading} />
   }
 
   // ---- Detail view ----
@@ -399,7 +447,7 @@ export default function App() {
     )
   }
 
-  const showUser = viewMode === 'all'
+  const showUser = viewMode !== 'mine'
 
   return (
     <div className="min-h-screen bg-white overflow-x-hidden">
@@ -510,28 +558,27 @@ export default function App() {
       {/* Filter bar */}
       <div className="sticky top-14 z-10 bg-white border-b border-gray-200">
         <div className="max-w-[1800px] mx-auto px-4 sm:px-6 py-2 flex items-center gap-2 overflow-x-auto scrollbar-hide">
-          {/* View mode toggle: 自分のみ / みんな */}
+          {/* View mode toggle: 自分のみ / みんな / チーム */}
           <div className="flex shrink-0 border border-[#188b65] rounded-full overflow-hidden">
-            <button
-              onClick={() => setViewMode('mine')}
-              className={`px-3.5 py-1 text-sm font-medium whitespace-nowrap transition-all ${
-                viewMode === 'mine'
-                  ? 'bg-[#188b65] text-white'
-                  : 'bg-white text-[#188b65] hover:bg-[#188b65]/10'
-              }`}
-            >
-              自分のみ
-            </button>
-            <button
-              onClick={() => setViewMode('all')}
-              className={`px-3.5 py-1 text-sm font-medium whitespace-nowrap transition-all border-l border-[#188b65] ${
-                viewMode === 'all'
-                  ? 'bg-[#188b65] text-white'
-                  : 'bg-white text-[#188b65] hover:bg-[#188b65]/10'
-              }`}
-            >
-              みんな
-            </button>
+            {[
+              { key: 'mine', label: '自分のみ' },
+              { key: 'all', label: 'みんな' },
+              ...teams.map(t => ({ key: t.id, label: t.name })),
+            ].map((item, i) => (
+              <button
+                key={item.key}
+                onClick={() => setViewMode(item.key)}
+                className={`px-3.5 py-1 text-sm font-medium whitespace-nowrap transition-all ${
+                  i > 0 ? 'border-l border-[#188b65] ' : ''
+                }${
+                  viewMode === item.key
+                    ? 'bg-[#188b65] text-white'
+                    : 'bg-white text-[#188b65] hover:bg-[#188b65]/10'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
           </div>
 
           {/* Filter toggle button */}
@@ -859,8 +906,10 @@ export default function App() {
       {showEditModal && editingUser && (
         <UserEditModal
           user={editingUser}
+          teams={teams}
           onSave={async (data) => { await handleEditUser(editingUser.id, data) }}
           onCancel={() => { setShowEditModal(false); setEditingUser(null); setEditError('') }}
+          onManageTeams={() => setShowTeamManageModal(true)}
           saving={editSaving}
           error={editError}
         />
@@ -869,12 +918,28 @@ export default function App() {
       {/* Add user modal (from menu) */}
       {showAddUserForm && (
         <UserEditModal
+          teams={teams}
           onSave={handleAddUserFromMenu}
           onCancel={() => { setShowAddUserForm(false); setEditError('') }}
+          onManageTeams={() => setShowTeamManageModal(true)}
           saving={editSaving}
           error={editError}
         />
       )}
+
+      {/* Team manage modal */}
+      {showTeamManageModal && (
+        <TeamManageModal
+          teams={teams}
+          users={users}
+          onAdd={handleAddTeam}
+          onUpdate={handleUpdateTeam}
+          onDelete={handleDeleteTeam}
+          onClose={() => setShowTeamManageModal(false)}
+        />
+      )}
+
+      <InstallPrompt />
     </div>
   )
 }

@@ -1,36 +1,76 @@
 import { supabase } from './supabase'
 import { detectPlatform } from './platform'
-import type { Content, User } from '../types/database'
+import type { Content, User, Team } from '../types/database'
+
+// ---- Teams ----
+
+export async function fetchTeams(): Promise<Team[]> {
+  const { data, error } = await supabase
+    .from('teams')
+    .select('*')
+    .order('name')
+
+  if (error) throw error
+  return (data || []) as Team[]
+}
+
+export async function addTeam(name: string): Promise<Team> {
+  const { data, error } = await supabase
+    .from('teams')
+    .insert({ name })
+    .select('*')
+    .single()
+
+  if (error) throw error
+  return data as Team
+}
+
+export async function updateTeam(id: string, name: string): Promise<Team> {
+  const { data, error } = await supabase
+    .from('teams')
+    .update({ name })
+    .eq('id', id)
+    .select('*')
+    .single()
+
+  if (error) throw error
+  return data as Team
+}
+
+export async function deleteTeam(id: string): Promise<void> {
+  const { error } = await supabase.from('teams').delete().eq('id', id)
+  if (error) throw error
+}
 
 // ---- Users ----
 
 export async function fetchUsers(): Promise<User[]> {
   const { data, error } = await supabase
     .from('users')
-    .select('*')
+    .select('*, team:teams(id, name)')
     .order('name')
 
   if (error) throw error
   return (data || []) as User[]
 }
 
-export async function addUser(name: string, color?: string, icon?: string): Promise<User> {
+export async function addUser(name: string, color?: string, icon?: string, teamId?: string | null): Promise<User> {
   const { data, error } = await supabase
     .from('users')
-    .insert({ name, color: color || null, icon: icon || null })
-    .select('*')
+    .insert({ name, color: color || null, icon: icon || null, team_id: teamId || null })
+    .select('*, team:teams(id, name)')
     .single()
 
   if (error) throw error
   return data as User
 }
 
-export async function updateUser(id: string, fields: { name?: string; color?: string | null; icon?: string | null }): Promise<User> {
+export async function updateUser(id: string, fields: { name?: string; color?: string | null; icon?: string | null; team_id?: string | null }): Promise<User> {
   const { data, error } = await supabase
     .from('users')
     .update(fields)
     .eq('id', id)
-    .select('*')
+    .select('*, team:teams(id, name)')
     .single()
 
   if (error) throw error
@@ -152,13 +192,123 @@ export async function deleteContent(id: string): Promise<void> {
   if (error) throw error
 }
 
+/** Fetch YouTube transcript from the browser (client-side fallback).
+ *  YouTube blocks InnerTube API calls from cloud IPs, but allows them from residential IPs.
+ *  This runs in the user's browser which has a residential IP. */
+async function fetchYoutubeTranscriptClientSide(videoId: string): Promise<string | null> {
+  try {
+    const resp = await fetch(
+      "https://www.youtube.com/youtubei/v1/player?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          context: {
+            client: { clientName: "WEB", clientVersion: "2.20241126.01.00", hl: "ja", gl: "JP" },
+          },
+          videoId,
+        }),
+      }
+    )
+    if (!resp.ok) return null
+    const data = await resp.json()
+
+    const tracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks as
+      | Array<{ languageCode: string; kind?: string; baseUrl: string }>
+      | undefined
+    if (!tracks || tracks.length === 0) return null
+
+    const track =
+      tracks.find(t => t.languageCode === "ja" && t.kind !== "asr") ||
+      tracks.find(t => t.languageCode === "ja") ||
+      tracks.find(t => t.languageCode?.startsWith("ja")) ||
+      tracks[0]
+    if (!track?.baseUrl) return null
+
+    const captionResp = await fetch(track.baseUrl)
+    if (!captionResp.ok) return null
+    const xml = await captionResp.text()
+
+    const segments: string[] = []
+    const decode = (t: string) => t
+      .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, " ")
+      .replace(/\n/g, " ").trim()
+
+    if (xml.includes('format="3"')) {
+      const pRegex = /<p[^>]*>([\s\S]*?)<\/p>/g
+      let m
+      while ((m = pRegex.exec(xml)) !== null) {
+        const sRegex = /<s[^>]*>([^<]*)<\/s>/g
+        let seg = ""
+        let sm
+        while ((sm = sRegex.exec(m[1])) !== null) seg += sm[1]
+        if (!seg) seg = m[1].replace(/<[^>]+>/g, "")
+        seg = decode(seg)
+        if (seg) segments.push(seg)
+      }
+    } else {
+      const tRegex = /<text[^>]*>([\s\S]*?)<\/text>/g
+      let m
+      while ((m = tRegex.exec(xml)) !== null) {
+        const t = decode(m[1])
+        if (t) segments.push(t)
+      }
+    }
+
+    return segments.length > 0 ? segments.join(" ") : null
+  } catch {
+    return null
+  }
+}
+
+/** Extract YouTube video ID from URL */
+function extractVideoId(url: string): string | null {
+  try {
+    const u = new URL(url)
+    if (u.hostname.includes('youtu.be')) return u.pathname.slice(1).split('/')[0] || null
+    if (u.hostname.includes('youtube.com')) {
+      const shorts = u.pathname.match(/\/shorts\/([^/?]+)/)
+      if (shorts) return shorts[1]
+      return u.searchParams.get('v') || u.pathname.match(/\/embed\/([^/?]+)/)?.[1] || null
+    }
+    return null
+  } catch { return null }
+}
+
 export async function processContent(id: string): Promise<void> {
   try {
     // Step 1: Fetch and format content (server-side)
-    const { error: fetchErr } = await supabase.functions.invoke('fetch-content', {
+    const { data: fetchResult, error: fetchErr } = await supabase.functions.invoke('fetch-content', {
       body: { content_id: id },
     })
     if (fetchErr) throw new Error(fetchErr.message || 'コンテンツの取得に失敗しました')
+
+    // Step 1.5: Client-side YouTube transcript fallback
+    // YouTube blocks InnerTube API from cloud IPs, so the Edge Function often fails
+    // to get transcripts. The browser has a residential IP where it works.
+    if (fetchResult && !fetchResult.has_text) {
+      const { data: content } = await supabase
+        .from('contents')
+        .select('platform, url')
+        .eq('id', id)
+        .single()
+
+      if (content?.platform === 'youtube' && content.url) {
+        const videoId = extractVideoId(content.url)
+        if (videoId) {
+          console.log('[YT] Server failed to get transcript, trying client-side fallback...')
+          const transcript = await fetchYoutubeTranscriptClientSide(videoId)
+          if (transcript) {
+            console.log(`[YT] Client-side transcript: ${transcript.length} chars`)
+            await supabase
+              .from('contents')
+              .update({ full_text: transcript })
+              .eq('id', id)
+          }
+        }
+      }
+    }
 
     // Step 2: AI analysis (server-side, OpenAI key is on the server)
     const { error: analyzeErr } = await supabase.functions.invoke('analyze-content', {

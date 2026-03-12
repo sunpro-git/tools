@@ -1,11 +1,19 @@
 export type Platform = 'note' | 'x' | 'instagram' | 'youtube' | 'other'
 export type ContentStatus = 'pending' | 'processing' | 'completed' | 'error'
 
+export interface Team {
+  id: string
+  name: string
+  created_at: string
+}
+
 export interface User {
   id: string
   name: string
   color: string | null
   icon: string | null
+  team_id: string | null
+  team?: Team
   created_at: string
 }
 
@@ -61,13 +69,22 @@ export interface Database {
       }
       users: {
         Row: User
-        Insert: Omit<User, 'id' | 'created_at'> & {
+        Insert: Omit<User, 'id' | 'created_at' | 'team'> & {
           id?: string
           color?: string | null
           icon?: string | null
+          team_id?: string | null
           created_at?: string
         }
-        Update: Partial<User>
+        Update: Partial<Omit<User, 'team'>>
+      }
+      teams: {
+        Row: Team
+        Insert: Omit<Team, 'id' | 'created_at'> & {
+          id?: string
+          created_at?: string
+        }
+        Update: Partial<Team>
       }
     }
   }

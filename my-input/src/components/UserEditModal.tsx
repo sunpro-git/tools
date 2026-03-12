@@ -1,28 +1,31 @@
 import { useState } from 'react'
-import { X, Check } from 'lucide-react'
-import type { User } from '../types/database'
+import { X, Check, Settings } from 'lucide-react'
+import type { User, Team } from '../types/database'
 import { USER_COLOR_OPTIONS, USER_ICON_OPTIONS, getUserColor } from '../lib/userColor'
 import UserAvatar from './UserAvatar'
 
 interface Props {
   user?: User
-  onSave: (data: { name: string; color: string; icon: string }) => Promise<void>
+  teams?: Team[]
+  onSave: (data: { name: string; color: string; icon: string; teamId: string | null }) => Promise<void>
   onCancel: () => void
+  onManageTeams?: () => void
   saving: boolean
   error?: string
 }
 
-export default function UserEditModal({ user, onSave, onCancel, saving, error }: Props) {
+export default function UserEditModal({ user, teams, onSave, onCancel, onManageTeams, saving, error }: Props) {
   const [name, setName] = useState(user?.name || '')
   const [color, setColor] = useState(user?.color || USER_COLOR_OPTIONS[0].key)
   const [icon, setIcon] = useState(user?.icon || USER_ICON_OPTIONS[0].key)
+  const [teamId, setTeamId] = useState<string | null>(user?.team_id || null)
 
   const isEdit = !!user
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim()) return
-    await onSave({ name: name.trim(), color, icon })
+    await onSave({ name: name.trim(), color, icon, teamId })
   }
 
   const previewUser = { name: name || '?', color, icon }
@@ -61,6 +64,36 @@ export default function UserEditModal({ user, onSave, onCancel, saving, error }:
               autoFocus
             />
           </div>
+
+          {/* Team select */}
+          {teams && (
+            <div>
+              <div className="flex items-center gap-2 mb-1.5">
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider">チーム</label>
+                {onManageTeams && (
+                  <button
+                    type="button"
+                    onClick={onManageTeams}
+                    className="text-xs text-blue-500 hover:text-blue-700 flex items-center gap-0.5 transition-colors"
+                  >
+                    <Settings className="w-3 h-3" />
+                    管理
+                  </button>
+                )}
+              </div>
+              <select
+                value={teamId || ''}
+                onChange={(e) => setTeamId(e.target.value || null)}
+                className="w-full px-4 py-2.5 border border-gray-300 rounded-xl text-base focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none text-gray-900 bg-white"
+                disabled={saving}
+              >
+                <option value="">未所属</option>
+                {teams.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
 
           {/* Color picker */}
           <div>

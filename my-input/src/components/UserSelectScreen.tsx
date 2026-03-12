@@ -1,29 +1,35 @@
 import { useState } from 'react'
 import { Loader2, Plus, Pencil } from 'lucide-react'
-import type { User } from '../types/database'
+import type { User, Team } from '../types/database'
 import UserAvatar from './UserAvatar'
 import UserEditModal from './UserEditModal'
+import TeamManageModal from './TeamManageModal'
 import AppIcon from './AppIcon'
 
 interface Props {
   users: User[]
+  teams: Team[]
   onSelect: (user: User) => void
-  onAddUser: (name: string, color: string, icon: string) => Promise<User>
-  onEditUser: (id: string, data: { name: string; color: string; icon: string }) => Promise<void>
+  onAddUser: (name: string, color: string, icon: string, teamId?: string | null) => Promise<User>
+  onEditUser: (id: string, data: { name: string; color: string; icon: string; teamId: string | null }) => Promise<void>
+  onAddTeam: (name: string) => Promise<void>
+  onUpdateTeam: (id: string, name: string) => Promise<void>
+  onDeleteTeam: (id: string) => Promise<void>
   loading: boolean
 }
 
-export default function UserSelectScreen({ users, onSelect, onAddUser, onEditUser, loading }: Props) {
+export default function UserSelectScreen({ users, teams, onSelect, onAddUser, onEditUser, onAddTeam, onUpdateTeam, onDeleteTeam, loading }: Props) {
   const [showAddModal, setShowAddModal] = useState(false)
   const [editingUser, setEditingUser] = useState<User | null>(null)
+  const [showTeamModal, setShowTeamModal] = useState(false)
   const [saving, setSaving] = useState(false)
   const [saveError, setSaveError] = useState('')
 
-  async function handleAdd(data: { name: string; color: string; icon: string }) {
+  async function handleAdd(data: { name: string; color: string; icon: string; teamId: string | null }) {
     setSaving(true)
     setSaveError('')
     try {
-      const user = await onAddUser(data.name, data.color, data.icon)
+      const user = await onAddUser(data.name, data.color, data.icon, data.teamId)
       setShowAddModal(false)
       onSelect(user)
     } catch (err) {
@@ -33,7 +39,7 @@ export default function UserSelectScreen({ users, onSelect, onAddUser, onEditUse
     }
   }
 
-  async function handleEdit(data: { name: string; color: string; icon: string }) {
+  async function handleEdit(data: { name: string; color: string; icon: string; teamId: string | null }) {
     if (!editingUser) return
     setSaving(true)
     setSaveError('')
@@ -74,9 +80,14 @@ export default function UserSelectScreen({ users, onSelect, onAddUser, onEditUse
                 className="flex-1 flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all"
               >
                 <UserAvatar user={user} users={users} size="lg" />
-                <span className="text-base font-medium text-gray-900">
-                  {user.name}
-                </span>
+                <div className="flex flex-col items-start">
+                  <span className="text-base font-medium text-gray-900">
+                    {user.name}
+                  </span>
+                  {user.team && (
+                    <span className="text-xs text-gray-400">{user.team.name}</span>
+                  )}
+                </div>
               </button>
               <button
                 onClick={() => { setEditingUser(user); setSaveError('') }}
@@ -104,8 +115,10 @@ export default function UserSelectScreen({ users, onSelect, onAddUser, onEditUse
       {/* Add modal */}
       {showAddModal && (
         <UserEditModal
+          teams={teams}
           onSave={handleAdd}
           onCancel={() => { setShowAddModal(false); setSaveError('') }}
+          onManageTeams={() => setShowTeamModal(true)}
           saving={saving}
           error={saveError}
         />
@@ -115,10 +128,24 @@ export default function UserSelectScreen({ users, onSelect, onAddUser, onEditUse
       {editingUser && (
         <UserEditModal
           user={editingUser}
+          teams={teams}
           onSave={handleEdit}
           onCancel={() => { setEditingUser(null); setSaveError('') }}
+          onManageTeams={() => setShowTeamModal(true)}
           saving={saving}
           error={saveError}
+        />
+      )}
+
+      {/* Team manage modal */}
+      {showTeamModal && (
+        <TeamManageModal
+          teams={teams}
+          users={users}
+          onAdd={onAddTeam}
+          onUpdate={onUpdateTeam}
+          onDelete={onDeleteTeam}
+          onClose={() => setShowTeamModal(false)}
         />
       )}
     </div>

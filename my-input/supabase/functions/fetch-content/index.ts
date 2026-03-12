@@ -278,25 +278,28 @@ function getYoutubeThumbnailUrl(videoId: string): string {
   return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`
 }
 
-/** Fetch YouTube player data via InnerTube API */
-async function fetchYoutubePlayerData(videoId: string): Promise<Record<string, unknown> | null> {
+/** Fetch YouTube player data via InnerTube API.
+ *  Supports ANDROID and WEB clients — WEB tends to work better from cloud IPs. */
+async function fetchYoutubePlayerData(videoId: string, client: "ANDROID" | "WEB" = "ANDROID"): Promise<Record<string, unknown> | null> {
   try {
+    const isWeb = client === "WEB"
     const playerResp = await fetch(
-      "https://www.youtube.com/youtubei/v1/player?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w",
+      isWeb
+        ? "https://www.youtube.com/youtubei/v1/player"
+        : "https://www.youtube.com/youtubei/v1/player?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w",
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "User-Agent": "com.google.android.youtube/20.10.38 (Linux; U; Android 14) gzip",
+          "User-Agent": isWeb
+            ? BROWSER_UA
+            : "com.google.android.youtube/20.10.38 (Linux; U; Android 14) gzip",
         },
         body: JSON.stringify({
           context: {
-            client: {
-              clientName: "ANDROID",
-              clientVersion: "20.10.38",
-              hl: "ja",
-              gl: "JP",
-            },
+            client: isWeb
+              ? { clientName: "WEB", clientVersion: "2.20241126.01.00", hl: "ja", gl: "JP" }
+              : { clientName: "ANDROID", clientVersion: "20.10.38", hl: "ja", gl: "JP" },
           },
           videoId,
         }),
@@ -304,6 +307,31 @@ async function fetchYoutubePlayerData(videoId: string): Promise<Record<string, u
     )
     if (!playerResp.ok) return null
     return await playerResp.json()
+  } catch {
+    return null
+  }
+}
+
+/** Fetch YouTube player data by scraping the watch page HTML.
+ *  This mimics a regular browser visit so it works reliably from cloud IPs
+ *  where InnerTube API calls may be blocked. */
+async function fetchYoutubePlayerDataViaWatchPage(videoId: string): Promise<Record<string, unknown> | null> {
+  try {
+    const resp = await fetch(`https://www.youtube.com/watch?v=${videoId}&hl=ja`, {
+      headers: {
+        ...BROWSER_HEADERS,
+        // Bypass EU cookie consent wall that blocks player data on EU IPs
+        "Cookie": "CONSENT=YES+1",
+      },
+    })
+    if (!resp.ok) return null
+    const html = await resp.text()
+
+    // Extract ytInitialPlayerResponse JSON from inline script
+    const match = html.match(/var\s+ytInitialPlayerResponse\s*=\s*(\{.+?\});\s*(?:var\s|<\/script>)/s)
+    if (!match) return null
+
+    return JSON.parse(match[1])
   } catch {
     return null
   }
@@ -320,8 +348,7 @@ function extractYoutubeDescription(playerData: Record<string, unknown>): string 
   }
 }
 
-/** Fetch YouTube transcript (captions) from InnerTube player data.
- *  Prefers Japanese captions, falls back to auto-generated Japanese, then any available. */
+/** Extract caption tracks from player data */
 function extractCaptionTracks(playerData: Record<string, unknown>): Array<{ languageCode: string; kind?: string; baseUrl: string }> | null {
   // deno-lint-ignore no-explicit-any
   const tracks = (playerData as any)?.captions?.playerCaptionsTracklistRenderer?.captionTracks as
@@ -330,15 +357,26 @@ function extractCaptionTracks(playerData: Record<string, unknown>): Array<{ lang
   return tracks && tracks.length > 0 ? tracks : null
 }
 
-async function fetchYoutubeTranscript(videoId: string, playerData?: Record<string, unknown> | null): Promise<string | null> {
+/** Decode HTML entities in caption text */
+function decodeCaptionEntities(text: string): string {
+  return text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/g, " ")
+    .replace(/\n/g, " ")
+    .trim()
+}
+
+/** Fetch and parse caption XML from caption tracks.
+ *  Shared by all YouTube transcript fetching paths (watch page, InnerTube WEB/ANDROID). */
+async function fetchAndParseCaptions(
+  captionTracks: Array<{ languageCode: string; kind?: string; baseUrl: string }>
+): Promise<string | null> {
   try {
-    const data = playerData ?? await fetchYoutubePlayerData(videoId)
-    if (!data) return null
-
-    const captionTracks = extractCaptionTracks(data)
-    if (!captionTracks) return null
-
-    // Pick the best caption track: prefer Japanese
+    // Pick the best caption track: prefer Japanese manual > Japanese ASR > any
     const selectedTrack =
       captionTracks.find(t => t.languageCode === "ja" && t.kind !== "asr") ||
       captionTracks.find(t => t.languageCode === "ja") ||
@@ -346,7 +384,6 @@ async function fetchYoutubeTranscript(videoId: string, playerData?: Record<strin
       captionTracks[0]
     if (!selectedTrack?.baseUrl) return null
 
-    // Fetch the caption XML
     const captionResp = await fetch(selectedTrack.baseUrl)
     if (!captionResp.ok) return null
     const captionXml = await captionResp.text()
@@ -355,20 +392,7 @@ async function fetchYoutubeTranscript(videoId: string, playerData?: Record<strin
     // Parse XML: handle both srv3 format (<p><s>) and legacy format (<text>)
     const segments: string[] = []
 
-    function decodeEntities(text: string): string {
-      return text
-        .replace(/&amp;/g, "&")
-        .replace(/&lt;/g, "<")
-        .replace(/&gt;/g, ">")
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .replace(/&nbsp;/g, " ")
-        .replace(/\n/g, " ")
-        .trim()
-    }
-
     if (captionXml.includes('format="3"')) {
-      // srv3 format: <p t="..." d="..."><s ac="...">text</s></p>
       const pRegex = /<p[^>]*>([\s\S]*?)<\/p>/g
       let match
       while ((match = pRegex.exec(captionXml)) !== null) {
@@ -379,15 +403,14 @@ async function fetchYoutubeTranscript(videoId: string, playerData?: Record<strin
           segText += sMatch[1]
         }
         if (!segText) segText = match[1].replace(/<[^>]+>/g, "")
-        segText = decodeEntities(segText)
+        segText = decodeCaptionEntities(segText)
         if (segText) segments.push(segText)
       }
     } else {
-      // Legacy format: <text start="..." dur="...">text</text>
       const textRegex = /<text[^>]*>([\s\S]*?)<\/text>/g
       let match
       while ((match = textRegex.exec(captionXml)) !== null) {
-        const text = decodeEntities(match[1])
+        const text = decodeCaptionEntities(match[1])
         if (text) segments.push(text)
       }
     }
@@ -397,6 +420,14 @@ async function fetchYoutubeTranscript(videoId: string, playerData?: Record<strin
   } catch {
     return null
   }
+}
+
+/** Try to get YouTube transcript from player data (extract tracks then fetch captions) */
+async function fetchYoutubeTranscriptFromPlayerData(playerData: Record<string, unknown> | null): Promise<string | null> {
+  if (!playerData) return null
+  const tracks = extractCaptionTracks(playerData)
+  if (!tracks) return null
+  return await fetchAndParseCaptions(tracks)
 }
 
 /** Fetch YouTube video title via oEmbed API */
@@ -945,22 +976,51 @@ Deno.serve(async (req) => {
       }
 
       // YouTube: use YouTube thumbnail, correct title via oEmbed, and fetch transcript
+      // Uses a fallback chain: watch page → InnerTube WEB → InnerTube ANDROID
+      // because InnerTube ANDROID often fails from cloud IPs (Supabase Edge Functions)
       if (content.platform === "youtube") {
         const videoId = extractYoutubeVideoId(content.url)
         if (videoId) {
           thumbnailUrl = getYoutubeThumbnailUrl(videoId)
           hasPlatformThumbnail = true
 
-          // Fetch InnerTube player data once, reuse for transcript + description
-          const playerData = await fetchYoutubePlayerData(videoId)
+          let transcript: string | null = null
+          let successPlayerData: Record<string, unknown> | null = null
 
-          // Fetch Japanese transcript and use as full_text
-          const transcript = await fetchYoutubeTranscript(videoId, playerData)
+          // Try multiple approaches — YouTube blocks InnerTube from cloud IPs,
+          // but the client-side fallback (in api.ts) handles this case.
+          // Server-side attempts are kept for cases where they do work.
+
+          // 1. Watch page scraping
+          const watchPageData = await fetchYoutubePlayerDataViaWatchPage(videoId)
+          if (watchPageData) {
+            successPlayerData = watchPageData
+            transcript = await fetchYoutubeTranscriptFromPlayerData(watchPageData)
+          }
+
+          // 2. InnerTube WEB client
+          if (!transcript) {
+            const webData = await fetchYoutubePlayerData(videoId, "WEB")
+            if (webData) {
+              if (!successPlayerData) successPlayerData = webData
+              transcript = await fetchYoutubeTranscriptFromPlayerData(webData)
+            }
+          }
+
+          // 3. InnerTube ANDROID client
+          if (!transcript) {
+            const androidData = await fetchYoutubePlayerData(videoId, "ANDROID")
+            if (androidData) {
+              if (!successPlayerData) successPlayerData = androidData
+              transcript = await fetchYoutubeTranscriptFromPlayerData(androidData)
+            }
+          }
+
           if (transcript) {
             fullText = formatLongText(transcript)
           } else {
-            // Transcript unavailable: use video description instead of Jina junk
-            const description = playerData ? extractYoutubeDescription(playerData) : null
+            // All transcript attempts failed: use video description as fallback
+            const description = successPlayerData ? extractYoutubeDescription(successPlayerData) : null
             fullText = description ? formatLongText(description) : null
           }
         }
