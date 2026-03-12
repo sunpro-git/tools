@@ -21,7 +21,7 @@ interface Filters {
   category?: string
   tag?: string
   search?: string
-  dateRange?: 'today' | 'week'
+  dateRange?: 'today' | 'week' | 'all'
   feedback?: string
   filterUserIds?: string[]
 }
@@ -410,8 +410,11 @@ export default function App() {
     try {
       const content = await addContent(newUrl, currentUser.id)
       setNewUrl('')
-      loadContents()
-      processContent(content.id).then(() => loadContents())
+      // Add new content to the list immediately (status=processing triggers polling)
+      setContents(prev => [{ ...content, likes_count: 0, is_liked_by_me: false } as Content, ...prev])
+      // Fire-and-forget: processContent saves transcript & triggers AI analysis.
+      // The 5s polling (useEffect on processing status) will pick up updates automatically.
+      processContent(content.id).catch(err => console.error('processContent failed:', err))
     } catch (err: unknown) {
       setAddError(err instanceof Error ? err.message : '登録に失敗しました')
     } finally {
@@ -860,6 +863,7 @@ export default function App() {
                     onLikeToggle={handleLikeToggle}
                     currentUserId={currentUser.id}
                     showUser={showUser}
+                    users={users}
                   />
                 )}
                 {weekExcludingTodayContents.length > 0 && (
@@ -873,6 +877,7 @@ export default function App() {
                     onLikeToggle={handleLikeToggle}
                     currentUserId={currentUser.id}
                     showUser={showUser}
+                    users={users}
                   />
                 )}
               </>
@@ -880,23 +885,35 @@ export default function App() {
 
             {/* Main content grid */}
             <div>
-              {isLandingView && (todayContents.length > 0 || weekContents.length > 0) && (
-                <h2 className="text-lg font-bold text-gray-900 mb-4">すべてのインプット</h2>
+              {isLandingView && (todayContents.length > 0 || weekContents.length > 0) ? (
+                <InputSection
+                  title="すべてのインプット"
+                  items={landingAllContents.slice(0, 4)}
+                  totalCount={contents.length}
+                  onViewMore={() => setFilters(prev => ({ ...prev, dateRange: 'all' }))}
+                  onCardClick={navigateToDetail}
+                  onFeedbackChange={handleFeedbackChange}
+                  onLikeToggle={handleLikeToggle}
+                  currentUserId={currentUser.id}
+                  showUser={showUser}
+                  users={users}
+                />
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8">
+                  {displayedContents.map((content) => (
+                    <ContentCard
+                      key={content.id}
+                      content={content}
+                      onClick={() => navigateToDetail(content.id)}
+                      onFeedbackChange={handleFeedbackChange}
+                      onLikeToggle={handleLikeToggle}
+                      isOwner={content.user_id === currentUser.id}
+                      showUser={showUser}
+                      users={users}
+                    />
+                  ))}
+                </div>
               )}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-4 gap-y-8">
-                {(isLandingView ? landingAllContents : displayedContents).map((content) => (
-                  <ContentCard
-                    key={content.id}
-                    content={content}
-                    onClick={() => navigateToDetail(content.id)}
-                    onFeedbackChange={handleFeedbackChange}
-                    onLikeToggle={handleLikeToggle}
-                    isOwner={content.user_id === currentUser.id}
-                    showUser={showUser}
-                    users={users}
-                  />
-                ))}
-              </div>
             </div>
           </>
         )}

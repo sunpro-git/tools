@@ -192,10 +192,26 @@ export async function deleteContent(id: string): Promise<void> {
   if (error) throw error
 }
 
-/** Fetch YouTube transcript from the browser (client-side fallback).
+/** Fetch YouTube transcript via local yt-dlp proxy (Vite dev server middleware).
+ *  yt-dlp uses Python's TLS stack + ANDROID_VR client, which is the only reliable method
+ *  for fetching YouTube captions. YouTube blocks Node.js/Deno TLS and adds exp=xpe to
+ *  watch page caption URLs which always return empty. */
+async function fetchTranscriptViaYtDlp(videoId: string): Promise<string | null> {
+  try {
+    const resp = await fetch(`/api/yt-transcript?v=${videoId}`)
+    if (!resp.ok) return null
+    const data = await resp.json()
+    return data.transcript && data.transcript.length > 0 ? data.transcript : null
+  } catch {
+    return null
+  }
+}
+
+/** Fetch YouTube transcript or description from the browser (client-side fallback).
  *  YouTube blocks InnerTube API calls from cloud IPs, but allows them from residential IPs.
- *  This runs in the user's browser which has a residential IP. */
-async function fetchYoutubeTranscriptClientSide(videoId: string): Promise<string | null> {
+ *  This runs in the user's browser which has a residential IP.
+ *  Returns transcript if available, otherwise falls back to video description. */
+async function fetchYoutubeContentClientSide(videoId: string): Promise<string | null> {
   try {
     const resp = await fetch(
       "https://www.youtube.com/youtubei/v1/player?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w",
@@ -204,7 +220,7 @@ async function fetchYoutubeTranscriptClientSide(videoId: string): Promise<string
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           context: {
-            client: { clientName: "WEB", clientVersion: "2.20241126.01.00", hl: "ja", gl: "JP" },
+            client: { clientName: "WEB", clientVersion: "2.20260302.00.00", hl: "ja", gl: "JP" },
           },
           videoId,
         }),
@@ -213,50 +229,65 @@ async function fetchYoutubeTranscriptClientSide(videoId: string): Promise<string
     if (!resp.ok) return null
     const data = await resp.json()
 
+    // Try to get transcript from caption tracks
     const tracks = data?.captions?.playerCaptionsTracklistRenderer?.captionTracks as
       | Array<{ languageCode: string; kind?: string; baseUrl: string }>
       | undefined
-    if (!tracks || tracks.length === 0) return null
 
-    const track =
-      tracks.find(t => t.languageCode === "ja" && t.kind !== "asr") ||
-      tracks.find(t => t.languageCode === "ja") ||
-      tracks.find(t => t.languageCode?.startsWith("ja")) ||
-      tracks[0]
-    if (!track?.baseUrl) return null
+    if (tracks && tracks.length > 0) {
+      const track =
+        tracks.find(t => t.languageCode === "ja" && t.kind !== "asr") ||
+        tracks.find(t => t.languageCode === "ja") ||
+        tracks.find(t => t.languageCode?.startsWith("ja")) ||
+        tracks[0]
 
-    const captionResp = await fetch(track.baseUrl)
-    if (!captionResp.ok) return null
-    const xml = await captionResp.text()
+      if (track?.baseUrl) {
+        const captionResp = await fetch(track.baseUrl)
+        if (captionResp.ok) {
+          const xml = await captionResp.text()
 
-    const segments: string[] = []
-    const decode = (t: string) => t
-      .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
-      .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, " ")
-      .replace(/\n/g, " ").trim()
+          if (xml.length > 0) {
+            const segments: string[] = []
+            const decode = (t: string) => t
+              .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+              .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, " ")
+              .replace(/\n/g, " ").trim()
 
-    if (xml.includes('format="3"')) {
-      const pRegex = /<p[^>]*>([\s\S]*?)<\/p>/g
-      let m
-      while ((m = pRegex.exec(xml)) !== null) {
-        const sRegex = /<s[^>]*>([^<]*)<\/s>/g
-        let seg = ""
-        let sm
-        while ((sm = sRegex.exec(m[1])) !== null) seg += sm[1]
-        if (!seg) seg = m[1].replace(/<[^>]+>/g, "")
-        seg = decode(seg)
-        if (seg) segments.push(seg)
-      }
-    } else {
-      const tRegex = /<text[^>]*>([\s\S]*?)<\/text>/g
-      let m
-      while ((m = tRegex.exec(xml)) !== null) {
-        const t = decode(m[1])
-        if (t) segments.push(t)
+            if (xml.includes('format="3"')) {
+              const pRegex = /<p[^>]*>([\s\S]*?)<\/p>/g
+              let m
+              while ((m = pRegex.exec(xml)) !== null) {
+                const sRegex = /<s[^>]*>([^<]*)<\/s>/g
+                let seg = ""
+                let sm
+                while ((sm = sRegex.exec(m[1])) !== null) seg += sm[1]
+                if (!seg) seg = m[1].replace(/<[^>]+>/g, "")
+                seg = decode(seg)
+                if (seg) segments.push(seg)
+              }
+            } else {
+              const tRegex = /<text[^>]*>([\s\S]*?)<\/text>/g
+              let m
+              while ((m = tRegex.exec(xml)) !== null) {
+                const t = decode(m[1])
+                if (t) segments.push(t)
+              }
+            }
+
+            if (segments.length > 0) return segments.join(" ")
+          }
+        }
       }
     }
 
-    return segments.length > 0 ? segments.join(" ") : null
+    // Fallback: use video description (available even when status is UNPLAYABLE)
+    const description = data?.videoDetails?.shortDescription
+    if (typeof description === "string" && description.trim()) {
+      console.log('[YT] No transcript available, using video description as fallback')
+      return description.trim()
+    }
+
+    return null
   } catch {
     return null
   }
@@ -285,8 +316,9 @@ export async function processContent(id: string): Promise<void> {
     if (fetchErr) throw new Error(fetchErr.message || 'コンテンツの取得に失敗しました')
 
     // Step 1.5: Client-side YouTube transcript fallback
-    // YouTube blocks InnerTube API from cloud IPs, so the Edge Function often fails
-    // to get transcripts. The browser has a residential IP where it works.
+    // YouTube blocks Deno/Node.js TLS fingerprints (JA3) on caption URLs, returning empty responses.
+    // Browser fetch uses a different TLS stack that YouTube allows.
+    // Strategy: server extracts caption URL from watch page, client fetches the actual caption XML.
     if (fetchResult && !fetchResult.has_text) {
       const { data: content } = await supabase
         .from('contents')
@@ -296,16 +328,30 @@ export async function processContent(id: string): Promise<void> {
 
       if (content?.platform === 'youtube' && content.url) {
         const videoId = extractVideoId(content.url)
+        let transcript: string | null = null
+
+        // Priority 1: yt-dlp local proxy (most reliable — Python TLS + ANDROID_VR client)
         if (videoId) {
-          console.log('[YT] Server failed to get transcript, trying client-side fallback...')
-          const transcript = await fetchYoutubeTranscriptClientSide(videoId)
+          console.log('[YT] Server failed to get transcript, trying yt-dlp proxy...')
+          transcript = await fetchTranscriptViaYtDlp(videoId)
           if (transcript) {
-            console.log(`[YT] Client-side transcript: ${transcript.length} chars`)
-            await supabase
-              .from('contents')
-              .update({ full_text: transcript })
-              .eq('id', id)
+            console.log(`[YT] yt-dlp proxy success: ${transcript.length} chars`)
           }
+        }
+
+        // Priority 2: Full client-side fallback (InnerTube API from browser — usually fails)
+        if (!transcript && videoId) {
+          console.log('[YT] yt-dlp failed, trying client-side InnerTube fallback...')
+          transcript = await fetchYoutubeContentClientSide(videoId)
+        }
+
+        if (transcript) {
+          console.log(`[YT] Client-side content: ${transcript.length} chars`)
+          // Save transcript and reset status to 'processing' so analyze-content will process it
+          await supabase
+            .from('contents')
+            .update({ full_text: transcript, status: 'processing' })
+            .eq('id', id)
         }
       }
     }
@@ -316,8 +362,6 @@ export async function processContent(id: string): Promise<void> {
     })
     if (analyzeErr) {
       console.error('AI analysis failed:', analyzeErr)
-      // Don't throw — content was fetched successfully, analysis is optional
-      // But ensure status is updated so the UI doesn't stay stuck on "processing"
       await supabase
         .from('contents')
         .update({ status: 'completed' })

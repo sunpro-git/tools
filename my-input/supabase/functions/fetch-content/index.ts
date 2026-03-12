@@ -293,13 +293,13 @@ async function fetchYoutubePlayerData(videoId: string, client: "ANDROID" | "WEB"
           "Content-Type": "application/json",
           "User-Agent": isWeb
             ? BROWSER_UA
-            : "com.google.android.youtube/20.10.38 (Linux; U; Android 14) gzip",
+            : "com.google.android.youtube/19.29.37 (Linux; U; Android 14) gzip",
         },
         body: JSON.stringify({
           context: {
             client: isWeb
-              ? { clientName: "WEB", clientVersion: "2.20241126.01.00", hl: "ja", gl: "JP" }
-              : { clientName: "ANDROID", clientVersion: "20.10.38", hl: "ja", gl: "JP" },
+              ? { clientName: "WEB", clientVersion: "2.20260302.00.00", hl: "ja", gl: "JP" }
+              : { clientName: "ANDROID", clientVersion: "19.29.37", androidSdkVersion: 34, hl: "ja", gl: "JP" },
           },
           videoId,
         }),
@@ -321,17 +321,36 @@ async function fetchYoutubePlayerDataViaWatchPage(videoId: string): Promise<Reco
       headers: {
         ...BROWSER_HEADERS,
         // Bypass EU cookie consent wall that blocks player data on EU IPs
-        "Cookie": "CONSENT=YES+1",
+        "Cookie": "CONSENT=YES+cb; SOCS=CAISEwgDEgk2NjI1NTI3NTkaAmphIAEaBgiA_LO2Bg",
       },
     })
     if (!resp.ok) return null
     const html = await resp.text()
 
-    // Extract ytInitialPlayerResponse JSON from inline script
-    const match = html.match(/var\s+ytInitialPlayerResponse\s*=\s*(\{.+?\});\s*(?:var\s|<\/script>)/s)
-    if (!match) return null
+    // Extract ytInitialPlayerResponse JSON using brace-counting for reliability
+    const startPattern = /var\s+ytInitialPlayerResponse\s*=\s*/
+    const startMatch = html.match(startPattern)
+    if (!startMatch || startMatch.index === undefined) return null
+    const jsonStart = startMatch.index + startMatch[0].length
+    if (html[jsonStart] !== '{') return null
 
-    return JSON.parse(match[1])
+    // Count braces to find the matching closing brace (handles nested JSON correctly)
+    let depth = 0
+    let inString = false
+    let escape = false
+    let i = jsonStart
+    for (; i < html.length; i++) {
+      const c = html[i]
+      if (escape) { escape = false; continue }
+      if (c === '\\' && inString) { escape = true; continue }
+      if (c === '"') { inString = !inString; continue }
+      if (inString) continue
+      if (c === '{') depth++
+      else if (c === '}') { depth--; if (depth === 0) break }
+    }
+    if (depth !== 0) return null
+
+    return JSON.parse(html.substring(jsonStart, i + 1))
   } catch {
     return null
   }
@@ -445,7 +464,7 @@ async function fetchYoutubeTitle(url: string): Promise<string | null> {
   }
 }
 
-const BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+const BROWSER_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
 
 /** Common browser-like headers to avoid WAF blocks */
 const BROWSER_HEADERS: Record<string, string> = {
@@ -868,6 +887,7 @@ Deno.serve(async (req) => {
     let thumbnailUrl = ""
     let imageUrls: string[] = []
     let hasPlatformThumbnail = false
+    let ytCaptionUrl: string | null = null
 
     // reform-online.jp: use Jina Reader with forwarded login cookie
     if (isReformOnline(content.url)) {
@@ -987,15 +1007,44 @@ Deno.serve(async (req) => {
           let transcript: string | null = null
           let successPlayerData: Record<string, unknown> | null = null
 
+          // 0. External Python transcript service (highest priority)
+          // Uses youtube-transcript-api via Render.com — bypasses YouTube cloud IP blocks
+          const ytServiceUrl = Deno.env.get("YT_TRANSCRIPT_SERVICE_URL")
+          const ytServiceKey = Deno.env.get("YT_TRANSCRIPT_SERVICE_KEY")
+          if (ytServiceUrl) {
+            try {
+              const svcHeaders: Record<string, string> = { "Content-Type": "application/json" }
+              if (ytServiceKey) svcHeaders["Authorization"] = `Bearer ${ytServiceKey}`
+              const svcResp = await fetch(`${ytServiceUrl}/transcript`, {
+                method: "POST",
+                headers: svcHeaders,
+                body: JSON.stringify({ video_id: videoId, lang: "ja" }),
+              })
+              if (svcResp.ok) {
+                const svcData = await svcResp.json()
+                if (svcData.transcript && svcData.transcript.length > 0) {
+                  transcript = svcData.transcript
+                  console.log(`[yt-transcript-service] Success: ${svcData.length} chars`)
+                }
+              } else {
+                console.log(`[yt-transcript-service] Failed: ${svcResp.status}`)
+              }
+            } catch (e) {
+              console.log(`[yt-transcript-service] Error: ${e}`)
+            }
+          }
+
           // Try multiple approaches — YouTube blocks InnerTube from cloud IPs,
           // but the client-side fallback (in api.ts) handles this case.
           // Server-side attempts are kept for cases where they do work.
 
-          // 1. Watch page scraping
-          const watchPageData = await fetchYoutubePlayerDataViaWatchPage(videoId)
-          if (watchPageData) {
-            successPlayerData = watchPageData
-            transcript = await fetchYoutubeTranscriptFromPlayerData(watchPageData)
+          // 1. Watch page scraping (skip if already got transcript from external service)
+          if (!transcript) {
+            const watchPageData = await fetchYoutubePlayerDataViaWatchPage(videoId)
+            if (watchPageData) {
+              successPlayerData = watchPageData
+              transcript = await fetchYoutubeTranscriptFromPlayerData(watchPageData)
+            }
           }
 
           // 2. InnerTube WEB client
@@ -1016,11 +1065,34 @@ Deno.serve(async (req) => {
             }
           }
 
+          // Extract caption URL for client-side fallback (browser TLS bypasses YouTube's JA3 blocking)
+          // YouTube blocks Node.js/Deno TLS fingerprints (JA3) on timedtext API, returning empty responses.
+          // Browser fetch uses a different TLS stack that YouTube allows, so we pass the URL to the client.
+          let captionUrl: string | null = null
+          if (!transcript && successPlayerData) {
+            const tracks = extractCaptionTracks(successPlayerData)
+            if (tracks) {
+              const bestTrack =
+                tracks.find(t => t.languageCode === "ja" && t.kind !== "asr") ||
+                tracks.find(t => t.languageCode === "ja") ||
+                tracks.find(t => t.languageCode?.startsWith("ja")) ||
+                tracks[0]
+              if (bestTrack?.baseUrl) {
+                // Add fmt=srv3 for structured XML format
+                captionUrl = bestTrack.baseUrl + (bestTrack.baseUrl.includes("fmt=") ? "" : "&fmt=srv3")
+              }
+            }
+          }
+
           if (transcript) {
             fullText = formatLongText(transcript)
           } else {
+            // Pass caption URL to client for browser-based fetching
+            ytCaptionUrl = captionUrl
             // All transcript attempts failed: use video description as fallback
             const description = successPlayerData ? extractYoutubeDescription(successPlayerData) : null
+            // YouTube Jina content is page HTML (nav, sidebar, recommendations) — never useful.
+            // Always overwrite with description or null so client-side fallback can retry.
             fullText = description ? formatLongText(description) : null
           }
         }
@@ -1085,7 +1157,7 @@ Deno.serve(async (req) => {
     if (updateError) throw updateError
 
     return new Response(
-      JSON.stringify({ success: true, has_text: !!fullText, has_platform_thumbnail: hasPlatformThumbnail }),
+      JSON.stringify({ success: true, has_text: !!fullText, has_platform_thumbnail: hasPlatformThumbnail, yt_caption_url: ytCaptionUrl }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     )
   } catch (error) {
