@@ -5,7 +5,8 @@ export const getAreaBranch = (address) => {
     if (!address) return null;
     if (address.match(/長野|須坂|千曲|中野/)) return { name: '長野', class: 'bg-amber-50 text-amber-700 border-amber-200' };
     if (address.match(/上田|東御|小諸|佐久/)) return { name: '上田', class: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
-    if (address.match(/伊那|駒ヶ根|飯田/)) return { name: '伊那', class: 'bg-rose-50 text-rose-700 border-rose-200' };
+    if (address.match(/飯田/)) return { name: '飯田', class: 'bg-purple-50 text-purple-700 border-purple-200' };
+    if (address.match(/伊那|駒ヶ根/)) return { name: '伊那', class: 'bg-rose-50 text-rose-700 border-rose-200' };
     if (address.match(/松本|塩尻|安曇野/)) return { name: '本社', class: 'bg-slate-100 text-slate-600 border-slate-200' };
     return null;
 };
