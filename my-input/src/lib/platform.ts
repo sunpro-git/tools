@@ -36,9 +36,32 @@ function isShinkenHousing(url?: string): boolean {
   }
 }
 
+/** Check if URL is from sendenkaigi.com (宣伝会議) */
+function isSendenkaigi(url?: string): boolean {
+  if (!url) return false
+  try {
+    const host = new URL(url).hostname.toLowerCase()
+    return host.includes('sendenkaigi.com') || host.includes('advertimes.com')
+  } catch {
+    return false
+  }
+}
+
+/** Check if URL is from diamond.jp (ダイヤモンド・オンライン) */
+function isDiamond(url?: string): boolean {
+  if (!url) return false
+  try {
+    return new URL(url).hostname.toLowerCase().includes('diamond.jp')
+  } catch {
+    return false
+  }
+}
+
 export function getPlatformLabel(platform: Platform, url?: string): string {
   if (platform === 'other' && isReformOnline(url)) return 'リフォーム産業新聞'
   if (platform === 'other' && isShinkenHousing(url)) return '新建ハウジング'
+  if (platform === 'other' && isSendenkaigi(url)) return '宣伝会議'
+  if (platform === 'other' && isDiamond(url)) return 'ダイヤモンド・オンライン'
   const labels: Record<Platform, string> = {
     note: 'note',
     x: 'X (Twitter)',
@@ -93,6 +116,8 @@ export function getYoutubeEmbedUrl(videoId: string): string {
 export function getPlatformColor(platform: Platform, url?: string): string {
   if (platform === 'other' && isReformOnline(url)) return 'bg-emerald-100 text-emerald-800'
   if (platform === 'other' && isShinkenHousing(url)) return 'bg-sky-100 text-sky-800'
+  if (platform === 'other' && isSendenkaigi(url)) return 'bg-orange-100 text-orange-800'
+  if (platform === 'other' && isDiamond(url)) return 'bg-cyan-100 text-cyan-800'
   const colors: Record<Platform, string> = {
     note: 'bg-green-100 text-green-800',
     x: 'bg-gray-100 text-gray-800',

@@ -5,6 +5,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 }
 
+/** Fetch with timeout using AbortController */
+function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 30000): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer))
+}
+
 /** Clean up X/Twitter post text: remove X UI boilerplate and restore line breaks */
 function formatXPostText(text: string): string {
   let cleaned = text
@@ -206,9 +213,9 @@ async function fetchXDataViaFxTwitter(tweetUrl: string): Promise<{ title: string
     const [, username, statusId] = pathMatch
 
     const apiUrl = `https://api.fxtwitter.com/${username}/status/${statusId}`
-    const resp = await fetch(apiUrl, {
+    const resp = await fetchWithTimeout(apiUrl, {
       headers: { "User-Agent": "MyInputBot/1.0" },
-    })
+    }, 10000)
     if (!resp.ok) return { title: null, thumbnail: null }
 
     const data = await resp.json()
@@ -283,7 +290,7 @@ function getYoutubeThumbnailUrl(videoId: string): string {
 async function fetchYoutubePlayerData(videoId: string, client: "ANDROID" | "WEB" = "ANDROID"): Promise<Record<string, unknown> | null> {
   try {
     const isWeb = client === "WEB"
-    const playerResp = await fetch(
+    const playerResp = await fetchWithTimeout(
       isWeb
         ? "https://www.youtube.com/youtubei/v1/player"
         : "https://www.youtube.com/youtubei/v1/player?key=AIzaSyA8eiZmM1FaDVjRy-df2KTyQ_vz_yYM39w",
@@ -317,7 +324,7 @@ async function fetchYoutubePlayerData(videoId: string, client: "ANDROID" | "WEB"
  *  where InnerTube API calls may be blocked. */
 async function fetchYoutubePlayerDataViaWatchPage(videoId: string): Promise<Record<string, unknown> | null> {
   try {
-    const resp = await fetch(`https://www.youtube.com/watch?v=${videoId}&hl=ja`, {
+    const resp = await fetchWithTimeout(`https://www.youtube.com/watch?v=${videoId}&hl=ja`, {
       headers: {
         ...BROWSER_HEADERS,
         // Bypass EU cookie consent wall that blocks player data on EU IPs
@@ -403,7 +410,7 @@ async function fetchAndParseCaptions(
       captionTracks[0]
     if (!selectedTrack?.baseUrl) return null
 
-    const captionResp = await fetch(selectedTrack.baseUrl)
+    const captionResp = await fetchWithTimeout(selectedTrack.baseUrl, {}, 15000)
     if (!captionResp.ok) return null
     const captionXml = await captionResp.text()
     if (!captionXml) return null
@@ -453,9 +460,9 @@ async function fetchYoutubeTranscriptFromPlayerData(playerData: Record<string, u
 async function fetchYoutubeTitle(url: string): Promise<string | null> {
   try {
     const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`
-    const resp = await fetch(oembedUrl, {
+    const resp = await fetchWithTimeout(oembedUrl, {
       headers: { "Accept-Language": "ja,en-US;q=0.7,en;q=0.3" },
-    })
+    }, 10000)
     if (!resp.ok) return null
     const data = await resp.json()
     return data.title || null
@@ -489,6 +496,25 @@ function isReformOnline(url: string): boolean {
 function isShinkenHousing(url: string): boolean {
   try {
     return new URL(url).hostname.includes("s-housing.jp")
+  } catch {
+    return false
+  }
+}
+
+/** Check if URL is from sendenkaigi.com (宣伝会議) */
+function isSendenkaigi(url: string): boolean {
+  try {
+    const host = new URL(url).hostname
+    return host.includes("sendenkaigi.com") || host.includes("advertimes.com")
+  } catch {
+    return false
+  }
+}
+
+/** Check if URL is from diamond.jp (ダイヤモンド・オンライン) */
+function isDiamond(url: string): boolean {
+  try {
+    return new URL(url).hostname.includes("diamond.jp")
   } catch {
     return false
   }
@@ -622,7 +648,7 @@ async function fetchReformOnlineViaJina(url: string): Promise<{
     "X-No-Cache": "true",
   }
 
-  const resp = await fetch(`https://r.jina.ai/${url}`, { headers: jinaHeaders })
+  const resp = await fetchWithTimeout(`https://r.jina.ai/${url}`, { headers: jinaHeaders }, 30000)
   if (!resp.ok) {
     throw new Error(`Jina Reader failed for reform-online: ${resp.status}`)
   }
@@ -708,7 +734,7 @@ async function loginShinkenHousing(articleUrl: string): Promise<string> {
   }
 
   // Step 1: GET the article page to extract login nonces
-  const pageResp = await fetch(articleUrl, { headers: BROWSER_HEADERS, redirect: "follow" })
+  const pageResp = await fetchWithTimeout(articleUrl, { headers: BROWSER_HEADERS, redirect: "follow" }, 15000)
   if (!pageResp.ok) throw new Error(`Failed to load s-housing page: ${pageResp.status}`)
   const pageHtml = await pageResp.text()
 
@@ -735,7 +761,7 @@ async function loginShinkenHousing(articleUrl: string): Promise<string> {
     action: "sssm_login_action",
   })
 
-  const loginResp = await fetch(
+  const loginResp = await fetchWithTimeout(
     "https://www.s-housing.jp/wp-content/plugins/spiral-secure-session-manager/views/forms/login_api_v2.php",
     {
       method: "POST",
@@ -747,7 +773,8 @@ async function loginShinkenHousing(articleUrl: string): Promise<string> {
       },
       body: formBody.toString(),
       redirect: "manual",
-    }
+    },
+    15000
   )
 
   // Extract sml_wp_session cookie from Set-Cookie headers
@@ -772,7 +799,7 @@ async function fetchShinkenHousingViaJina(url: string): Promise<{
     "X-No-Cache": "true",
   }
 
-  const resp = await fetch(`https://r.jina.ai/${url}`, { headers: jinaHeaders })
+  const resp = await fetchWithTimeout(`https://r.jina.ai/${url}`, { headers: jinaHeaders }, 30000)
   if (!resp.ok) {
     throw new Error(`Jina Reader failed for s-housing: ${resp.status}`)
   }
@@ -798,6 +825,270 @@ async function fetchShinkenHousingViaJina(url: string): Promise<{
   }
 
   return { title, fullText: cleanedText, thumbnailUrl, author }
+}
+
+/** Strip sendenkaigi.com navigation, sidebar, and footer boilerplate from Jina output. */
+function cleanSendenkaigiJinaContent(text: string): string {
+  let cleaned = text
+
+  // Strip header/navigation: find the article body start after breadcrumb
+  // Typical pattern: numbered marker like "0 mkt__mda__hsk ..." before article body
+  const markerMatch = cleaned.match(/\d+\s+mkt__\w+\s+[\w-]+\s+[\w_-]+\n/)
+  if (markerMatch && markerMatch.index !== undefined) {
+    cleaned = cleaned.substring(markerMatch.index + markerMatch[0].length).trim()
+  } else {
+    // Fallback: find after breadcrumb-like pattern ending with series name
+    const breadcrumbEnd = cleaned.match(/(?:Idea&Techniques|特集一覧|連載一覧|注目トピックス|ニュース|EVENT REPORT)\n/)
+    if (breadcrumbEnd && breadcrumbEnd.index !== undefined) {
+      cleaned = cleaned.substring(breadcrumbEnd.index + breadcrumbEnd[0].length).trim()
+    }
+  }
+
+  // Strip end boilerplate
+  const endMarkers = [
+    "\n関連記事\n",
+    "\nこの記事の感想を",
+    "\nあなたへのおすすめ",
+    "\n最新記事\n",
+    "\nメディア一覧",
+    "\n注目のタグ",
+    "\nフォーラム",
+    "\n講座一覧",
+    "\nイベント一覧",
+    "\nカート",
+    "\n無料キャリア相談",
+    "\n宣伝会議 について",
+    "\n個人情報の取り扱いについて",
+  ]
+  let endIdx = cleaned.length
+  for (const marker of endMarkers) {
+    const idx = cleaned.indexOf(marker)
+    if (idx >= 0 && idx < endIdx) endIdx = idx
+  }
+  cleaned = cleaned.substring(0, endIdx).trim()
+
+  return cleaned
+}
+
+/** Login to sendenkaigi.com via Auth0 password grant and create a session.
+ *  Returns session cookies string for use with Jina Reader. */
+async function loginSendenkaigi(): Promise<string> {
+  const email = Deno.env.get("SENDENKAIGI_EMAIL")
+  const password = Deno.env.get("SENDENKAIGI_PASSWORD")
+  if (!email || !password) {
+    throw new Error("SENDENKAIGI_EMAIL and SENDENKAIGI_PASSWORD secrets not configured")
+  }
+
+  // Step 1: Get Auth0 tokens via Resource Owner Password Grant
+  const auth0Resp = await fetchWithTimeout("https://kaigi-id.jp.auth0.com/oauth/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      grant_type: "password",
+      client_id: "9DNgpmTRWaUINrzQ1QDXozWIIxSALjnI",
+      client_secret: "LFO_iOQ7DZ6ZxUA4zgltigFr1YLHY43arSxb8w6sV4ghsPip11Lf4r8r3RatEEjT",
+      username: email,
+      password: password,
+      audience: "https://kaigi-id.jp.auth0.com/api/v2/",
+      scope: "openid profile email offline_access",
+    }),
+  }, 15000)
+  if (!auth0Resp.ok) {
+    const errBody = await auth0Resp.text()
+    throw new Error(`sendenkaigi Auth0 login failed: ${auth0Resp.status} ${errBody}`)
+  }
+  const tokens = await auth0Resp.json()
+  const { access_token, expires_in, refresh_token } = tokens
+  if (!access_token) {
+    throw new Error("sendenkaigi Auth0 login failed — no access_token received")
+  }
+
+  // Step 2: Create session on sendenkaigi.com API
+  const sessionResp = await fetchWithTimeout("https://i-api.sendenkaigi.com/v1/session", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Origin": "https://i.sendenkaigi.com",
+      "Referer": "https://i.sendenkaigi.com/",
+    },
+    body: JSON.stringify({
+      access_token,
+      expires_in,
+      refresh_token: refresh_token || "",
+      external: true,
+    }),
+  }, 15000)
+  if (!sessionResp.ok) {
+    const errBody = await sessionResp.text()
+    throw new Error(`sendenkaigi session creation failed: ${sessionResp.status} ${errBody}`)
+  }
+
+  // Extract session cookies from response
+  const cookieMap = extractCookieMap(sessionResp)
+  const sessionCookie = cookieMap.get("session")
+  const userIdCookie = cookieMap.get("user_id")
+  if (!sessionCookie) {
+    throw new Error("sendenkaigi login failed — no session cookie received. Check credentials.")
+  }
+
+  let cookieStr = `session=${sessionCookie}`
+  if (userIdCookie) cookieStr += `; user_id=${userIdCookie}`
+  return cookieStr
+}
+
+/** Fetch sendenkaigi.com article via Auth0 login + Jina Reader. */
+async function fetchSendenkaigiViaJina(url: string): Promise<{
+  title: string; fullText: string; thumbnailUrl: string; author: string
+}> {
+  const cookie = await loginSendenkaigi()
+
+  const jinaHeaders: Record<string, string> = {
+    "Accept": "application/json",
+    "X-Set-Cookie": cookie,
+    "X-No-Cache": "true",
+  }
+
+  const resp = await fetchWithTimeout(`https://r.jina.ai/${url}`, { headers: jinaHeaders }, 30000)
+  if (!resp.ok) {
+    throw new Error(`Jina Reader failed for sendenkaigi: ${resp.status}`)
+  }
+  const json = await resp.json()
+  const title = json.data?.title
+    ?.replace(/ \| 宣伝会議$/, "")
+    ?.replace(/ \| 販促会議$/, "")
+    ?.replace(/ \| 広報会議$/, "")
+    ?.replace(/ \| KAIGI GROUP$/, "")
+    || ""
+  const rawText = json.data?.content || ""
+  const author = json.data?.author || ""
+  const metadata = json.data?.metadata as Record<string, string> | undefined
+
+  const cleanedText = cleanSendenkaigiJinaContent(rawText)
+
+  let thumbnailUrl = ""
+  const ogImage = extractOgImageFromMetadata(metadata)
+  if (ogImage) {
+    thumbnailUrl = ogImage
+  } else {
+    const images = extractArticleImages(cleanedText)
+    if (images.length > 0) thumbnailUrl = images[0]
+  }
+
+  return { title, fullText: cleanedText, thumbnailUrl, author }
+}
+
+/** Extract article body text from a diamond.jp HTML page.
+ *  Extracts h1-h6 and p tags from the article-body section. */
+function extractDiamondArticleBody(html: string): string {
+  const bodyStart = html.indexOf('class="article-body')
+  if (bodyStart < 0) return ""
+
+  const afterBody = html.substring(bodyStart)
+
+  // Find end of article body: before pagination or related articles
+  let endIdx = afterBody.length
+  for (const marker of ['class="article-pager', 'class="article-read-more', 'class="article-relation']) {
+    const idx = afterBody.indexOf(marker)
+    if (idx > 0 && idx < endIdx) endIdx = idx
+  }
+  const articleSection = afterBody.substring(0, endIdx)
+
+  // Extract heading and paragraph content
+  const contentRegex = /<(h[1-6]|p)[^>]*>([\s\S]*?)<\/\1>/g
+  let match
+  const parts: string[] = []
+  while ((match = contentRegex.exec(articleSection)) !== null) {
+    // Strip HTML tags from inner content
+    const content = match[2].replace(/<[^>]+>/g, "").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&nbsp;/g, " ").trim()
+    if (!content) continue
+    if (match[1].startsWith("h")) {
+      parts.push(`\n## ${content}\n`)
+    } else {
+      parts.push(content)
+    }
+  }
+  return parts.join("\n\n")
+}
+
+/** Fetch diamond.jp article by direct HTML fetch, handling multi-page articles.
+ *  diamond.jp uses ?page=N for pagination. Jina Reader cannot extract content
+ *  from diamond.jp due to JavaScript rendering requirements. */
+async function fetchDiamondArticle(url: string): Promise<{
+  title: string; fullText: string; thumbnailUrl: string; author: string
+}> {
+  const headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml",
+    "Accept-Language": "ja,en-US;q=0.7,en;q=0.3",
+  }
+
+  // Strip any existing page parameter to get the base URL
+  const baseUrl = new URL(url)
+  baseUrl.searchParams.delete("page")
+  const cleanUrl = baseUrl.toString()
+
+  // Fetch page 1
+  const page1Resp = await fetchWithTimeout(cleanUrl, { headers }, 30000)
+  if (!page1Resp.ok) {
+    throw new Error(`diamond.jp fetch failed: ${page1Resp.status}`)
+  }
+  const page1Html = await page1Resp.text()
+
+  // Extract title
+  const titleMatch = page1Html.match(/<title>([^<]+)<\/title>/)
+  let title = titleMatch?.[1]
+    ?.replace(/ \| [^|]+\| ダイヤモンド・オンライン$/, "")
+    ?.replace(/ \| ダイヤモンド・オンライン$/, "")
+    ?.trim() || ""
+
+  // Extract og:image for thumbnail
+  const ogImageMatch = page1Html.match(/<meta[^>]*property="og:image"[^>]*content="([^"]+)"/)
+  const thumbnailUrl = ogImageMatch?.[1] || ""
+
+  // Extract author from JSON-LD
+  let author = ""
+  const jsonLdMatch = page1Html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)
+  if (jsonLdMatch) {
+    try {
+      const ld = JSON.parse(jsonLdMatch[1])
+      if (ld.author) {
+        author = Array.isArray(ld.author)
+          ? ld.author.map((a: { name?: string }) => a.name || "").filter(Boolean).join(", ")
+          : ld.author.name || ""
+      }
+    } catch { /* ignore */ }
+  }
+
+  // Detect total page count from pagination links (?page=N)
+  const pageRefs = [...page1Html.matchAll(/\?page=(\d+)/g)].map(m => parseInt(m[1]))
+  const totalPages = pageRefs.length > 0 ? Math.max(...pageRefs) : 1
+
+  // Extract page 1 body
+  const page1Body = extractDiamondArticleBody(page1Html)
+
+  if (totalPages <= 1) {
+    return { title, fullText: page1Body, thumbnailUrl, author }
+  }
+
+  // Fetch remaining pages in parallel
+  const pagePromises: Promise<string>[] = []
+  for (let p = 2; p <= totalPages; p++) {
+    const pageUrl = `${cleanUrl}${cleanUrl.includes("?") ? "&" : "?"}page=${p}`
+    pagePromises.push(
+      fetchWithTimeout(pageUrl, { headers }, 30000)
+        .then(async (resp) => {
+          if (!resp.ok) return ""
+          const html = await resp.text()
+          return extractDiamondArticleBody(html)
+        })
+        .catch(() => "")
+    )
+  }
+
+  const pageTexts = await Promise.all(pagePromises)
+  const allText = [page1Body, ...pageTexts].filter(Boolean).join("\n\n")
+
+  return { title, fullText: allText, thumbnailUrl, author }
 }
 
 /** Format general article/long text: add paragraph breaks for readability */
@@ -911,12 +1202,34 @@ Deno.serve(async (req) => {
       if (fullText) fullText = formatLongText(fullText)
     }
 
+    // sendenkaigi.com (宣伝会議): use Auth0 login + Jina Reader
+    else if (isSendenkaigi(content.url)) {
+      const result = await fetchSendenkaigiViaJina(content.url)
+      title = result.title
+      fullText = result.fullText
+      author = result.author
+      thumbnailUrl = result.thumbnailUrl
+      if (thumbnailUrl) hasPlatformThumbnail = true
+      if (fullText) fullText = formatLongText(fullText)
+    }
+
+    // diamond.jp (ダイヤモンド・オンライン): direct HTML fetch with multi-page support
+    else if (isDiamond(content.url)) {
+      const result = await fetchDiamondArticle(content.url)
+      title = result.title
+      fullText = result.fullText
+      author = result.author
+      thumbnailUrl = result.thumbnailUrl
+      if (thumbnailUrl) hasPlatformThumbnail = true
+      if (fullText) fullText = formatLongText(fullText)
+    }
+
     // All other sites: Jina Reader API
     else {
 
-    const jinaResponse = await fetch(`https://r.jina.ai/${content.url}`, {
+    const jinaResponse = await fetchWithTimeout(`https://r.jina.ai/${content.url}`, {
       headers: { "Accept": "application/json", "Accept-Language": "ja,en-US;q=0.7,en;q=0.3" },
-    })
+    }, 30000)
 
     if (jinaResponse.ok) {
       const json = await jinaResponse.json()
@@ -1007,19 +1320,24 @@ Deno.serve(async (req) => {
           let transcript: string | null = null
           let successPlayerData: Record<string, unknown> | null = null
 
-          // 0. External Python transcript service (highest priority)
-          // Uses youtube-transcript-api via Render.com — bypasses YouTube cloud IP blocks
+          // 0. External transcript service (highest priority)
+          // Supports both GAS Web App and REST API (Render.com, etc.)
           const ytServiceUrl = Deno.env.get("YT_TRANSCRIPT_SERVICE_URL")
           const ytServiceKey = Deno.env.get("YT_TRANSCRIPT_SERVICE_KEY")
           if (ytServiceUrl) {
             try {
+              const isGAS = ytServiceUrl.includes("script.google.com")
+              const svcUrl = isGAS
+                ? `${ytServiceUrl}?key=${ytServiceKey || ""}`
+                : `${ytServiceUrl}/transcript`
               const svcHeaders: Record<string, string> = { "Content-Type": "application/json" }
-              if (ytServiceKey) svcHeaders["Authorization"] = `Bearer ${ytServiceKey}`
-              const svcResp = await fetch(`${ytServiceUrl}/transcript`, {
+              if (!isGAS && ytServiceKey) svcHeaders["Authorization"] = `Bearer ${ytServiceKey}`
+              const svcResp = await fetchWithTimeout(svcUrl, {
                 method: "POST",
                 headers: svcHeaders,
                 body: JSON.stringify({ video_id: videoId, lang: "ja" }),
-              })
+                redirect: "follow",
+              }, 30000)
               if (svcResp.ok) {
                 const svcData = await svcResp.json()
                 if (svcData.transcript && svcData.transcript.length > 0) {
@@ -1108,11 +1426,11 @@ Deno.serve(async (req) => {
       }
     } else {
       // Fallback: try direct fetch with basic metadata extraction
-      const directResponse = await fetch(content.url, {
+      const directResponse = await fetchWithTimeout(content.url, {
         headers: {
           "User-Agent": "Mozilla/5.0 (compatible; MyInputBot/1.0)",
         },
-      })
+      }, 15000)
 
       if (directResponse.ok) {
         const html = await directResponse.text()
@@ -1139,9 +1457,9 @@ Deno.serve(async (req) => {
     } // end else (non-reform-online)
 
     // Update content with fetched data
-    // Set status to "completed" here so that even if the client disconnects
-    // before analyze-content runs, the content won't be stuck in "processing".
-    // analyze-content will also set "completed" on success, so this is safe.
+    // Keep status as "processing" so the UI continues polling until analyze-content
+    // completes and sets the summary. Setting "completed" here would cause the UI
+    // to stop polling before the AI summary is ready.
     const { error: updateError } = await supabase
       .from("contents")
       .update({
@@ -1150,7 +1468,7 @@ Deno.serve(async (req) => {
         author: author || null,
         thumbnail_url: thumbnailUrl || null,
         image_urls: imageUrls.length > 0 ? imageUrls : null,
-        status: "completed",
+        status: "processing",
       })
       .eq("id", content_id)
 
