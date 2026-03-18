@@ -18,14 +18,32 @@ import './App.css'
 
 const COLLECTION = 'reservations'
 const PASSWORD = 'rakugo1234'
-const CAPACITY = 25
+const DEFAULT_CAPACITY = 25
+
+const CHATWORK_API_TOKEN = '01272590631f16ed47b9789f07d5cf75'
+const CHATWORK_ROOM_ID = '402525982'
+
+const sendChatworkNotification = async (message) => {
+  try {
+    await fetch(`https://api.chatwork.com/v2/rooms/${CHATWORK_ROOM_ID}/messages`, {
+      method: 'POST',
+      headers: {
+        'X-ChatWorkToken': CHATWORK_API_TOKEN,
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: `body=${encodeURIComponent(message)}`,
+    })
+  } catch (e) {
+    console.warn('Chatwork通知の送信に失敗しました:', e)
+  }
+}
 
 const DEFAULT_HELP = [
   { title: '予約の追加', body: '氏名・フリガナ・電話番号・人数を入力し「予約を追加する」ボタンを押してください。詳しい相談内容と返信希望は任意です。' },
   { title: '予約の検索', body: '予約一覧の検索ボックスに氏名・フリガナ・電話番号を入力すると絞り込みできます。漢字の表記ゆれ（斎藤／斉藤など）にも対応しています。' },
   { title: '人数変更', body: '各予約カードの「人数変更」ボタンから変更できます。変更履歴は自動で記録されます。' },
   { title: '予約キャンセル', body: '「予約キャンセル」ボタンを押すとキャンセル済みになります。キャンセルされた予約は一覧にグレー表示で残ります。' },
-  { title: 'キャンセル待ち', body: '定員（25名）を超えた場合、フォーム上部に案内が表示されます。「キャンセル待ちとして受付」にチェックを入れて登録してください。' },
+  { title: 'キャンセル待ち', body: '定員を超えた場合、フォーム上部に案内が表示されます。「キャンセル待ちとして受付」にチェックを入れて登録してください。定員は予約一覧の「定員」をクリックして変更できます。' },
 ]
 
 const DEFAULT_FAQ = [
@@ -192,7 +210,7 @@ function App() {
   })
   const [pw, setPw] = useState('')
   const [pwError, setPwError] = useState('')
-  const [form, setForm] = useState({ name: '', furigana: '', phone: '', count: '', customCount: '', consultation: '', wantsReply: false, waitlist: false })
+  const [form, setForm] = useState({ name: '', furigana: '', phone: '', count: '', customCount: '', consultation: '', wantsReply: false, waitlist: false, inquiryOnly: false })
   const [showCustomCount, setShowCustomCount] = useState(false)
   const [reservations, setReservations] = useState([])
   const [errors, setErrors] = useState({})
@@ -206,6 +224,18 @@ function App() {
   const [faqItems, setFaqItems] = useState(DEFAULT_FAQ)
   const [editingHelp, setEditingHelp] = useState(false)
   const [editingFaq, setEditingFaq] = useState(false)
+  const [capacity, setCapacity] = useState(DEFAULT_CAPACITY)
+  const [editingCapacity, setEditingCapacity] = useState(false)
+  const [newCapacity, setNewCapacity] = useState('')
+  const [editingConsultationId, setEditingConsultationId] = useState(null)
+  const [newConsultation, setNewConsultation] = useState('')
+  const [notifySettings, setNotifySettings] = useState({
+    onNewReservation: true,
+    onCancel: true,
+    onCountChange: false,
+    onConsultationUpdate: false,
+  })
+  const [showNotifySettings, setShowNotifySettings] = useState(false)
 
   const handleLogin = (e) => {
     e.preventDefault()
@@ -236,6 +266,8 @@ function App() {
           const data = snap.data()
           if (data.helpSections) setHelpSections(data.helpSections)
           if (data.faqItems) setFaqItems(data.faqItems)
+          if (data.capacity) setCapacity(data.capacity)
+          if (data.notifySettings) setNotifySettings((prev) => ({ ...prev, ...data.notifySettings }))
         }
       } catch (e) { /* use defaults on error */ }
     }
@@ -254,6 +286,11 @@ function App() {
     setEditingFaq(false)
   }
 
+  const saveNotifySettings = async (updated) => {
+    setNotifySettings(updated)
+    try { await setDoc(doc(db, 'settings', 'content'), { notifySettings: updated }, { merge: true }) } catch (e) { /* ignore */ }
+  }
+
   const getCount = () => {
     if (showCustomCount) return Number(form.customCount) || 0
     return Number(form.count) || 0
@@ -265,7 +302,7 @@ function App() {
     if (!form.furigana.trim()) newErrors.furigana = 'フリガナを入力してください'
     if (!form.phone.trim()) newErrors.phone = '電話番号を入力してください'
     const count = getCount()
-    if (!count || count < 1) newErrors.count = '人数を選択してください'
+    if (!form.inquiryOnly && (!count || count < 1)) newErrors.count = '人数を選択してください'
     return newErrors
   }
 
@@ -296,19 +333,35 @@ function App() {
     }
     const formattedPhone = formatPhoneNumber(form.phone.trim())
     const isWaitlist = form.waitlist || isOverCapacity
+    const count = form.inquiryOnly ? 0 : getCount()
     await addDoc(collection(db, COLLECTION), {
       name: form.name.trim(),
       furigana: form.furigana.trim(),
       phone: formattedPhone,
-      count: getCount(),
+      count,
       consultation: form.consultation.trim(),
       wantsReply: form.wantsReply,
       waitlist: isWaitlist,
+      inquiryOnly: form.inquiryOnly,
       status: 'active',
       history: [],
       createdAt: serverTimestamp(),
     })
-    setForm({ name: '', furigana: '', phone: '', count: '', customCount: '', consultation: '', wantsReply: false, waitlist: false })
+    if (notifySettings.onNewReservation) {
+      const type = form.inquiryOnly ? '問い合わせ' : isWaitlist ? '新規予約（キャンセル待ち）' : '新規予約'
+      const lines = [
+        `[info][title]${type}[/title]`,
+        `氏名: ${form.name.trim()}`,
+        `フリガナ: ${form.furigana.trim()}`,
+        `電話番号: ${formattedPhone}`,
+        form.inquiryOnly ? '' : `人数: ${count}名`,
+        form.consultation.trim() ? `相談内容: ${form.consultation.trim()}` : '',
+        form.wantsReply ? '※ 折り返し連絡希望' : '',
+        '[/info]',
+      ].filter(Boolean)
+      sendChatworkNotification(lines.join('\n'))
+    }
+    setForm({ name: '', furigana: '', phone: '', count: '', customCount: '', consultation: '', wantsReply: false, waitlist: false, inquiryOnly: false })
     setShowCustomCount(false)
   }
 
@@ -324,6 +377,9 @@ function App() {
         changedAt: Timestamp.now(),
       }),
     })
+    if (notifySettings.onCancel) {
+      sendChatworkNotification(`[info][title]予約キャンセル[/title]氏名: ${r.name}\n人数: ${r.count}名[/info]`)
+    }
   }
 
   const startEditCount = (r) => {
@@ -353,8 +409,49 @@ function App() {
         changedAt: Timestamp.now(),
       }),
     })
+    if (notifySettings.onCountChange) {
+      sendChatworkNotification(`[info][title]人数変更[/title]氏名: ${r.name}\n変更: ${r.count}名 → ${parsed}名[/info]`)
+    }
     setEditingCountId(null)
     setNewCount('')
+  }
+
+  const toggleContacted = async (r) => {
+    const ref = doc(db, COLLECTION, r.id)
+    await updateDoc(ref, { contacted: !r.contacted })
+  }
+
+  const startEditCapacity = () => {
+    setNewCapacity(String(capacity))
+    setEditingCapacity(true)
+  }
+
+  const submitEditCapacity = async () => {
+    const parsed = Number(newCapacity)
+    if (!parsed || parsed < 1) return
+    setCapacity(parsed)
+    setEditingCapacity(false)
+    try { await setDoc(doc(db, 'settings', 'content'), { capacity: parsed }, { merge: true }) } catch (e) { /* ignore */ }
+  }
+
+  const startEditConsultation = (r) => {
+    setEditingConsultationId(r.id)
+    setNewConsultation(r.consultation || '')
+  }
+
+  const cancelEditConsultation = () => {
+    setEditingConsultationId(null)
+    setNewConsultation('')
+  }
+
+  const submitEditConsultation = async (r) => {
+    const ref = doc(db, COLLECTION, r.id)
+    await updateDoc(ref, { consultation: newConsultation.trim() })
+    if (notifySettings.onConsultationUpdate) {
+      sendChatworkNotification(`[info][title]相談内容更新[/title]氏名: ${r.name}\n内容: ${newConsultation.trim()}[/info]`)
+    }
+    setEditingConsultationId(null)
+    setNewConsultation('')
   }
 
   const formatDate = (ts) => {
@@ -364,7 +461,8 @@ function App() {
 
   const activeReservations = reservations.filter((r) => r.status !== 'cancelled')
   const totalCount = activeReservations.reduce((sum, r) => sum + (r.count || 0), 0)
-  const isOverCapacity = totalCount >= CAPACITY
+  const waitlistCount = activeReservations.filter((r) => r.waitlist).reduce((sum, r) => sum + (r.count || 0), 0)
+  const isOverCapacity = totalCount >= capacity
 
   const filtered = reservations.filter((r) => {
     if (!searchQuery.trim()) return true
@@ -420,6 +518,14 @@ function App() {
           </svg>
           <span className="manual-btn-label">FAQ</span>
         </button>
+        <button type="button" className="manual-btn" title="通知設定" onClick={() => { setShowNotifySettings((v) => !v); setShowManual(false); setShowFaq(false) }}>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+            <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+          </svg>
+          <span className="manual-btn-label">通知</span>
+          <span className={`notify-dot ${Object.values(notifySettings).some(Boolean) ? 'on' : ''}`} />
+        </button>
       </h1>
 
       {showManual && (
@@ -462,6 +568,31 @@ function App() {
         </div>
       )}
 
+      {showNotifySettings && (
+        <div className="manual">
+          <div className="manual-header">
+            <h2 className="manual-title">チャットワーク通知設定</h2>
+          </div>
+          <p className="notify-settings-desc">通知するイベントを選択してください</p>
+          {[
+            { key: 'onNewReservation', label: '新規予約時' },
+            { key: 'onCancel', label: 'キャンセル時' },
+            { key: 'onCountChange', label: '人数変更時' },
+            { key: 'onConsultationUpdate', label: '相談内容更新時' },
+          ].map(({ key, label }) => (
+            <label className="notify-check" key={key}>
+              <input
+                type="checkbox"
+                checked={notifySettings[key]}
+                onChange={(e) => saveNotifySettings({ ...notifySettings, [key]: e.target.checked })}
+              />
+              {label}
+            </label>
+          ))}
+          <button type="button" className="manual-close" onClick={() => setShowNotifySettings(false)}>閉じる</button>
+        </div>
+      )}
+
       <form className="form" onSubmit={handleSubmit}>
         {isOverCapacity && (
           <div className="waitlist-banner">キャンセル待ちとして受付してください</div>
@@ -475,7 +606,7 @@ function App() {
           キャンセル待ちとして受付
         </label>
         <div className="field">
-          <label htmlFor="name">氏名</label>
+          <label htmlFor="name">氏名<span className="badge-required">必須</span></label>
           <input
             id="name"
             name="name"
@@ -488,7 +619,7 @@ function App() {
         </div>
 
         <div className="field">
-          <label htmlFor="furigana">フリガナ</label>
+          <label htmlFor="furigana">フリガナ<span className="badge-required">必須</span></label>
           <input
             id="furigana"
             name="furigana"
@@ -501,7 +632,7 @@ function App() {
         </div>
 
         <div className="field">
-          <label htmlFor="phone">電話番号</label>
+          <label htmlFor="phone">電話番号<span className="badge-required">必須</span></label>
           <input
             id="phone"
             name="phone"
@@ -517,7 +648,7 @@ function App() {
         </div>
 
         <div className="field">
-          <label>人数</label>
+          <label>人数<span className="badge-required">必須</span></label>
           <div className="count-buttons">
             {[1, 2, 3, 4].map((n) => (
               <button
@@ -551,11 +682,23 @@ function App() {
               autoFocus
             />
           )}
+          <button
+            type="button"
+            className={`inquiry-only-btn ${form.inquiryOnly ? 'active' : ''}`}
+            onClick={() => {
+              const next = !form.inquiryOnly
+              setForm((prev) => ({ ...prev, inquiryOnly: next, count: next ? '0' : '', customCount: '' }))
+              setShowCustomCount(false)
+              setErrors((prev) => ({ ...prev, count: '' }))
+            }}
+          >
+            予約なし・問い合わせのみ
+          </button>
           {errors.count && <span className="error">{errors.count}</span>}
         </div>
 
         <div className="field">
-          <label htmlFor="consultation">詳しい相談内容（任意）</label>
+          <label htmlFor="consultation">詳しい相談内容<span className="badge-optional">任意</span></label>
           <textarea
             id="consultation"
             name="consultation"
@@ -574,6 +717,7 @@ function App() {
             onChange={(e) => setForm((prev) => ({ ...prev, wantsReply: e.target.checked }))}
           />
           折り返しのご連絡を希望する
+          <span className="badge-optional">任意</span>
         </label>
 
         <button type="submit" className="submit-btn">予約を追加する</button>
@@ -605,7 +749,37 @@ function App() {
         {!loading && reservations.length > 0 && (
           <div className="total-count">
             予約組数: <span>{activeReservations.length}組</span>
-            合計人数: <span>{totalCount}名</span>
+            確定人数: <span>{totalCount - waitlistCount}名</span>
+            {waitlistCount > 0 && <>キャンセル待ち: <span>{waitlistCount}名</span></>}
+            <span className="capacity-separator">/</span>
+            {editingCapacity ? (
+              <span className="capacity-edit">
+                定員:
+                <input
+                  type="number"
+                  min="1"
+                  className="capacity-edit-input"
+                  value={newCapacity}
+                  onChange={(e) => setNewCapacity(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') submitEditCapacity()
+                    if (e.key === 'Escape') setEditingCapacity(false)
+                  }}
+                  autoFocus
+                />
+                名
+                <button className="count-edit-ok" onClick={submitEditCapacity}>OK</button>
+                <button className="count-edit-cancel" onClick={() => setEditingCapacity(false)}>取消</button>
+              </span>
+            ) : (
+              <span className="capacity-display" onClick={startEditCapacity} title="クリックして定員を編集">
+                定員: <span>{capacity}名</span>
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+              </span>
+            )}
           </div>
         )}
 
@@ -642,7 +816,7 @@ function App() {
                       <button className="count-edit-cancel" onClick={cancelEditCount}>取消</button>
                     </span>
                   ) : (
-                    <span className="card-count">{r.count}名</span>
+                    <span className="card-count">{r.inquiryOnly ? '問合せのみ' : `${r.count}名`}</span>
                   )}
 
                   {r.status !== 'cancelled' && editingCountId !== r.id && (
@@ -654,8 +828,45 @@ function App() {
                 </div>
                 {r.furigana && <p className="card-furigana">{r.furigana}</p>}
                 {r.phone && <p className="card-phone">{r.phone}</p>}
-                {r.consultation && <p className="card-consultation">{r.consultation}</p>}
-                {r.wantsReply && <p className="card-reply-badge">返信希望</p>}
+                {editingConsultationId === r.id ? (
+                  <div className="consultation-edit">
+                    <textarea
+                      className="consultation-edit-input"
+                      rows={3}
+                      value={newConsultation}
+                      onChange={(e) => setNewConsultation(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Escape') cancelEditConsultation()
+                      }}
+                      autoFocus
+                    />
+                    <div className="consultation-edit-actions">
+                      <button className="count-edit-ok" onClick={() => submitEditConsultation(r)}>保存</button>
+                      <button className="count-edit-cancel" onClick={cancelEditConsultation}>取消</button>
+                    </div>
+                  </div>
+                ) : (
+                  r.consultation ? (
+                    <p className="card-consultation" onClick={() => r.status !== 'cancelled' && startEditConsultation(r)} title={r.status !== 'cancelled' ? 'クリックして編集' : ''} style={r.status !== 'cancelled' ? { cursor: 'pointer' } : {}}>
+                      {r.consultation}
+                    </p>
+                  ) : r.status !== 'cancelled' && (
+                    <button className="add-consultation-btn" onClick={() => startEditConsultation(r)}>+ 相談内容を追加</button>
+                  )
+                )}
+                {r.wantsReply && (
+                  <div className="card-reply-row">
+                    <span className="card-reply-badge">返信希望</span>
+                    <label className="contacted-check" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={!!r.contacted}
+                        onChange={() => toggleContacted(r)}
+                      />
+                      連絡済
+                    </label>
+                  </div>
+                )}
                 <p className="card-date">{formatDate(r.createdAt)}</p>
 
                 {r.history && r.history.length > 0 && (

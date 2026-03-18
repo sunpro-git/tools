@@ -512,20 +512,21 @@ body {
 
 .total-count {
   display: flex;
-  align-items: center;
-  gap: 16px;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px 12px;
   background: #fff;
   border: 1px solid #e0d6c8;
   border-radius: 8px;
   padding: 12px 18px;
   margin-bottom: 16px;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   color: #5c3317;
 }
 
 .total-count span {
   font-weight: bold;
-  font-size: 1.1rem;
+  font-size: 1.05rem;
 }
 
 /* 検索 */
@@ -812,4 +813,220 @@ body {
   color: #aaa;
   margin-left: auto;
   font-size: 0.72rem;
+}
+
+/* 必須・任意バッジ */
+.badge-required {
+  display: inline-block;
+  background: #e03e3e;
+  color: #fff;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  margin-left: 6px;
+  font-weight: bold;
+  vertical-align: middle;
+}
+
+.badge-optional {
+  display: inline-block;
+  background: #999;
+  color: #fff;
+  border-radius: 3px;
+  font-size: 0.65rem;
+  padding: 1px 6px;
+  margin-left: 6px;
+  font-weight: bold;
+  vertical-align: middle;
+}
+
+/* 連絡済チェック */
+.card-reply-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.contacted-check {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.78rem;
+  color: #5c3317;
+  cursor: pointer;
+}
+
+.contacted-check input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #5c9e3e;
+  cursor: pointer;
+}
+
+.contacted-check input[type="checkbox"]:checked + .contacted-check {
+  color: #5c9e3e;
+}
+
+/* 定員表示・編集 */
+.capacity-separator {
+  color: #ccc;
+  font-size: 1.1rem;
+  font-weight: normal;
+}
+
+.capacity-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: #5c3317;
+  transition: color 0.15s;
+}
+
+.capacity-display:hover {
+  color: #c8a96e;
+}
+
+.capacity-display svg {
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+
+.capacity-display:hover svg {
+  opacity: 1;
+}
+
+.capacity-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+
+.capacity-edit-input {
+  width: 60px;
+  border: 1px solid #c8a96e;
+  border-radius: 4px;
+  padding: 3px 6px;
+  font-size: 0.9rem;
+  text-align: center;
+  font-family: inherit;
+}
+
+.capacity-edit-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(200,169,110,0.2);
+}
+
+/* 相談内容編集 */
+.consultation-edit {
+  margin-bottom: 4px;
+}
+
+.consultation-edit-input {
+  width: 100%;
+  border: 1px solid #c8a96e;
+  border-radius: 4px;
+  padding: 8px 10px;
+  font-size: 0.88rem;
+  font-family: inherit;
+  resize: vertical;
+  background: #fffdf9;
+}
+
+.consultation-edit-input:focus {
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(200,169,110,0.15);
+}
+
+.consultation-edit-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.add-consultation-btn {
+  background: none;
+  border: 1px dashed #c8a96e;
+  border-radius: 4px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  color: #c8a96e;
+  cursor: pointer;
+  margin-bottom: 4px;
+  transition: background 0.15s;
+}
+
+.add-consultation-btn:hover {
+  background: #fdf8ef;
+}
+
+/* 問い合わせのみボタン */
+.inquiry-only-btn {
+  width: 100%;
+  margin-top: 8px;
+  padding: 8px;
+  border: 1px dashed #c8a96e;
+  border-radius: 6px;
+  background: #fffdf9;
+  font-size: 0.85rem;
+  font-family: inherit;
+  color: #c8a96e;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.inquiry-only-btn:hover {
+  background: #fdf8ef;
+  border-color: #5c3317;
+  color: #5c3317;
+}
+
+.inquiry-only-btn.active {
+  background: #c8a96e;
+  color: #fff;
+  border-color: #c8a96e;
+  border-style: solid;
+}
+
+/* チャットワーク通知設定 */
+.notify-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ccc;
+  margin-left: -4px;
+}
+
+.notify-dot.on {
+  background: #4caf50;
+}
+
+.notify-settings-desc {
+  font-size: 0.85rem;
+  color: #888;
+  margin-bottom: 12px;
+}
+
+.notify-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  font-size: 0.9rem;
+  color: #333;
+  cursor: pointer;
+  border-bottom: 1px solid #f0ebe3;
+}
+
+.notify-check:last-child {
+  border-bottom: none;
+}
+
+.notify-check input[type="checkbox"] {
+  accent-color: #5c3317;
+  width: 16px;
+  height: 16px;
 }
