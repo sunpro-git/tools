@@ -9,12 +9,22 @@ import FileUpload from './components/FileUpload';
 const App = () => {
     const [user, setUser] = useState(null); const [properties, setProperties] = useState([]); const [staffs, setStaffs] = useState([]); const [equipments, setEquipments] = useState([]);
     const [loading, setLoading] = useState(true); const [isModalOpen, setIsModalOpen] = useState(false); const [isJsonModalOpen, setIsJsonModalOpen] = useState(false); const [isRequestModalOpen, setIsRequestModalOpen] = useState(false); const [isAndpadModalOpen, setIsAndpadModalOpen] = useState(false); const [isStaffModalOpen, setIsStaffModalOpen] = useState(false); const [isStaffBulkModalOpen, setIsStaffBulkModalOpen] = useState(false); const [staffBulkText, setStaffBulkText] = useState(''); const [staffBulkMode, setStaffBulkMode] = useState('import'); const [isEquipmentModalOpen, setIsEquipmentModalOpen] = useState(false); const [isEquipBulkModalOpen, setIsEquipBulkModalOpen] = useState(false); const [equipBulkText, setEquipBulkText] = useState(''); const [equipBulkMode, setEquipBulkMode] = useState('import');
-    const [jsonInput, setJsonInput] = useState(''); const [editingId, setEditingId] = useState(null); const [notification, setNotification] = useState(null); const [bulkSyncing, setBulkSyncing] = useState(false); const [isSyncingCalendar, setIsSyncingCalendar] = useState(false); const [scrollToRequest, setScrollToRequest] = useState(false);
+    const [jsonInput, setJsonInput] = useState(''); const [editingId, setEditingId] = useState(null); const [notification, setNotification] = useState(null); const [bulkSyncing, setBulkSyncing] = useState(false); const [importProgress, setImportProgress] = useState(''); const [isSyncingCalendar, setIsSyncingCalendar] = useState(false); const [scrollToRequest, setScrollToRequest] = useState(false);
     const [visibleEventTypes, setVisibleEventTypes] = useState(['setup', 'teardown', 'openhouse', 'youtube', 'photo', 'instalive', 'event_setup', 'event_teardown', 'event_date']); const [viewMode, setViewMode] = useState('list');
     const [isFilterExpanded, setIsFilterExpanded] = useState(true); const [selectedCategories, setSelectedCategories] = useState([]); const [selectedBranches, setSelectedBranches] = useState([]); const [searchKeyword, setSearchKeyword] = useState('');
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     const [events, setEvents] = useState([]); const [isEventModalOpen, setIsEventModalOpen] = useState(false); const [editingEventId, setEditingEventId] = useState(null);
-    const [eventForm, setEventForm] = useState({ name:'', category:'新築', setupDate_date:'', setupDate_time:'', setupEndTime:'', setupVehicle:'', setupVehicle2:'', teardownDate_date:'', teardownDate_time:'', teardownEndTime:'', teardownVehicle:'', teardownVehicle2:'', eventDates:['',''], notificationStaff:[] });
+    const [eventForm, setEventForm] = useState({ name:'', category:'新築', setupDate_date:'', setupDate_time:'', setupEndTime:'', setupVehicle:'', setupVehicle2:'', teardownDate_date:'', teardownDate_time:'', teardownEndTime:'', teardownVehicle:'', teardownVehicle2:'', eventDates:['',''], notificationStaff:[], propertyId:'', propertyName:'', requester:'', shootingTypes:[], shootingRange_from_date:'', shootingRange_from_time:'', shootingRange_to_date:'', shootingRange_to_time:'', instructionFileUrl:'', instructionFileName:'', overviewFileUrl:'', overviewFileName:'', witnessStaff:'', ownerPresence:'', shootingNotes:'' });
+    const [eventPropertySearch, setEventPropertySearch] = useState('');
+    const [eventPropertyResults, setEventPropertyResults] = useState([]);
+    const [eventPropertyLoading, setEventPropertyLoading] = useState(false);
+    const [showEventPropertySearch, setShowEventPropertySearch] = useState(false);
+    const [isHelpModalOpen, setIsHelpModalOpen] = useState(false);
+    const [helpContent, setHelpContent] = useState('');
+    const [isFaqModalOpen, setIsFaqModalOpen] = useState(false);
+    const [faqContent, setFaqContent] = useState('');
+    const [isEditingFaq, setIsEditingFaq] = useState(false);
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [chatworkSettings, setChatworkSettings] = useState({ chatwork_room_id: '', chatwork_notify_on_create: 'true', chatwork_notify_on_update: 'true', chatwork_notify_on_remind: 'true', chatwork_template_create: '', chatwork_template_update: '', chatwork_template_remind: '' });
     const [editingTemplateType, setEditingTemplateType] = useState('create');
     const [filterFrom, setFilterFrom] = useState(''); const [filterTo, setFilterTo] = useState(''); const [importFrom, setImportFrom] = useState(''); const [importTo, setImportTo] = useState(''); const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
@@ -51,8 +61,10 @@ const App = () => {
 
     const filteredProperties = useMemo(() => {
         return properties.filter(p => {
-            const rawDate = p.setupDate || ''; const ymd = rawDate.split('T')[0]; const ym = ymd.substring(0, 7);
-            const dateMatch = viewMode === 'calendar' ? true : ((!filterFrom || ym >= filterFrom) && (!filterTo || ym <= filterTo));
+            const toYM = (d) => { if (!d) return ''; return (d.split('T')[0]).substring(0, 7); };
+            const ymInRange = (ym) => ym && (!filterFrom || ym >= filterFrom) && (!filterTo || ym <= filterTo);
+            const allDates = [p.setupDate, p.teardownDate, p.photoDate, p.exteriorPhotoDate, p.youtubeDate, p.instaLiveDate, p.instaRegularDate, p.instaPromoDate, p.otherDate, ...(Array.isArray(p.openHouseDates) ? p.openHouseDates : [])];
+            const dateMatch = viewMode === 'calendar' ? true : allDates.some(d => ymInRange(toYM(d)));
             const categoryMatch = selectedCategories.length === 0 || selectedCategories.includes(p.category);
             let branchMatch = true; if (selectedBranches.length > 0) { const branchInfo = getAreaBranch(p.address); branchMatch = branchInfo && selectedBranches.includes(branchInfo.name); }
             let keywordMatch = true; if (searchKeyword.trim()) { const keywords = searchKeyword.toLowerCase().replace(/　/g, ' ').split(' ').filter(k => k); const targetString = [p.name, p.address, p.salesRep, p.icRep, p.constructionRep, p.systemId, ...(p.youtubeStaff || []), ...(p.photoStaff || []), ...(p.instaLiveStaff || [])].join(' ').toLowerCase(); keywordMatch = keywords.every(k => targetString.includes(k)); }
@@ -60,23 +72,72 @@ const App = () => {
         });
     }, [properties, filterFrom, filterTo, selectedCategories, selectedBranches, searchKeyword, viewMode]);
 
-    const requestSuggestions = useMemo(() => {
-        return properties.filter(p => {
-            if (reqSearch.keyword) { const k = reqSearch.keyword.toLowerCase(); const target = [p.name, p.customerName, p.address].join(' ').toLowerCase(); if (!target.includes(k)) return false; }
-            if (reqSearch.category && p.category !== reqSearch.category) return false;
-            if (reqSearch.staff) { const s = reqSearch.staff; if (!((p.salesRep||'').includes(s) || (p.icRep||'').includes(s) || (p.constructionRep||'').includes(s))) return false; }
-            if (reqSearch.contractFrom || reqSearch.contractTo) { const cDate = (p.contractDate || '').substring(0, 7); if (reqSearch.contractFrom && cDate < reqSearch.contractFrom) return false; if (reqSearch.contractTo && cDate > reqSearch.contractTo) return false; }
-            if (reqSearch.handoverFrom || reqSearch.handoverTo) { const hDate = (p.handoverDate || '').substring(0, 7); if (reqSearch.handoverFrom && hDate < reqSearch.handoverFrom) return false; if (reqSearch.handoverTo && hDate > reqSearch.handoverTo) return false; }
-            return true;
-        }).slice(0, 50);
-    }, [properties, reqSearch]);
+    const [requestResults, setRequestResults] = useState([]);
+    const [requestLoading, setRequestLoading] = useState(false);
+    useEffect(() => {
+        const hasFilter = reqSearch.keyword || reqSearch.category || reqSearch.staff || reqSearch.contractFrom || reqSearch.contractTo || reqSearch.handoverFrom || reqSearch.handoverTo;
+        if (!hasFilter) { setRequestResults([]); return; }
+        const timer = setTimeout(async () => {
+            setRequestLoading(true);
+            let query = supabase.from('properties').select('*').limit(50);
+            if (reqSearch.keyword) {
+                const k = reqSearch.keyword.replace(/[\s\u3000]+/g, '').split('').join('*');
+                query = query.or(`name.ilike.*${k}*,customerName.ilike.*${k}*,address.ilike.*${k}*`);
+            }
+            if (reqSearch.category) query = query.eq('category', reqSearch.category);
+            if (reqSearch.staff) {
+                const s = reqSearch.staff;
+                query = query.or(`salesRep.ilike.*${s}*,icRep.ilike.*${s}*,constructionRep.ilike.*${s}*`);
+            }
+            if (reqSearch.contractFrom) query = query.gte('contractDate', reqSearch.contractFrom);
+            if (reqSearch.contractTo) query = query.lte('contractDate', reqSearch.contractTo + '-31');
+            if (reqSearch.handoverFrom) query = query.gte('handoverDate', reqSearch.handoverFrom);
+            if (reqSearch.handoverTo) query = query.lte('handoverDate', reqSearch.handoverTo + '-31');
+            const { data } = await query;
+            setRequestResults(data || []);
+            setRequestLoading(false);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [reqSearch]);
+    const requestSuggestions = requestResults;
+
+    // Event property search (debounced)
+    useEffect(() => {
+        if (!eventPropertySearch.trim()) { setEventPropertyResults([]); return; }
+        const timer = setTimeout(async () => {
+            setEventPropertyLoading(true);
+            const k = eventPropertySearch.replace(/[\s\u3000]+/g, '').split('').join('*');
+            const { data } = await supabase.from('properties').select('id,name,customerName,address,category').or(`name.ilike.*${k}*,customerName.ilike.*${k}*,address.ilike.*${k}*`).limit(20);
+            setEventPropertyResults(data || []);
+            setEventPropertyLoading(false);
+        }, 300);
+        return () => clearTimeout(timer);
+    }, [eventPropertySearch]);
+
+
+    const filteredEvents = useMemo(() => {
+        if (viewMode === 'calendar') return events;
+        return events.filter(evt => {
+            const toYM = (d) => { if (!d) return ''; return (d.split('T')[0]).substring(0, 7); };
+            const ymInRange = (ym) => ym && (!filterFrom || ym >= filterFrom) && (!filterTo || ym <= filterTo);
+            const allDates = [evt.setupDate, evt.teardownDate, ...(Array.isArray(evt.eventDates) ? evt.eventDates : [])];
+            return allDates.some(d => ymInRange(toYM(d)));
+        });
+    }, [events, filterFrom, filterTo, viewMode]);
 
     const groupedProperties = useMemo(() => {
         const groups = {};
-        filteredProperties.forEach(p => { let key = "設営日未定"; if (p.setupDate) { const d = new Date(p.setupDate); if (!isNaN(d.getTime())) key = `${d.getFullYear()}年${d.getMonth() + 1}月 設営`; } if (!groups[key]) groups[key] = []; groups[key].push(p); });
-        const sortedKeys = Object.keys(groups).sort((a, b) => { if (a === "設営日未定") return 1; if (b === "設営日未定") return -1; const dateA = new Date(a.replace(' 設営', '').replace('年', '/').replace('月', '/1')); const dateB = new Date(b.replace(' 設営', '').replace('年', '/').replace('月', '/1')); return dateA - dateB; });
+        filteredProperties.forEach(p => { let key = "設営日未定"; if (p.setupDate) { const d = new Date(p.setupDate); if (!isNaN(d.getTime())) key = `${d.getFullYear()}年${d.getMonth() + 1}月 設営`; } if (!groups[key]) groups[key] = []; groups[key].push({ ...p, _type: 'property' }); });
+        filteredEvents.forEach(evt => {
+            const earliest = [evt.setupDate, ...(evt.eventDates || [])].filter(Boolean).sort()[0];
+            let key = "日程未定";
+            if (earliest) { const d = new Date(earliest.split('T')[0]); if (!isNaN(d.getTime())) key = `${d.getFullYear()}年${d.getMonth() + 1}月 設営`; }
+            if (!groups[key]) groups[key] = [];
+            groups[key].push({ ...evt, _type: 'event' });
+        });
+        const sortedKeys = Object.keys(groups).sort((a, b) => { if (a === "設営日未定" || a === "日程未定") return 1; if (b === "設営日未定" || b === "日程未定") return -1; const dateA = new Date(a.replace(' 設営', '').replace('年', '/').replace('月', '/1')); const dateB = new Date(b.replace(' 設営', '').replace('年', '/').replace('月', '/1')); return dateA - dateB; });
         return sortedKeys.map(key => ({ title: key, items: groups[key] }));
-    }, [filteredProperties]);
+    }, [filteredProperties, filteredEvents]);
 
     const calendarEvents = useMemo(() => {
         const calItems = [];
@@ -296,44 +357,29 @@ const App = () => {
 
     const handleBulkImport = async () => {
         setBulkSyncing(true);
+        setImportProgress('データ取得中...');
         realtimePausedRef.current = true;
         try {
             const { data: result, error: fnError } = await supabase.functions.invoke('andpad-sync', { body: { from: importFrom, to: importTo } });
             if (fnError) throw fnError;
-            if (!result.success) { alert('取得失敗: ' + result.message); setBulkSyncing(false); return; }
+            if (!result.success) { alert('取得失敗: ' + result.message); setBulkSyncing(false); setImportProgress(''); return; }
             const items = result.data || [];
-            if (items.length === 0) { alert('該当データなし'); setBulkSyncing(false); return; }
-            const toInsert = [];
-            const toUpdate = [];
-            for (const item of items) {
-                const existing = properties.find(p => p.systemId && item.systemId && p.systemId === item.systemId);
-                const cleanItem = { ...item }; delete cleanItem.id; delete cleanItem.createdAt; delete cleanItem.updatedAt;
-                if (existing) {
-                    toUpdate.push({ ...cleanItem, id: existing.id });
-                } else {
-                    toInsert.push(cleanItem);
-                }
-            }
-            // バッチinsert（50件ずつ）
-            for (let i = 0; i < toInsert.length; i += 50) {
-                const batch = toInsert.slice(i, i + 50);
-                const { error } = await supabase.from('properties').insert(batch);
+            if (items.length === 0) { alert('該当データなし'); setBulkSyncing(false); setImportProgress(''); return; }
+            const total = items.length;
+            const BATCH_SIZE = 200;
+            for (let i = 0; i < total; i += BATCH_SIZE) {
+                const batch = items.slice(i, i + BATCH_SIZE).map(item => {
+                    const cleanItem = { ...item };
+                    delete cleanItem.id; delete cleanItem.createdAt; delete cleanItem.updatedAt;
+                    return cleanItem;
+                });
+                setImportProgress(`取込中: ${Math.min(i + BATCH_SIZE, total).toLocaleString()}/${total.toLocaleString()}件`);
+                const { error } = await supabase.from('properties').upsert(batch, { onConflict: 'systemId' });
                 if (error) throw error;
             }
-            // バッチupdate（1件ずつだがPromise.allで並列化、10件ずつ）
-            for (let i = 0; i < toUpdate.length; i += 10) {
-                const batch = toUpdate.slice(i, i + 10);
-                const results = await Promise.all(batch.map(item => {
-                    const { id, ...data } = item;
-                    return supabase.from('properties').update(data).eq('id', id);
-                }));
-                const err = results.find(r => r.error);
-                if (err?.error) throw err.error;
-            }
-            const newCount = toInsert.length, updateCount = toUpdate.length;
+            setImportProgress('データ反映中...');
             setIsAndpadModalOpen(false);
             realtimePausedRef.current = false;
-            // 同期完了後にデータを1回だけ再取得
             const { data } = await supabase.from('properties').select('*');
             if (data) {
                 const processed = data.map(d => {
@@ -344,7 +390,8 @@ const App = () => {
                 setProperties(processed);
             }
             setBulkSyncing(false);
-            showNotification(`取込完了: 新規${newCount}件, 更新${updateCount}件`);
+            setImportProgress('');
+            showNotification(`取込完了: ${total.toLocaleString()}件処理`);
             return;
         } catch (e) {
             console.error(e);
@@ -352,6 +399,7 @@ const App = () => {
         }
         realtimePausedRef.current = false;
         setBulkSyncing(false);
+        setImportProgress('');
     };
     const handleClearData = async () => {
         if (!confirm('全物件データを削除しますか？この操作は取り消せません。')) return;
@@ -468,14 +516,16 @@ const App = () => {
     const addOpenHouseDate = () => setForm(p => ({...p, openHouseDates: [...p.openHouseDates, '']}));
     const updateOpenHouseDate = (i, v) => { const n = [...form.openHouseDates]; n[i] = v; setForm({...form, openHouseDates: n}); };
     const removeOpenHouseDate = (i) => { setForm(p => ({...p, openHouseDates: p.openHouseDates.filter((_, idx) => idx !== i)})); };
-    const resetEventForm = () => setEventForm({ name:'', category:'新築', setupDate_date:'', setupDate_time:'', setupEndTime:'', setupVehicle:'', setupVehicle2:'', teardownDate_date:'', teardownDate_time:'', teardownEndTime:'', teardownVehicle:'', teardownVehicle2:'', eventDates:['',''], notificationStaff:[] });
-    const openNewEventModal = () => { setEditingEventId(null); resetEventForm(); setIsEventModalOpen(true); };
+    const resetEventForm = () => { setEventForm({ name:'', category:'新築', setupDate_date:'', setupDate_time:'', setupEndTime:'', setupVehicle:'', setupVehicle2:'', teardownDate_date:'', teardownDate_time:'', teardownEndTime:'', teardownVehicle:'', teardownVehicle2:'', eventDates:['',''], notificationStaff:[], propertyId:'', propertyName:'', requester:'', shootingTypes:[], shootingRange_from_date:'', shootingRange_from_time:'', shootingRange_to_date:'', shootingRange_to_time:'', instructionFileUrl:'', instructionFileName:'', overviewFileUrl:'', overviewFileName:'', witnessStaff:'', ownerPresence:'', shootingNotes:'' }); setShowEventPropertySearch(false); setEventPropertySearch(''); };
+    const openNewEventModal = () => { setEditingEventId(null); resetEventForm(); setShowEventPropertySearch(false); setEventPropertySearch(''); setIsEventModalOpen(true); };
     const openEditEventModal = (evt) => {
         setEditingEventId(evt.id);
         const [sd, st] = (evt.setupDate || '').split('T'); const [td, tt] = (evt.teardownDate || '').split('T');
         let eDates = evt.eventDates && evt.eventDates.length > 0 ? [...evt.eventDates] : ['', ''];
         eDates = eDates.map(d => (d || '').split('T')[0].replace(/\//g, '-')); if (eDates.length < 2) eDates.push('');
-        setEventForm({ name: evt.name||'', category: evt.category||'新築', setupDate_date: sd||'', setupDate_time: st?.substring(0,5)||'', setupEndTime: evt.setupEndTime||'', setupVehicle: evt.setupVehicle||'', setupVehicle2: evt.setupVehicle2||'', teardownDate_date: td||'', teardownDate_time: tt?.substring(0,5)||'', teardownEndTime: evt.teardownEndTime||'', teardownVehicle: evt.teardownVehicle||'', teardownVehicle2: evt.teardownVehicle2||'', eventDates: eDates, notificationStaff: evt.notificationStaff||[] });
+        const [srfd, srft] = (evt.shootingRangeFrom || '').split('T'); const [srtd, srtt] = (evt.shootingRangeTo || '').split('T');
+        setEventForm({ name: evt.name||'', category: evt.category||'新築', setupDate_date: sd||'', setupDate_time: st?.substring(0,5)||'', setupEndTime: evt.setupEndTime||'', setupVehicle: evt.setupVehicle||'', setupVehicle2: evt.setupVehicle2||'', teardownDate_date: td||'', teardownDate_time: tt?.substring(0,5)||'', teardownEndTime: evt.teardownEndTime||'', teardownVehicle: evt.teardownVehicle||'', teardownVehicle2: evt.teardownVehicle2||'', eventDates: eDates, notificationStaff: evt.notificationStaff||[], propertyId: evt.propertyId||'', propertyName: evt.propertyName||'', requester: evt.requester||'', shootingTypes: evt.shootingTypes||[], shootingRange_from_date: srfd||'', shootingRange_from_time: srft?.substring(0,5)||'', shootingRange_to_date: srtd||'', shootingRange_to_time: srtt?.substring(0,5)||'', instructionFileUrl: evt.instructionFileUrl||'', instructionFileName: evt.instructionFileName||'', overviewFileUrl: evt.overviewFileUrl||'', overviewFileName: evt.overviewFileName||'', witnessStaff: evt.witnessStaff||'', ownerPresence: evt.ownerPresence||'', shootingNotes: evt.shootingNotes||'' });
+        setShowEventPropertySearch(false); setEventPropertySearch('');
         setIsEventModalOpen(true);
     };
     const saveEvent = async (e) => {
@@ -483,7 +533,9 @@ const App = () => {
         const setup = eventForm.setupDate_date ? `${eventForm.setupDate_date}T${eventForm.setupDate_time || '00:00'}` : '';
         const teardown = eventForm.teardownDate_date ? `${eventForm.teardownDate_date}T${eventForm.teardownDate_time || '00:00'}` : '';
         const validDates = eventForm.eventDates.filter(d => d);
-        const data = { name: eventForm.name, category: eventForm.category, setupDate: setup, setupEndTime: eventForm.setupEndTime, setupVehicle: eventForm.setupVehicle, setupVehicle2: eventForm.setupVehicle2, teardownDate: teardown, teardownEndTime: eventForm.teardownEndTime, teardownVehicle: eventForm.teardownVehicle, teardownVehicle2: eventForm.teardownVehicle2, eventDates: validDates, notificationStaff: eventForm.notificationStaff, updatedAt: new Date().toISOString() };
+        const srFrom = eventForm.shootingRange_from_date ? `${eventForm.shootingRange_from_date}T${eventForm.shootingRange_from_time || '00:00'}` : '';
+        const srTo = eventForm.shootingRange_to_date ? `${eventForm.shootingRange_to_date}T${eventForm.shootingRange_to_time || '00:00'}` : '';
+        const data = { name: eventForm.name, category: eventForm.category, setupDate: setup, setupEndTime: eventForm.setupEndTime, setupVehicle: eventForm.setupVehicle, setupVehicle2: eventForm.setupVehicle2, teardownDate: teardown, teardownEndTime: eventForm.teardownEndTime, teardownVehicle: eventForm.teardownVehicle, teardownVehicle2: eventForm.teardownVehicle2, eventDates: validDates, notificationStaff: eventForm.notificationStaff, propertyId: eventForm.propertyId||null, propertyName: eventForm.propertyName||'', requester: eventForm.requester||'', shootingTypes: eventForm.shootingTypes||[], shootingRangeFrom: srFrom, shootingRangeTo: srTo, instructionFileUrl: eventForm.instructionFileUrl||'', instructionFileName: eventForm.instructionFileName||'', overviewFileUrl: eventForm.overviewFileUrl||'', overviewFileName: eventForm.overviewFileName||'', witnessStaff: eventForm.witnessStaff||'', ownerPresence: eventForm.ownerPresence||'', shootingNotes: eventForm.shootingNotes||'', updatedAt: new Date().toISOString() };
         try { if(editingEventId) { const{error}=await supabase.from('events').update(data).eq('id',editingEventId); if(error) throw error; } else { const{error}=await supabase.from('events').insert(data); if(error) throw error; } setIsEventModalOpen(false); showNotification('イベント保存完了'); } catch(err) { alert('保存失敗: '+err.message); }
     };
     const deleteEvent = async (id) => { if(!confirm('イベントを削除しますか？')) return; const{error}=await supabase.from('events').delete().eq('id',id); if(error){alert('削除失敗');return;} showNotification('イベント削除完了'); if(editingEventId===id) setIsEventModalOpen(false); };
@@ -517,6 +569,92 @@ const App = () => {
         } catch(e){ alert('失敗:'+e.message); }
     };
 
+    const DEFAULT_HELP = `## ヘッダーボタン一覧
+
+![ヘッダーボタン](https://vkovflhltggyrgimeabp.supabase.co/storage/v1/object/public/documents/help/header-buttons.png)
+
+## 撮影依頼の手順
+
+1. ヘッダー右上の「撮影依頼」ボタンをクリック
+2. 物件検索画面が開きます。フリーワード・事業部・担当者・契約日・引渡日で物件を検索
+
+![撮影依頼 物件選択](https://vkovflhltggyrgimeabp.supabase.co/storage/v1/object/public/documents/help/request-modal.png)
+
+3. 該当する物件をクリックして選択
+4. 物件編集画面の「撮影依頼」セクションが表示されます
+5. 依頼者・撮影種類・撮影可能期間・撮影指示書などを入力
+6. 「保存する」をクリックして完了
+
+## イベント追加の手順
+
+1. ヘッダー右上の「イベント追加」ボタンをクリック
+2. イベント名を入力し、事業部を選択
+
+![イベント登録 物件検索](https://vkovflhltggyrgimeabp.supabase.co/storage/v1/object/public/documents/help/event-property-search.png)
+
+3. 開催物件がある場合は「開催物件を選択」ボタンから物件を検索・選択
+4. 物件を選択すると、撮影依頼の入力項目が表示されます
+
+![イベント登録 撮影依頼付き](https://vkovflhltggyrgimeabp.supabase.co/storage/v1/object/public/documents/help/event-with-shooting.png)
+
+5. スケジュール（設営日・撤収日・イベント日程）を入力
+6. 必要に応じて通知スタッフを設定
+7. 「保存する」をクリックして完了
+
+## その他のヒント
+
+- リスト表示では年月フィルタで絞り込みが可能です
+- カレンダー表示では月ごとのスケジュールを確認できます
+- ANDPAD取込でANDPADの案件データを一括インポートできます
+- チャットワーク通知は設定画面から有効化できます`;
+
+    const loadHelpContent = async () => {
+        const { data } = await supabase.from('app_settings').select('value').eq('key', 'help_content').single();
+        setHelpContent(data?.value || DEFAULT_HELP);
+    };
+    const saveHelpContent = async () => {
+        const { error } = await supabase.from('app_settings').upsert({ key: 'help_content', value: helpContent }, { onConflict: 'key' });
+        if (error) { alert('保存失敗: ' + error.message); return; }
+        showNotification('ヘルプ内容を保存しました');
+    };
+    const [isEditingHelp, setIsEditingHelp] = useState(false);
+
+    const DEFAULT_FAQ = `## 撮影依頼について
+
+Q. 撮影依頼はどこからできますか？
+A. ヘッダー右上の「撮影依頼」ボタンから物件を検索・選択して依頼できます。
+
+Q. 撮影種類は複数選択できますか？
+A. はい、スチール・YouTube・インスタライブなど複数選択可能です。
+
+## イベントについて
+
+Q. イベントに物件を紐付けるには？
+A. イベント登録画面の「開催物件を選択」ボタンから検索・選択してください。
+
+Q. イベント日程は複数設定できますか？
+A. はい、「+ 追加」ボタンで複数日程を設定できます。
+
+## ANDPAD連携
+
+Q. ANDPAD取込で物件が見つかりません
+A. 引渡日の年月範囲を広げて再度取込みをお試しください。
+
+## 通知について
+
+Q. チャットワーク通知はどう設定しますか？
+A. ヘッダーのチャットワーク設定アイコンからルームIDと通知タイミングを設定してください。`;
+
+    const loadFaqContent = async () => {
+        const { data } = await supabase.from('app_settings').select('value').eq('key', 'faq_content').single();
+        setFaqContent(data?.value || DEFAULT_FAQ);
+    };
+    const saveFaqContent = async () => {
+        const { error } = await supabase.from('app_settings').upsert({ key: 'faq_content', value: faqContent }, { onConflict: 'key' });
+        if (error) { alert('保存失敗: ' + error.message); return; }
+        showNotification('FAQ内容を保存しました');
+    };
+
     if (loading) return <div className="flex h-screen items-center justify-center bg-gray-50">Loading...</div>;
 
     return (
@@ -524,19 +662,11 @@ const App = () => {
             {/* Header, Main Content same as before */}
             <header className="bg-white border-b border-gray-100 sticky top-0 z-30 shadow-sm/50">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-                    <div className="flex items-center gap-3"><svg width="38" height="38" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="6" fill="#C5A070"/><rect y="14.5" width="40" height="3" fill="white"/><circle cx="20" cy="20" r="11" fill="white"/><circle cx="20" cy="20" r="7.5" fill="#C5A070"/><circle cx="20" cy="20" r="4" fill="white"/><circle cx="20" cy="20" r="2" fill="white"/><circle cx="31" cy="8" r="2.8" fill="white"/></svg><div><h1 className="text-lg font-bold tracking-tight text-primary leading-none">シューログ 現場撮影管理</h1><p className="text-xs text-gray-400 font-medium tracking-wider">SUNPRO SHOOT LOG</p></div></div>
+                    <div className="flex items-center gap-3"><svg width="38" height="38" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" rx="6" fill="#C5A070"/><rect y="14.5" width="40" height="3" fill="white"/><circle cx="20" cy="20" r="11" fill="white"/><circle cx="20" cy="20" r="7.5" fill="#C5A070"/><circle cx="20" cy="20" r="4" fill="white"/><circle cx="20" cy="20" r="2" fill="white"/><circle cx="31" cy="8" r="2.8" fill="white"/></svg><div><h1 className="text-lg font-bold tracking-tight text-primary leading-none">シューログ 現場撮影管理</h1><p className="text-xs text-gray-400 font-medium tracking-wider">SUNPRO SHOOT LOG</p></div><div className="flex gap-1 ml-1"><button onClick={()=>{loadHelpContent();setIsHelpModalOpen(true);}} className="flex items-center gap-1 text-[10px] font-bold text-gray-400 hover:text-primary px-2 py-0.5 hover:bg-gray-100 rounded transition-colors border border-gray-200" title="使い方ガイド"><Icon name="book-open" size={11}/><span className="hidden sm:inline">使い方</span></button><button onClick={()=>{loadFaqContent();setIsFaqModalOpen(true);}} className="flex items-center gap-1 text-[10px] font-bold text-gray-400 hover:text-primary px-2 py-0.5 hover:bg-gray-100 rounded transition-colors border border-gray-200" title="よくあるご質問"><Icon name="message-circle" size={11}/><span className="hidden sm:inline">FAQ</span></button></div></div>
                     <div className="flex items-center gap-2">
-                        <div className="hidden md:flex items-center gap-2 mr-2">
-                            <button onClick={()=>setIsAndpadModalOpen(true)} disabled={bulkSyncing} className="text-gray-500 hover:text-primary p-2 hover:bg-gray-50 rounded-full transition-colors disabled:opacity-50" title="ANDPAD取込"><Icon name="cloud-download" size={20} /></button>
-                            <button onClick={()=>{setJsonInput('');setIsJsonModalOpen(true);}} className="text-gray-500 hover:text-primary p-2 hover:bg-gray-50 rounded-full transition-colors" title="JSON取込"><Icon name="file-code" size={20} /></button>
-                            <button onClick={()=>{setStaffForm({id:'',name:'',email:'',department:'',roles:[],chatwork_account_id:''});setIsStaffModalOpen(true);}} className="text-gray-500 hover:text-primary p-2 hover:bg-gray-50 rounded-full transition-colors" title="スタッフ管理"><Icon name="users" size={20} /></button>
-                            <button onClick={()=>{setEquipmentForm({id:'',name:'',email:'',type:'設備'});setIsEquipmentModalOpen(true);}} className="text-gray-500 hover:text-primary p-2 hover:bg-gray-50 rounded-full transition-colors" title="設備管理"><Icon name="package" size={20} /></button>
-                            <button onClick={handleSyncCalendar} disabled={isSyncingCalendar} className="text-gray-500 hover:text-primary p-2 hover:bg-gray-50 rounded-full transition-colors disabled:opacity-50" title="Googleカレンダー同期">{isSyncingCalendar?<span className="animate-spin">⌛</span>:<Icon name="calendar-days" size={20} />}</button>
-                            <button onClick={()=>setIsSettingsModalOpen(true)} className="text-gray-500 hover:text-primary p-2 hover:bg-gray-50 rounded-full transition-colors" title="チャットワーク設定"><Icon name="message-square" size={20} /></button>
-                            <button onClick={handleClearData} className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded-full transition-colors" title="全データ削除"><Icon name="trash" size={20} /></button>
-                        </div>
                         <button onClick={openNewEventModal} className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-full text-sm font-bold hover:bg-gray-50 transition-all shadow-sm"><Icon name="calendar-plus" size={16} className="text-purple-500" /> イベント追加</button>
                         <button onClick={openRequestModal} className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-full text-sm font-bold hover:bg-gray-50 transition-all shadow-sm"><Icon name="camera" size={16} className="text-accent" /> 撮影依頼</button>
+                        <div className="relative"><button onClick={()=>setIsMenuOpen(!isMenuOpen)} className="p-2 text-gray-500 hover:text-primary hover:bg-gray-50 rounded-full transition-colors" title="メニュー"><Icon name="menu" size={22}/></button>{isMenuOpen && (<><div className="fixed inset-0 z-40" onClick={()=>setIsMenuOpen(false)}/><div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 py-2 w-56 z-50 animate-enter">{[{label:'ANDPAD取込',icon:'cloud-download',action:()=>setIsAndpadModalOpen(true),disabled:bulkSyncing},{label:'JSON取込',icon:'file-code',action:()=>{setJsonInput('');setIsJsonModalOpen(true);}},{label:'スタッフ管理',icon:'users',action:()=>{setStaffForm({id:'',name:'',email:'',department:'',roles:[],chatwork_account_id:''});setIsStaffModalOpen(true);}},{label:'設備管理',icon:'package',action:()=>{setEquipmentForm({id:'',name:'',email:'',type:'設備'});setIsEquipmentModalOpen(true);}},{label:'Googleカレンダー同期',icon:'calendar-days',action:handleSyncCalendar,disabled:isSyncingCalendar},{label:'チャットワーク設定',icon:'message-square',action:()=>setIsSettingsModalOpen(true)}].map(item=>(<button key={item.label} onClick={()=>{item.action();setIsMenuOpen(false);}} disabled={item.disabled} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-primary transition-colors disabled:opacity-50"><Icon name={item.icon} size={18}/>{item.label}</button>))}</div></>)}</div>
                     </div>
                 </div>
             </header>
@@ -545,7 +675,7 @@ const App = () => {
                 <div className="bg-white rounded-2xl shadow-card border border-gray-100 p-1 mb-8">
                     <div className="flex flex-col lg:flex-row items-center justify-between gap-4 p-4">
                         <div className="flex flex-col sm:flex-row items-center gap-4 w-full lg:w-auto">
-                            <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2 border border-gray-100"><span className="text-sm font-bold text-gray-500">設営日:</span><Icon name="calendar-days" size={18} className="text-gray-400" /><input type="month" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} className="bg-transparent text-sm font-semibold outline-none text-gray-700 w-28" /><span className="text-gray-300">→</span><input type="month" value={filterTo} onChange={e => setFilterTo(e.target.value)} className="bg-transparent text-sm font-semibold outline-none text-gray-700 w-28" /></div>
+                            <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-3 py-2 border border-gray-100"><span className="text-sm font-bold text-gray-500 whitespace-nowrap">設営日:</span><Icon name="calendar-days" size={18} className="text-gray-400" /><input type="month" value={filterFrom} onChange={e => setFilterFrom(e.target.value)} className="bg-transparent text-sm font-semibold outline-none text-gray-700 w-28" /><span className="text-gray-300">→</span><input type="month" value={filterTo} onChange={e => setFilterTo(e.target.value)} className="bg-transparent text-sm font-semibold outline-none text-gray-700 w-28" /></div>
                             <div className="flex gap-1">{[0, 1, 2].map(o => (<button key={o} onClick={() => setQuickFilter(o)} className="px-3 py-1.5 rounded-lg text-sm font-bold text-gray-500 hover:bg-gray-50 transition-colors">{o === 0 ? '今月' : o === 1 ? '来月' : '再来月'}</button>))}<button onClick={setFourMonthsFilter} className="px-3 py-1.5 rounded-lg text-sm font-bold text-accent bg-accent/10 hover:bg-accent/20 transition-colors">4ヶ月分</button></div>
                         </div>
                         <div className="flex items-center gap-3 w-full lg:w-auto justify-between lg:justify-end">
@@ -555,8 +685,8 @@ const App = () => {
                     </div>
                     {isFilterExpanded && (
                         <div className="border-t border-gray-100 p-6 grid grid-cols-1 md:grid-cols-3 gap-6 animate-enter">
-                            <div className="space-y-2"><label className="text-sm font-bold text-gray-400 uppercase tracking-wider">事業部</label><div className="flex flex-wrap gap-2">{CATEGORIES.map(c=><button key={c} onClick={()=>toggleFilterCategory(c)} className={`px-3 py-1.5 rounded-full text-sm font-bold border ${selectedCategories.includes(c)?'bg-primary text-white border-primary':'bg-white text-gray-500'}`}>{c}</button>)}</div></div>
-                            <div className="space-y-2"><label className="text-sm font-bold text-gray-400 uppercase tracking-wider">支店</label><div className="flex flex-wrap gap-2">{BRANCHES.map(b=><button key={b} onClick={()=>toggleFilterBranch(b)} className={`px-3 py-1.5 rounded-full text-sm font-bold border ${selectedBranches.includes(b)?'bg-accent text-white border-accent':'bg-white text-gray-500'}`}>{BRANCH_LABELS[b]}</button>)}</div></div>
+                            <div><h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">事業部</h3><div className="flex flex-wrap gap-1.5">{CATEGORIES.map(c=><button key={c} onClick={()=>toggleFilterCategory(c)} className={`px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${selectedCategories.includes(c)?'bg-gray-900 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{c}</button>)}</div></div>
+                            <div><h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">支店</h3><div className="flex flex-wrap gap-1.5">{BRANCHES.map(b=><button key={b} onClick={()=>toggleFilterBranch(b)} className={`px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${selectedBranches.includes(b)?'bg-gray-900 text-white':'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}>{BRANCH_LABELS[b]}</button>)}</div></div>
                             <div className="space-y-2"><label className="text-sm font-bold text-gray-400 uppercase tracking-wider">キーワード</label><div className="relative"><Icon name="search" size={18} className="absolute left-3 top-3 text-gray-300" /><input type="text" value={searchKeyword} onChange={e=>setSearchKeyword(e.target.value)} placeholder="物件名, 担当者..." className="w-full pl-9 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-medium outline-none"/></div></div>
                         </div>
                     )}
@@ -578,7 +708,38 @@ const App = () => {
                                                     </div>
                                                 </td>
                                             </tr>
-                                            {group.items.map(prop => {
+                                            {group.items.map(item => {
+                                                if (item._type === 'event') {
+                                                    const evt = item;
+                                                    const evtSchedule = [
+                                                        { label: 'EV設営', date: evt.setupDate, color: 'text-indigo-600' },
+                                                        { label: 'EV撤収', date: evt.teardownDate, color: 'text-amber-600' },
+                                                        ...(evt.eventDates || []).filter(Boolean).map(d => ({ label: 'イベント', date: d, color: 'text-teal-600' }))
+                                                    ].filter(i => i.date).sort((a,b) => new Date(a.date) - new Date(b.date));
+                                                    return (
+                                                        <tr key={`evt-${evt.id}`} className="hover:bg-teal-50 transition-colors border-b-2 border-gray-300 bg-teal-50/30">
+                                                            <td className="px-6 py-4 align-top w-40"><div className="flex flex-col gap-1.5 items-start"><span className="px-2 py-0.5 rounded text-sm font-bold bg-teal-100 text-teal-700 border border-teal-200">イベント</span><span className="px-2 py-0.5 rounded text-sm font-bold bg-gray-100 text-gray-600 border border-gray-200">{evt.category}</span></div></td>
+                                                            <td className="px-6 py-4 align-top max-w-xs">
+                                                                <div className="font-bold text-sm text-gray-900 mb-0.5">{evt.name || 'イベント名未設定'}</div>
+                                                            </td>
+                                                            <td className="px-6 py-4 align-top">
+                                                                <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm items-start">
+                                                                    {evtSchedule.map((s, idx) => (
+                                                                        <React.Fragment key={idx}>
+                                                                            <span className={`font-bold ${s.color} pt-0.5`}>{s.label}</span>
+                                                                            <span className="font-medium text-gray-700">{formatDateTime(s.date)}</span>
+                                                                        </React.Fragment>
+                                                                    ))}
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-6 py-4 align-top"></td>
+                                                            <td className="px-6 py-4 align-top text-center w-40">
+                                                                <div className="flex justify-center gap-2"><button onClick={() => openEditEventModal(evt)} className="text-gray-400 hover:text-primary transition-colors"><Icon name="pencil" size={20} /></button><button onClick={() => deleteEvent(evt.id)} className="text-gray-400 hover:text-red-500 transition-colors"><Icon name="trash-2" size={20} /></button></div>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                }
+                                                const prop = item;
                                                 const branch = getAreaBranch(prop.address);
                                                 const scheduleItems = [
                                                     { type: 'setup', date: prop.setupDate, label: '設営', color: 'text-blue-500' },
@@ -599,19 +760,19 @@ const App = () => {
                                                         </td>
                                                         <td className="px-6 py-4 align-top">
                                                             <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm items-start">
-                                                                {scheduleItems.map((item, idx) => (
+                                                                {scheduleItems.map((si, idx) => (
                                                                     <React.Fragment key={idx}>
-                                                                        <span className={`font-bold ${item.color} pt-0.5`}>{item.label}</span>
-                                                                        {item.isRange ? (
+                                                                        <span className={`font-bold ${si.color} pt-0.5`}>{si.label}</span>
+                                                                        {si.isRange ? (
                                                                             <div className="flex flex-col text-gray-700 font-medium">
-                                                                                <span>{formatDateTime(item.date)}</span>
+                                                                                <span>{formatDateTime(si.date)}</span>
                                                                                 <span className="text-gray-300 text-xs leading-none py-0.5">▼</span>
-                                                                                <span>{formatDateTime(item.to)}</span>
+                                                                                <span>{formatDateTime(si.to)}</span>
                                                                             </div>
                                                                         ) : (
                                                                             <span className="font-medium text-gray-700">
-                                                                                {item.type === 'openhouse' || item.type === 'handover' ? formatDate(item.date) : formatDateTime(item.date)}
-                                                                                {item.extra && <span className="text-sm text-emerald-400 ml-1">({item.extra})</span>}
+                                                                                {si.type === 'openhouse' || si.type === 'handover' ? formatDate(si.date) : formatDateTime(si.date)}
+                                                                                {si.extra && <span className="text-sm text-emerald-400 ml-1">({si.extra})</span>}
                                                                             </span>
                                                                         )}
                                                                     </React.Fragment>
@@ -695,7 +856,7 @@ const App = () => {
             {isStaffBulkModalOpen && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4"><div className="absolute inset-0 bg-primary/60 backdrop-blur-sm" onClick={()=>setIsStaffBulkModalOpen(false)}></div><div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl animate-enter"><div className="flex justify-between mb-4"><h3 className="font-bold text-lg">{staffBulkMode==='import'?'スタッフ一括取込':'スタッフ一括書出'}</h3><button onClick={()=>setIsStaffBulkModalOpen(false)}><Icon name="x" size={20}/></button></div><textarea value={staffBulkText} onChange={e=>setStaffBulkText(e.target.value)} readOnly={staffBulkMode==='export'} className="w-full h-64 border rounded p-2 mb-4 font-mono text-xs" placeholder={staffBulkMode==='import'?'氏名\tメールアドレス\t所属事業部\t役割\n山田太郎\ttaro@example.com\t新築\t営業,広報':''} /><div className="flex gap-4">{staffBulkMode==='export'?<button onClick={copyToClipboard} className="flex-1 py-2 bg-accent text-white rounded">クリップボードにコピー</button>:<button onClick={handleStaffBulkImport} className="flex-1 py-2 bg-primary text-white rounded">取り込む</button>}</div></div></div>)}
             {isEquipmentModalOpen && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4"><div className="absolute inset-0 bg-primary/60 backdrop-blur-sm" onClick={()=>setIsEquipmentModalOpen(false)}></div><div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col md:flex-row overflow-hidden relative animate-enter"><div className="w-full md:w-1/2 border-r border-gray-100 flex flex-col bg-gray-50"><div className="p-4 border-b bg-white sticky top-0 z-10 flex flex-col gap-3"><div className="flex justify-between items-center"><h3 className="font-bold text-primary">設備一覧</h3><div className="flex gap-2"><button onClick={handleEquipBulkExport} className="text-xs border border-gray-300 px-2 py-1 rounded hover:bg-gray-50">書出</button><button onClick={()=>{setEquipBulkMode('import');setEquipBulkText('');setIsEquipBulkModalOpen(true);}} className="text-xs border border-gray-300 px-2 py-1 rounded hover:bg-gray-50">取込</button><button onClick={()=>setEquipmentForm({id:'',name:'',email:'',type:'設備'})} className="text-sm bg-primary text-white px-3 py-1 rounded hover:bg-gray-800">新規</button></div></div><select value={equipFilterType} onChange={e=>setEquipFilterType(e.target.value)} className="w-full border rounded p-1 text-sm"><option value="">全種類</option>{EQUIPMENT_TYPES.map(c=><option key={c} value={c}>{c}</option>)}</select></div><div className="overflow-y-auto flex-1 p-2 space-y-2">{equipments.filter(e=>!equipFilterType||e.type===equipFilterType).map(e=>(<div key={e.id} onClick={()=>setEquipmentForm(e)} className={`p-3 rounded-xl cursor-pointer border ${equipmentForm.id===e.id?'bg-white border-accent':'bg-white border-transparent'}`}><div><div className="font-bold text-sm">{e.name}</div><div className="text-sm text-gray-400">{e.type}</div><div className="text-sm text-gray-400">{e.email}</div></div></div>))}</div></div><div className="w-full md:w-1/2 p-6 overflow-y-auto bg-white"><div className="flex justify-between mb-6"><h3 className="font-bold text-lg">編集</h3><button onClick={()=>setIsEquipmentModalOpen(false)}><Icon name="x" size={20}/></button></div><form onSubmit={saveEquipment} className="space-y-5"><div><label className="block text-sm font-bold text-gray-500">名称</label><input type="text" value={equipmentForm.name} onChange={e=>setEquipmentForm({...equipmentForm,name:e.target.value})} className="w-full border rounded px-2 py-2"/></div><div><label className="block text-sm font-bold text-gray-500">ID/Email</label><input type="text" value={equipmentForm.email} onChange={e=>setEquipmentForm({...equipmentForm,email:e.target.value})} className="w-full border rounded px-2 py-2"/></div><div><label className="block text-sm font-bold text-gray-500">種類</label><div className="flex gap-2">{EQUIPMENT_TYPES.map(t=><button type="button" key={t} onClick={()=>setEquipmentForm({...equipmentForm,type:t})} className={`flex-1 py-2 border rounded text-sm ${equipmentForm.type===t?'bg-accent text-white':'bg-gray-50'}`}>{t}</button>)}</div></div><div className="flex gap-3 pt-6 border-t">{equipmentForm.id&&<button type="button" onClick={()=>deleteEquipment(equipmentForm.id)} className="px-4 py-2 border text-red-500 rounded">削除</button>}<button type="submit" className="flex-1 px-4 py-2 bg-primary text-white rounded">保存</button></div></form></div></div></div>)}
             {isEquipBulkModalOpen && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4"><div className="absolute inset-0 bg-primary/60 backdrop-blur-sm" onClick={()=>setIsEquipBulkModalOpen(false)}></div><div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-2xl animate-enter"><div className="flex justify-between mb-4"><h3 className="font-bold text-lg">{equipBulkMode==='import'?'設備一括取込':'設備一括書出'}</h3><button onClick={()=>setIsEquipBulkModalOpen(false)}><Icon name="x" size={20}/></button></div><textarea value={equipBulkText} onChange={e=>setEquipBulkText(e.target.value)} readOnly={equipBulkMode==='export'} className="w-full h-64 border rounded p-2 mb-4 font-mono text-xs" placeholder={equipBulkMode==='import'?'名称\tID/Email\t種類\nハイエース\thiace@example.com\t車輛':''} /><div className="flex gap-4">{equipBulkMode==='export'?<button onClick={copyEquipToClipboard} className="flex-1 py-2 bg-accent text-white rounded">クリップボードにコピー</button>:<button onClick={handleEquipBulkImport} className="flex-1 py-2 bg-primary text-white rounded">取り込む</button>}</div></div></div>)}
-            {isAndpadModalOpen && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4"><div className="absolute inset-0 bg-primary/60 backdrop-blur-sm" onClick={()=>setIsAndpadModalOpen(false)}></div><div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md animate-enter text-center"><Icon name="cloud-download" size={48} className="text-accent mx-auto mb-4"/><h3 className="text-xl font-bold text-primary mb-2">ANDPAD 同期</h3><div className="flex gap-2 justify-center mb-8"><input type="month" value={importFrom} onChange={e=>setImportFrom(e.target.value)} className="border rounded px-2 py-1"/><span>~</span><input type="month" value={importTo} onChange={e=>setImportTo(e.target.value)} className="border rounded px-2 py-1"/></div><div className="flex gap-4"><button onClick={()=>setIsAndpadModalOpen(false)} className="flex-1 py-3 border rounded text-gray-400">キャンセル</button><button onClick={handleBulkImport} className="flex-1 py-3 bg-primary text-white rounded shadow-lg">実行</button></div></div></div>)}
+            {isAndpadModalOpen && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4"><div className="absolute inset-0 bg-primary/60 backdrop-blur-sm" onClick={()=>setIsAndpadModalOpen(false)}></div><div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-md animate-enter text-center"><Icon name="cloud-download" size={48} className="text-accent mx-auto mb-4"/><h3 className="text-xl font-bold text-primary mb-2">ANDPAD 同期</h3><div className="flex gap-2 justify-center mb-8"><input type="month" value={importFrom} onChange={e=>setImportFrom(e.target.value)} className="border rounded px-2 py-1"/><span>~</span><input type="month" value={importTo} onChange={e=>setImportTo(e.target.value)} className="border rounded px-2 py-1"/></div>{importProgress && <div className="mb-4 text-sm text-accent font-bold animate-pulse">{importProgress}</div>}<div className="flex gap-4"><button onClick={()=>setIsAndpadModalOpen(false)} disabled={bulkSyncing} className="flex-1 py-3 border rounded text-gray-400 disabled:opacity-50">キャンセル</button><button onClick={handleBulkImport} disabled={bulkSyncing} className="flex-1 py-3 bg-primary text-white rounded shadow-lg disabled:opacity-50">{bulkSyncing ? '処理中...' : '実行'}</button></div></div></div>)}
             {isJsonModalOpen && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4"><div className="absolute inset-0 bg-primary/60 backdrop-blur-sm" onClick={()=>setIsJsonModalOpen(false)}></div><div className="bg-white rounded-2xl shadow-2xl p-8 w-full max-w-2xl animate-enter"><textarea value={jsonInput} onChange={e=>setJsonInput(e.target.value)} placeholder="Paste JSON..." className="w-full h-64 border rounded p-2 mb-4"/><div className="flex gap-4"><button onClick={()=>setIsJsonModalOpen(false)} className="flex-1 py-2 border rounded">Cancel</button><button onClick={processJsonImport} className="flex-1 py-2 bg-primary text-white rounded">Import</button></div></div></div>)}
             {isRequestModalOpen && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4"><div className="absolute inset-0 bg-primary/60 backdrop-blur-sm" onClick={()=>setIsRequestModalOpen(false)}></div><div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto relative animate-enter flex flex-col"><div className="p-6 border-b border-gray-100 bg-white sticky top-0 z-10"><div className="flex justify-between items-center mb-6"><h2 className="text-xl font-bold text-primary flex items-center gap-2"><Icon name="camera" size={24}/> 撮影依頼 - 物件選択</h2><button onClick={()=>setIsRequestModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><Icon name="x" size={24}/></button></div><div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 bg-gray-50 p-4 rounded-xl border border-gray-200"><div className="col-span-1"><label className="text-xs font-bold text-gray-400 uppercase block mb-1">事業部</label><select value={reqSearch.category} onChange={e=>setReqSearch({...reqSearch, category:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm bg-white"><option value="">全て</option>{CATEGORIES.map(c=><option key={c} value={c}>{c}</option>)}</select></div><div className="col-span-1"><label className="text-xs font-bold text-gray-400 uppercase block mb-1">担当者</label><select value={reqSearch.staff} onChange={e=>setReqSearch({...reqSearch, staff:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm bg-white"><option value="">全て</option>{staffSuggestions.map(s=><option key={s} value={s}>{s}</option>)}</select></div><div className="col-span-2"><label className="text-xs font-bold text-gray-400 uppercase block mb-1">フリーワード</label><input type="text" value={reqSearch.keyword} onChange={e=>setReqSearch({...reqSearch, keyword:e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="物件名, 顧客名, 住所..." /></div><div className="col-span-2"><label className="text-xs font-bold text-gray-400 uppercase block mb-1">契約日 (年月)</label><div className="flex gap-2 items-center"><input type="month" value={reqSearch.contractFrom} onChange={e=>setReqSearch({...reqSearch, contractFrom:e.target.value})} className="w-full border rounded-lg px-2 py-2 text-xs" /><span className="text-gray-400">~</span><input type="month" value={reqSearch.contractTo} onChange={e=>setReqSearch({...reqSearch, contractTo:e.target.value})} className="w-full border rounded-lg px-2 py-2 text-xs" /></div></div><div className="col-span-2"><label className="text-xs font-bold text-gray-400 uppercase block mb-1">引渡日 (年月)</label><div className="flex gap-2 items-center"><input type="month" value={reqSearch.handoverFrom} onChange={e=>setReqSearch({...reqSearch, handoverFrom:e.target.value})} className="w-full border rounded-lg px-2 py-2 text-xs" /><span className="text-gray-400">~</span><input type="month" value={reqSearch.handoverTo} onChange={e=>setReqSearch({...reqSearch, handoverTo:e.target.value})} className="w-full border rounded-lg px-2 py-2 text-xs" /></div></div><div className="col-span-4 flex justify-end pt-2"><button onClick={()=>setReqSearch({keyword:'',category:'',staff:'',contractFrom:'',contractTo:'',handoverFrom:'',handoverTo:''})} className="text-sm text-gray-400 underline hover:text-gray-600">条件クリア</button></div></div></div><div className="flex-1 overflow-y-auto p-6 bg-gray-50"><div className="space-y-3"><div className="grid grid-cols-12 gap-4 px-4 py-2 text-xs font-bold text-gray-400 uppercase tracking-wider border-b border-gray-200"><div className="col-span-1">事業部</div><div className="col-span-2">担当者</div><div className="col-span-2">契約日</div><div className="col-span-3">顧客名 / 物件名</div><div className="col-span-2">引渡日</div><div className="col-span-2 text-right">契約金額</div></div>{requestSuggestions.length > 0 ? requestSuggestions.map(p => (<div key={p.id} onClick={() => selectPropertyForRequest(p)} className="grid grid-cols-12 gap-4 px-4 py-4 bg-white rounded-xl border border-gray-200 hover:border-accent hover:shadow-md transition-all cursor-pointer items-center group"><div className="col-span-1"><span className="bg-gray-100 text-gray-600 text-xs font-bold px-2 py-1 rounded">{p.category}</span></div><div className="col-span-2 text-xs text-gray-500"><div>{formatRepName(p.salesRep)} <span className="text-[10px] text-gray-400">(営)</span></div>{p.icRep && <div>{formatRepName(p.icRep)} <span className="text-[10px] text-gray-400">(IC)</span></div>}{p.constructionRep && <div>{formatRepName(p.constructionRep)} <span className="text-[10px] text-gray-400">(工)</span></div>}</div><div className="col-span-2 text-sm font-medium text-gray-700">{p.contractDate ? formatDate(p.contractDate) : '-'}</div><div className="col-span-3"><div className="font-bold text-sm text-gray-800">{p.customerName || '未設定'}</div><div className="text-xs text-gray-500 truncate">{p.name}</div></div><div className="col-span-2 text-sm font-medium text-emerald-600">{p.handoverDate ? formatDate(p.handoverDate) : '-'}</div><div className="col-span-2 text-right font-bold text-gray-700">{formatCurrency(p.contractAmount)}</div></div>)) : (<div className="text-center py-12 text-gray-400 font-bold">条件に一致する物件がありません</div>)}</div></div></div></div>)}
 
@@ -717,13 +878,18 @@ const App = () => {
                         <button onClick={() => setIsEventModalOpen(false)} className="p-2 hover:bg-gray-100 rounded-full transition-colors"><Icon name="x" size={24}/></button>
                     </div>
                     <div className="p-8 space-y-8"><form onSubmit={saveEvent} className="space-y-8">
-                        <section className="grid grid-cols-1 md:grid-cols-[120px_1fr] gap-6"><h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest pt-3">基本情報</h3><div className="space-y-4"><div><label className="block text-sm font-bold text-gray-500 mb-1">イベント名*</label><input type="text" required value={eventForm.name} onChange={e => setEventForm({...eventForm, name: e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-accent text-sm font-bold" /></div><div><label className="block text-sm font-bold text-gray-500 mb-2">事業部</label><div className="flex flex-wrap gap-2">{CATEGORIES.map(c=><button key={c} type="button" onClick={()=>setEventForm({...eventForm, category:c})} className={`px-4 py-2 rounded-lg text-sm font-bold border ${eventForm.category===c?'bg-primary text-white':'bg-white text-gray-500'}`}>{c}</button>)}</div></div></div></section>
+                        <section className="grid grid-cols-1 md:grid-cols-[120px_1fr] gap-6"><h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest pt-3">基本情報</h3><div className="space-y-4"><div><label className="block text-sm font-bold text-gray-500 mb-1">イベント名*</label><input type="text" required value={eventForm.name} onChange={e => setEventForm({...eventForm, name: e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-accent text-sm font-bold" /></div><div className="flex gap-4"><div className="flex-1"><label className="block text-sm font-bold text-gray-500 mb-2">事業部</label><div className="flex flex-wrap gap-2">{CATEGORIES.map(c=><button key={c} type="button" onClick={()=>setEventForm({...eventForm, category:c})} className={`px-4 py-2 rounded-lg text-sm font-bold border ${eventForm.category===c?'bg-primary text-white':'bg-white text-gray-500'}`}>{c}</button>)}</div></div><div className="flex-1"><label className="block text-sm font-bold text-gray-500 mb-2">開催物件</label>{eventForm.propertyId ? (<div className="flex items-center gap-2"><span className="px-3 py-2 bg-teal-50 text-teal-700 border border-teal-200 rounded-xl text-sm font-bold flex-1 truncate">{eventForm.propertyName}</span><button type="button" onClick={()=>{setEventForm({...eventForm, propertyId:'', propertyName:''});setShowEventPropertySearch(false);setEventPropertySearch('');}} className="text-red-400 hover:text-red-600 p-1"><Icon name="x" size={16}/></button></div>) : (<button type="button" onClick={()=>setShowEventPropertySearch(!showEventPropertySearch)} className="px-4 py-2 rounded-lg text-sm font-bold border bg-white text-teal-600 border-teal-300 hover:bg-teal-50 transition-colors flex items-center gap-1"><Icon name="search" size={14}/> 開催物件を選択</button>)}</div></div>{showEventPropertySearch && !eventForm.propertyId && (<div className="bg-gray-50 rounded-xl p-4 border border-gray-200"><input type="text" value={eventPropertySearch} onChange={e=>setEventPropertySearch(e.target.value)} placeholder="物件名・顧客名・住所で検索..." className="w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl outline-none focus:border-accent text-sm mb-2" autoFocus />{eventPropertyLoading && <div className="text-xs text-gray-400 py-2">検索中...</div>}{eventPropertyResults.length > 0 && (<div className="max-h-48 overflow-y-auto space-y-1">{eventPropertyResults.map(p=>(<div key={p.id} onClick={()=>{setEventForm({...eventForm, propertyId:p.id, propertyName:`${p.customerName||''} ${p.name}`});setShowEventPropertySearch(false);setEventPropertySearch('');}} className="px-3 py-2 bg-white rounded-lg border border-gray-100 hover:border-teal-300 hover:bg-teal-50 cursor-pointer transition-colors"><div className="text-sm font-bold">{p.customerName || '未設定'} <span className="text-gray-400 font-normal">/ {p.name}</span></div><div className="text-xs text-gray-400">{p.address} <span className="bg-gray-100 px-1.5 py-0.5 rounded ml-1">{p.category}</span></div></div>))}</div>)}{eventPropertySearch && !eventPropertyLoading && eventPropertyResults.length === 0 && <div className="text-xs text-gray-400 py-2">該当する物件がありません</div>}</div>)}</div></section>
                         <section className="grid grid-cols-1 md:grid-cols-[120px_1fr] gap-6 border-t border-gray-100 pt-8"><h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest pt-3">スケジュール</h3><div className="space-y-6"><div><label className="text-sm font-bold text-blue-600 mb-1 block">設営</label><div className="flex gap-2 items-center"><input type="date" value={eventForm.setupDate_date} onChange={e=>setEventForm({...eventForm,setupDate_date:e.target.value})} onClick={handleShowPicker} className="w-48 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-accent text-sm font-bold"/><select value={eventForm.setupDate_time} onChange={e=>setEventForm({...eventForm,setupDate_time:e.target.value})} className="w-24 px-2 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-accent text-sm font-bold"><option value="">開始</option>{timeOptions.map(t=><option key={t} value={t}>{t}</option>)}</select><span className="text-gray-400">〜</span><select value={eventForm.setupEndTime} onChange={e=>setEventForm({...eventForm,setupEndTime:e.target.value})} className="w-24 px-2 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-accent text-sm font-bold"><option value="">終了</option>{timeOptions.map(t=><option key={t} value={t}>{t}</option>)}</select></div><div className="flex gap-2 mt-2"><select value={eventForm.setupVehicle} onChange={e=>setEventForm({...eventForm,setupVehicle:e.target.value})} className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-accent text-sm font-bold"><option value="">車両1</option>{vehicleOptions.map(v=><option key={v.id} value={v.name}>{v.name}</option>)}</select><select value={eventForm.setupVehicle2} onChange={e=>setEventForm({...eventForm,setupVehicle2:e.target.value})} className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-accent text-sm font-bold"><option value="">車両2</option>{vehicleOptions.map(v=><option key={v.id} value={v.name}>{v.name}</option>)}</select></div></div><div><label className="text-sm font-bold text-orange-600 mb-1 block">撤収</label><div className="flex gap-2 items-center"><input type="date" value={eventForm.teardownDate_date} onChange={e=>setEventForm({...eventForm,teardownDate_date:e.target.value})} onClick={handleShowPicker} className="w-48 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-accent text-sm font-bold"/><select value={eventForm.teardownDate_time} onChange={e=>setEventForm({...eventForm,teardownDate_time:e.target.value})} className="w-24 px-2 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-accent text-sm font-bold"><option value="">開始</option>{timeOptions.map(t=><option key={t} value={t}>{t}</option>)}</select><span className="text-gray-400">〜</span><select value={eventForm.teardownEndTime} onChange={e=>setEventForm({...eventForm,teardownEndTime:e.target.value})} className="w-24 px-2 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-accent text-sm font-bold"><option value="">終了</option>{timeOptions.map(t=><option key={t} value={t}>{t}</option>)}</select></div><div className="flex gap-2 mt-2"><select value={eventForm.teardownVehicle} onChange={e=>setEventForm({...eventForm,teardownVehicle:e.target.value})} className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-accent text-sm font-bold"><option value="">車両1</option>{vehicleOptions.map(v=><option key={v.id} value={v.name}>{v.name}</option>)}</select><select value={eventForm.teardownVehicle2} onChange={e=>setEventForm({...eventForm,teardownVehicle2:e.target.value})} className="flex-1 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-accent text-sm font-bold"><option value="">車両2</option>{vehicleOptions.map(v=><option key={v.id} value={v.name}>{v.name}</option>)}</select></div></div><div className="border-t border-dashed pt-4"><label className="text-sm font-bold text-teal-600 mb-1 block">イベント日程</label>{eventForm.eventDates.map((d,i)=>(<div key={i} className="flex gap-2 mt-1"><input type="date" value={d} onChange={e=>updateEventDate(i,e.target.value)} onClick={handleShowPicker} className="w-48 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-accent text-sm font-bold"/>{eventForm.eventDates.length>1&&<button type="button" onClick={()=>removeEventDate(i)} className="text-red-500"><Icon name="trash-2" size={18}/></button>}</div>))}<button type="button" onClick={addEventDate} className="text-sm text-teal-500 mt-1">+ 追加</button></div></div></section>
+                        {eventForm.propertyId && (<section className="grid grid-cols-1 md:grid-cols-[120px_1fr] gap-6 border-t border-gray-100 pt-8"><h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest pt-3">撮影依頼</h3><div className="space-y-6"><div><label className="text-sm font-bold text-gray-500 mb-1 block">依頼者</label><select value={eventForm.requester} onChange={e=>setEventForm({...eventForm,requester:e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-accent text-sm font-bold"><option value="">選択</option>{staffSuggestions.map(s=><option key={s} value={s}>{s}</option>)}</select></div><div><label className="text-sm font-bold text-gray-500 mb-1 block">撮影種類</label><div className="flex flex-wrap gap-2">{SHOOTING_TYPES.map(t=><button type="button" key={t} onClick={()=>{const n=eventForm.shootingTypes.includes(t)?eventForm.shootingTypes.filter(x=>x!==t):[...eventForm.shootingTypes,t];setEventForm({...eventForm,shootingTypes:n})}} className={`px-3 py-2 border rounded-lg ${eventForm.shootingTypes.includes(t)?'bg-accent text-white':'bg-gray-50'}`}>{t}</button>)}</div></div><div><label className="text-sm font-bold text-accent mb-1 block">撮影可能期間</label><div className="flex gap-2 items-center"><input type="date" value={eventForm.shootingRange_from_date} onChange={e=>setEventForm({...eventForm,shootingRange_from_date:e.target.value})} onClick={handleShowPicker} className="w-48 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold"/><select value={eventForm.shootingRange_from_time} onChange={e=>setEventForm({...eventForm,shootingRange_from_time:e.target.value})} className="px-2 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold"><option value="">時間</option>{timeOptions.map(t=><option key={t} value={t}>{t}</option>)}</select><span>~</span><input type="date" value={eventForm.shootingRange_to_date} onChange={e=>setEventForm({...eventForm,shootingRange_to_date:e.target.value})} onClick={handleShowPicker} className="w-48 px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold"/><select value={eventForm.shootingRange_to_time} onChange={e=>setEventForm({...eventForm,shootingRange_to_time:e.target.value})} className="px-2 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm font-bold"><option value="">時間</option>{timeOptions.map(t=><option key={t} value={t}>{t}</option>)}</select></div></div><div className="grid grid-cols-1 md:grid-cols-2 gap-6"><FileUpload label="撮影指示書 (PDF)" fileUrl={eventForm.instructionFileUrl} fileName={eventForm.instructionFileName} onFileChange={(url, name) => setEventForm({...eventForm, instructionFileUrl: url, instructionFileName: name})} /><FileUpload label="イベント物件概要書 (PDF)" fileUrl={eventForm.overviewFileUrl} fileName={eventForm.overviewFileName} onFileChange={(url, name) => setEventForm({...eventForm, overviewFileUrl: url, overviewFileName: name})} /></div><div className="grid grid-cols-2 gap-4"><div><label className="text-sm font-bold text-gray-500 mb-1 block">立ち合い</label><select value={eventForm.witnessStaff} onChange={e=>setEventForm({...eventForm,witnessStaff:e.target.value})} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-accent text-sm font-bold"><option value="">選択</option><option value="なし">なし</option>{staffSuggestions.map(s=><option key={s} value={s}>{s}</option>)}</select></div><div><label className="text-sm font-bold text-gray-500 mb-1 block">施主在宅</label><div className="flex gap-2">{['あり','なし'].map(o=><button key={o} type="button" onClick={()=>setEventForm({...eventForm,ownerPresence:o})} className={`flex-1 py-2.5 rounded-xl border text-sm font-bold transition-all ${eventForm.ownerPresence===o?'bg-accent text-white border-accent':'bg-white text-gray-500 border-gray-200'}`}>{o}</button>)}</div></div></div><div><label className="text-sm font-bold text-gray-500 mb-1 block">撮影の注意事項など</label><textarea value={eventForm.shootingNotes} onChange={e=>setEventForm({...eventForm,shootingNotes:e.target.value})} rows={3} className="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl outline-none focus:border-accent text-sm" placeholder="撮影時の注意点やメモを入力"/></div></div></section>)}
                         <section className="grid grid-cols-1 md:grid-cols-[120px_1fr] gap-6 border-t border-gray-100 pt-8"><h3 className="text-sm font-bold text-gray-400 uppercase tracking-widest pt-3">通知</h3><StaffOnlyInput label="通知スタッフ" tags={eventForm.notificationStaff} onTagsChange={v=>setEventForm({...eventForm,notificationStaff:v})} suggestions={staffSuggestions} /></section>
                         <div className="sticky bottom-0 bg-white border-t border-gray-100 p-6 flex justify-end gap-4">{editingEventId && <button type="button" onClick={()=>deleteEvent(editingEventId)} className="px-6 py-3 border border-red-100 text-red-500 rounded-xl font-bold hover:bg-red-50">削除</button>}<button type="button" onClick={()=>setIsEventModalOpen(false)} className="px-6 py-3 rounded-xl font-bold text-gray-500 hover:bg-gray-50">キャンセル</button><button type="submit" className="px-8 py-3 bg-primary text-white rounded-xl font-bold hover:bg-gray-800">保存する</button></div>
                     </form></div>
                 </div></div>
             )}
+
+            {isHelpModalOpen && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4"><div className="absolute inset-0 bg-primary/40 backdrop-blur-sm" onClick={()=>{setIsHelpModalOpen(false);setIsEditingHelp(false);}}></div><div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto relative animate-enter"><div className="sticky top-0 bg-white/95 backdrop-blur z-20 px-6 py-4 border-b border-gray-100 flex justify-between items-center"><h3 className="text-lg font-bold text-primary flex items-center gap-2"><Icon name="info" size={20}/> 使い方ガイド</h3><div className="flex items-center gap-2"><button onClick={()=>setIsEditingHelp(!isEditingHelp)} className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${isEditingHelp?'bg-accent text-white border-accent':'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}><Icon name="pencil" size={14} className="inline mr-1"/>{isEditingHelp?'プレビュー':'編集'}</button><button onClick={()=>{setIsHelpModalOpen(false);setIsEditingHelp(false);}} className="p-2 hover:bg-gray-100 rounded-full"><Icon name="x" size={20}/></button></div></div><div className="p-6">{isEditingHelp ? (<div className="space-y-3"><textarea value={helpContent} onChange={e=>setHelpContent(e.target.value)} className="w-full h-96 border border-gray-200 rounded-xl p-4 text-sm font-mono resize-y outline-none focus:border-accent" placeholder="Markdown形式で入力..."/><div className="flex justify-end gap-2"><button onClick={()=>setIsEditingHelp(false)} className="px-4 py-2 text-sm text-gray-500 border rounded-lg hover:bg-gray-50">キャンセル</button><button onClick={()=>{saveHelpContent();setIsEditingHelp(false);}} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-gray-800 font-bold">保存</button></div></div>) : (<div className="prose prose-sm max-w-none">{helpContent.split('\n').map((line, i) => {if(line.startsWith('## ')) return <h2 key={i} className="text-base font-bold text-primary mt-6 mb-3 border-b border-gray-100 pb-2">{line.replace('## ','')}</h2>; if(line.match(/^!\[.*?\]\(.*?\)$/)) { const m=line.match(/^!\[(.*?)\]\((.*?)\)$/); return <div key={i} className="my-3"><img src={m[2]} alt={m[1]} className="rounded-lg border border-gray-200 shadow-sm max-w-full"/></div>; } if(line.startsWith('- ')) return <div key={i} className="flex gap-2 ml-2 mb-1"><span className="text-accent mt-0.5">&#8226;</span><span className="text-sm text-gray-600">{line.replace('- ','')}</span></div>; if(line.match(/^\d+\. /)) return <div key={i} className="flex gap-2 ml-2 mb-1"><span className="text-accent font-bold text-sm min-w-[20px]">{line.match(/^\d+/)[0]}.</span><span className="text-sm text-gray-600">{line.replace(/^\d+\. /,'')}</span></div>; if(line.trim()==='') return <div key={i} className="h-2"/>; return <p key={i} className="text-sm text-gray-600 mb-1">{line}</p>;})}</div>)}</div></div></div>)}
+
+            {isFaqModalOpen && (<div className="fixed inset-0 z-50 flex items-center justify-center p-4"><div className="absolute inset-0 bg-primary/40 backdrop-blur-sm" onClick={()=>{setIsFaqModalOpen(false);setIsEditingFaq(false);}}></div><div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto relative animate-enter"><div className="sticky top-0 bg-white/95 backdrop-blur z-20 px-6 py-4 border-b border-gray-100 flex justify-between items-center"><h3 className="text-lg font-bold text-primary flex items-center gap-2"><Icon name="message-circle" size={20}/> よくあるご質問</h3><div className="flex items-center gap-2"><button onClick={()=>setIsEditingFaq(!isEditingFaq)} className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition-colors ${isEditingFaq?'bg-accent text-white border-accent':'bg-white text-gray-500 border-gray-200 hover:bg-gray-50'}`}><Icon name="pencil" size={14} className="inline mr-1"/>{isEditingFaq?'プレビュー':'編集'}</button><button onClick={()=>{setIsFaqModalOpen(false);setIsEditingFaq(false);}} className="p-2 hover:bg-gray-100 rounded-full"><Icon name="x" size={20}/></button></div></div><div className="p-6">{isEditingFaq ? (<div className="space-y-3"><textarea value={faqContent} onChange={e=>setFaqContent(e.target.value)} className="w-full h-96 border border-gray-200 rounded-xl p-4 text-sm font-mono resize-y outline-none focus:border-accent" placeholder="Markdown形式で入力..."/><div className="flex justify-end gap-2"><button onClick={()=>setIsEditingFaq(false)} className="px-4 py-2 text-sm text-gray-500 border rounded-lg hover:bg-gray-50">キャンセル</button><button onClick={()=>{saveFaqContent();setIsEditingFaq(false);}} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-gray-800 font-bold">保存</button></div></div>) : (<div className="prose prose-sm max-w-none">{faqContent.split('\n').map((line, i) => {if(line.startsWith('## ')) return <h2 key={i} className="text-base font-bold text-primary mt-6 mb-3 border-b border-gray-100 pb-2">{line.replace('## ','')}</h2>; if(line.startsWith('Q. ')) return <div key={i} className="flex gap-2 mt-4 mb-1"><span className="text-primary font-bold text-sm min-w-[24px]">Q.</span><span className="text-sm font-bold text-gray-700">{line.replace('Q. ','')}</span></div>; if(line.startsWith('A. ')) return <div key={i} className="flex gap-2 ml-1 mb-2"><span className="text-accent font-bold text-sm min-w-[24px]">A.</span><span className="text-sm text-gray-600">{line.replace('A. ','')}</span></div>; if(line.trim()==='') return <div key={i} className="h-1"/>; return <p key={i} className="text-sm text-gray-600 mb-1">{line}</p>;})}</div>)}</div></div></div>)}
 
             {notification && (<div className="fixed bottom-8 left-1/2 -translate-x-1/2 bg-primary text-white px-6 py-3 rounded-full shadow-2xl z-[100] flex items-center gap-3 animate-enter"><Icon name="circle-check" size={18} className="text-green-400" /><span className="text-sm font-bold tracking-wide">{notification}</span></div>)}
         </div>

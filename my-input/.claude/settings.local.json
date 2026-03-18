@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc:*)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(supabase --version:*)",
+      "Bash(npx supabase:*)",
+      "Bash(SUPABASE_ACCESS_TOKEN=sbp_e012f8ddd22fc5bf546a89d0e9f966d2b31f280b npx supabase projects list:*)",
+      "Bash(SUPABASE_ACCESS_TOKEN=sbp_e012f8ddd22fc5bf546a89d0e9f966d2b31f280b npx supabase link:*)",
+      "Bash(SUPABASE_ACCESS_TOKEN=sbp_e012f8ddd22fc5bf546a89d0e9f966d2b31f280b npx supabase functions deploy:*)",
+      "Bash(SUPABASE_ACCESS_TOKEN=sbp_e012f8ddd22fc5bf546a89d0e9f966d2b31f280b npx supabase secrets set:*)",
+      "Bash(npx vite build:*)",
+      "Bash(node:*)",
+      "Bash(echo:*)",
+      "Bash(NODE_OPTIONS=\"--stack-size=8192\" node:*)",
+      "Bash(netstat:*)",
+      "Bash(SUPABASE_ACCESS_TOKEN=sbp_2fdd0fe7e71a8ac8c296dd54c4641a9b273fbed3 npx supabase:*)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm install:*)",
+      "WebFetch(domain:r.jina.ai)",
+      "WebFetch(domain:x.com)",
+      "WebFetch(domain:api.fxtwitter.com)",
+      "Bash(npm ls rollup)",
+      "Bash(npm ls @rollup/rollup-win32-x64-msvc)",
+      "Bash(npm rebuild)",
+      "Bash(NODE_OPTIONS=\"--max-old-space-size=4096\" npx vite build)",
+      "Bash(npm ls @tailwindcss/vite tailwindcss)",
+      "Bash(ls /c/Users/imoto/OneDrive/デスクトップ/06_CLAUDE/my-input/node_modules/@tailwindcss/oxide*)",
+      "Bash(ls /c/Users/imoto/OneDrive/デスクトップ/06_CLAUDE/my-input/node_modules/lightningcss*)",
+      "Bash(TAILWIND_DISABLE=1 node -e \":*)",
+      "Bash(grep -i \"is_adopted\\\\|is_mou_furui\" \"C:\\\\Users\\\\imoto\\\\OneDrive\\\\デスクトップ\\\\06_CLAUDE\\\\my-input/supabase/migrations/\"*.sql)",
+      "Bash(xargs ls:*)",
+      "Bash(cat /c/Users/imoto/claude_workspace/tools/my-input/scripts/*)",
+      "Bash(grep -r sunpro-go.jp /c/Users/imoto/claude_workspace/tools/my-input/ --include=*.ts --include=*.tsx --include=*.json)",
+      "Bash(find /c/Users/imoto/claude_workspace/web_sunpro/sunpro-resorts/app -maxdepth 2 -name *my-input* -o -path */my-input/*)",
+      "WebSearch",
+      "Bash(taskkill //PID 33960 //F)",
+      "Bash(taskkill //PID 35020 //F)"
+    ]
+  }
+}

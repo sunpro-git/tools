@@ -2,10 +2,11 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "serve-06-claude",
+      "name": "money-planning-preview",
       "runtimeExecutable": "node",
-      "runtimeArgs": ["C:\\Users\\imoto\\AppData\\Roaming\\npm\\node_modules\\serve\\build\\main.js", "C:\\Users\\imoto\\OneDrive\\デスクトップ\\06_CLAUDE", "--no-clipboard"],
-      "port": 3000
+      "runtimeArgs": ["node_modules/vite/bin/vite.js", "preview"],
+      "port": 4173,
+      "autoPort": true
     }
   ]
 }

@@ -11,8 +11,8 @@ export const CALENDAR_GAS_API_URL = "https://script.google.com/macros/s/AKfycbyX
 
 // 定数
 export const CATEGORIES = ['新築', 'リフォーム'];
-export const BRANCHES = ['本社', '長野', '上田', '伊那'];
-export const BRANCH_LABELS = { '本社': '本社/松本', '長野': '長野', '上田': '上田', '伊那': '伊那' };
+export const BRANCHES = ['本社', '長野', '上田', '伊那', '飯田'];
+export const BRANCH_LABELS = { '本社': '本社/松本', '長野': '長野', '上田': '上田', '伊那': '伊那', '飯田': '飯田' };
 export const STAFF_ROLES = ['営業', 'インテリアコーディネーター', '施工管理', '広報', 'YouTube担当', 'InstaLive担当', '撮影担当', '撮影依頼者'];
 export const STAFF_DEPARTMENTS = ['新築', 'リフォーム', '広報', '工事', '外部パートナー'];
 export const EQUIPMENT_TYPES = ['設備', '車輛', 'カレンダー'];
