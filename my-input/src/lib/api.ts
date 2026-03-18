@@ -2,6 +2,52 @@ import { supabase } from './supabase'
 import { detectPlatform } from './platform'
 import type { Content, User, Team } from '../types/database'
 
+// ---- Tag synonyms ----
+// Groups of tags that should be treated as equivalent when searching.
+// When any tag in a group is selected, all tags in that group are matched.
+const TAG_SYNONYM_GROUPS: string[][] = [
+  ['仮想通貨', '暗号資産', 'クリプト', 'crypto'],
+  ['AI', '人工知能', '生成AI'],
+  ['SNS', 'ソーシャルメディア'],
+  ['DX', 'デジタルトランスフォーメーション'],
+  ['UI', 'UX', 'UI/UX', 'ユーザー体験'],
+  ['SEO', '検索エンジン最適化'],
+  ['EC', 'Eコマース', 'ネットショップ'],
+  ['LP', 'ランディングページ'],
+  ['CRM', '顧客管理'],
+  ['SaaS', 'クラウドサービス'],
+]
+
+/** Given a selected tag, return all tags that should be matched (partial match + synonyms) */
+function expandTagFilter(tag: string, allTags: string[]): string[] {
+  const matched = new Set<string>()
+  matched.add(tag)
+
+  // Partial match: include tags that contain the selected tag or are contained by it
+  for (const t of allTags) {
+    if (t.includes(tag) || tag.includes(t)) {
+      matched.add(t)
+    }
+  }
+
+  // Synonym match: find the group containing this tag and add all members
+  for (const group of TAG_SYNONYM_GROUPS) {
+    if (group.some(s => s === tag || s.includes(tag) || tag.includes(s))) {
+      for (const synonym of group) {
+        matched.add(synonym)
+        // Also partial-match synonyms against allTags
+        for (const t of allTags) {
+          if (t.includes(synonym) || synonym.includes(t)) {
+            matched.add(t)
+          }
+        }
+      }
+    }
+  }
+
+  return [...matched]
+}
+
 // ---- Teams ----
 
 export async function fetchTeams(): Promise<Team[]> {
@@ -128,7 +174,7 @@ export async function fetchContents(filters?: {
   feedback?: string
   userId?: string
   userIds?: string[]
-}): Promise<Content[]> {
+}, allTags?: string[]): Promise<Content[]> {
   let query = supabase
     .from('contents')
     .select('*, user:users(id, name, color, icon)')
@@ -140,13 +186,24 @@ export async function fetchContents(filters?: {
     query = query.eq('user_id', filters.userId)
   }
   if (filters?.platform) {
-    query = query.eq('platform', filters.platform)
+    if (filters.platform === 'reform-online') {
+      query = query.eq('platform', 'other').ilike('url', '%reform-online.jp%')
+    } else if (filters.platform === 'shinken-housing') {
+      query = query.eq('platform', 'other').ilike('url', '%s-housing.jp%')
+    } else {
+      query = query.eq('platform', filters.platform)
+    }
   }
   if (filters?.category) {
     query = query.eq('category', filters.category)
   }
   if (filters?.tag) {
-    query = query.contains('tags', [filters.tag])
+    const expanded = expandTagFilter(filters.tag, allTags || [])
+    if (expanded.length === 1) {
+      query = query.contains('tags', [expanded[0]])
+    } else {
+      query = query.or(expanded.map(t => `tags.cs.{${t}}`).join(','))
+    }
   }
   if (filters?.search) {
     const sanitized = sanitizeSearch(filters.search)
@@ -164,6 +221,10 @@ export async function fetchContents(filters?: {
     query = query.eq('is_mou_furui', true)
   } else if (filters?.feedback === 'bimyou') {
     query = query.eq('is_mou_bimyou', true)
+  } else if (filters?.feedback === 'processing') {
+    query = query.in('status', ['pending', 'processing'])
+  } else if (filters?.feedback === 'error') {
+    query = query.eq('status', 'error')
   } else if (filters?.feedback === 'rated') {
     query = query.not('rating', 'is', null)
   } else if (filters?.feedback?.startsWith('rating_')) {
@@ -174,6 +235,16 @@ export async function fetchContents(filters?: {
   const { data, error } = await query
   if (error) throw error
   return (data || []) as Content[]
+}
+
+export async function fetchProcessingStatuses(): Promise<{ id: string; status: string }[]> {
+  const { data, error } = await supabase
+    .from('contents')
+    .select('id, status')
+    .in('status', ['pending', 'processing'])
+
+  if (error) throw error
+  return (data || []) as { id: string; status: string }[]
 }
 
 export async function fetchContentById(id: string): Promise<Content | null> {
@@ -307,12 +378,24 @@ function extractVideoId(url: string): string | null {
   } catch { return null }
 }
 
+/** Wrap a promise with a timeout */
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error(message)), timeoutMs)
+    ),
+  ])
+}
+
 export async function processContent(id: string): Promise<void> {
   try {
-    // Step 1: Fetch and format content (server-side)
-    const { data: fetchResult, error: fetchErr } = await supabase.functions.invoke('fetch-content', {
-      body: { content_id: id },
-    })
+    // Step 1: Fetch and format content (server-side) — 60s timeout
+    const { data: fetchResult, error: fetchErr } = await withTimeout(
+      supabase.functions.invoke('fetch-content', { body: { content_id: id } }),
+      60000,
+      'コンテンツ取得がタイムアウトしました'
+    )
     if (fetchErr) throw new Error(fetchErr.message || 'コンテンツの取得に失敗しました')
 
     // Step 1.5: Client-side YouTube transcript fallback
@@ -356,10 +439,12 @@ export async function processContent(id: string): Promise<void> {
       }
     }
 
-    // Step 2: AI analysis (server-side, OpenAI key is on the server)
-    const { error: analyzeErr } = await supabase.functions.invoke('analyze-content', {
-      body: { content_id: id },
-    })
+    // Step 2: AI analysis (server-side, OpenAI key is on the server) — 90s timeout
+    const { error: analyzeErr } = await withTimeout(
+      supabase.functions.invoke('analyze-content', { body: { content_id: id } }),
+      90000,
+      'AI分析がタイムアウトしました'
+    )
     if (analyzeErr) {
       console.error('AI analysis failed:', analyzeErr)
       await supabase
@@ -420,8 +505,13 @@ export async function getAllTags(): Promise<string[]> {
   if (error) throw error
   const rows = (data || []) as { tags: string[] }[]
   const allTags = rows.flatMap((d) => d.tags || [])
-  const unique = [...new Set(allTags)]
-  return unique.sort()
+  const counts = new Map<string, number>()
+  for (const tag of allTags) {
+    counts.set(tag, (counts.get(tag) || 0) + 1)
+  }
+  return [...counts.entries()]
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .map(([tag]) => tag)
 }
 
 // ---- Likes ----
@@ -429,7 +519,7 @@ export async function getAllTags(): Promise<string[]> {
 export async function fetchLikesForContents(
   contentIds: string[],
   currentUserId: string
-): Promise<Record<string, { count: number; likedByMe: boolean }>> {
+): Promise<Record<string, { count: number; likedByMe: boolean; likedUserIds: string[] }>> {
   if (contentIds.length === 0) return {}
 
   const { data, error } = await supabase
@@ -439,12 +529,13 @@ export async function fetchLikesForContents(
 
   if (error) throw error
 
-  const result: Record<string, { count: number; likedByMe: boolean }> = {}
+  const result: Record<string, { count: number; likedByMe: boolean; likedUserIds: string[] }> = {}
   for (const row of data || []) {
     if (!result[row.content_id]) {
-      result[row.content_id] = { count: 0, likedByMe: false }
+      result[row.content_id] = { count: 0, likedByMe: false, likedUserIds: [] }
     }
     result[row.content_id].count++
+    result[row.content_id].likedUserIds.push(row.user_id)
     if (row.user_id === currentUserId) {
       result[row.content_id].likedByMe = true
     }

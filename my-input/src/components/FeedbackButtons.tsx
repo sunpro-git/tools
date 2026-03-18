@@ -1,5 +1,5 @@
-import { AlertTriangle, Pin } from 'lucide-react'
-import { ZzIcon, SakuraIcon } from './icons'
+import { AlertTriangle, Pin, ThumbsUp } from 'lucide-react'
+import { SakuraIcon } from './icons'
 
 interface Props {
   isAdopted: boolean
@@ -46,30 +46,16 @@ export default function FeedbackButtons({
         />
       </button>
 
-      {/* もう微妙 */}
-      <button
-        type="button"
-        onClick={(e) => { e.stopPropagation(); onToggleMouBimyou() }}
-        className={`${btnPadding} rounded-full hover:bg-amber-50 transition-colors`}
-        title="もう微妙"
-      >
-        <AlertTriangle
-          className={`${iconSize} ${
-            isMouBimyou ? 'fill-amber-400 text-amber-500' : 'text-gray-300 hover:text-amber-400'
-          }`}
-        />
-      </button>
-
-      {/* もう古い */}
+      {/* シェアしたい */}
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); onToggleMouFurui() }}
-        className={`${btnPadding} rounded-full hover:bg-slate-50 transition-colors`}
-        title="もう古い"
+        className={`${btnPadding} rounded-full hover:bg-violet-50 transition-colors`}
+        title="シェアしたい"
       >
-        <ZzIcon
+        <ThumbsUp
           className={`${iconSize} ${
-            isMouFurui ? 'text-slate-500' : 'text-gray-300 hover:text-slate-400'
+            isMouFurui ? 'fill-violet-400 text-violet-500' : 'text-gray-300 hover:text-violet-400'
           }`}
         />
       </button>
@@ -84,6 +70,20 @@ export default function FeedbackButtons({
         <Pin
           className={`${iconSize} ${
             isStocked ? 'fill-blue-500 text-blue-500' : 'text-gray-300 hover:text-blue-400'
+          }`}
+        />
+      </button>
+
+      {/* 微妙 */}
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onToggleMouBimyou() }}
+        className={`${btnPadding} rounded-full hover:bg-amber-50 transition-colors`}
+        title="微妙"
+      >
+        <AlertTriangle
+          className={`${iconSize} ${
+            isMouBimyou ? 'fill-amber-400 text-amber-500' : 'text-gray-300 hover:text-amber-400'
           }`}
         />
       </button>

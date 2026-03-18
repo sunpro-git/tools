@@ -9,6 +9,8 @@ export function detectPlatform(url: string): Platform {
     if (host.includes('twitter.com') || host.includes('x.com')) return 'x'
     if (host.includes('instagram.com')) return 'instagram'
     if (host.includes('youtube.com') || host.includes('youtu.be')) return 'youtube'
+    if (host.includes('pixiv.net')) return 'pixiv'
+    if (host.includes('threads.net') || host.includes('threads.com')) return 'threads'
 
     return 'other'
   } catch {
@@ -67,6 +69,8 @@ export function getPlatformLabel(platform: Platform, url?: string): string {
     x: 'X (Twitter)',
     instagram: 'Instagram',
     youtube: 'YouTube',
+    pixiv: 'pixiv',
+    threads: 'Threads',
     other: 'その他',
   }
   return labels[platform]
@@ -113,6 +117,37 @@ export function getYoutubeEmbedUrl(videoId: string): string {
   return `https://www.youtube.com/embed/${videoId}`
 }
 
+/** Get Instagram embed URL from post URL */
+export function getInstagramEmbedUrl(url: string): string | null {
+  try {
+    const u = new URL(url)
+    if (!u.hostname.includes('instagram.com')) return null
+    const match = u.pathname.match(/\/(?:p|reel)\/([A-Za-z0-9_-]+)/)
+    if (match) {
+      return `https://www.instagram.com/p/${match[1]}/embed/`
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
+/** Extract Threads embed URL from post URL */
+export function getThreadsEmbedUrl(url: string): string | null {
+  try {
+    const u = new URL(url)
+    if (!u.hostname.includes('threads.net') && !u.hostname.includes('threads.com')) return null
+    // Threads embed URL: https://www.threads.net/@user/post/CODE/embed
+    const match = u.pathname.match(/\/@[^/]+\/post\/[^/?]+/)
+    if (match) {
+      return `https://www.threads.net${match[0]}/embed`
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 export function getPlatformColor(platform: Platform, url?: string): string {
   if (platform === 'other' && isReformOnline(url)) return 'bg-emerald-100 text-emerald-800'
   if (platform === 'other' && isShinkenHousing(url)) return 'bg-sky-100 text-sky-800'
@@ -123,6 +158,8 @@ export function getPlatformColor(platform: Platform, url?: string): string {
     x: 'bg-gray-100 text-gray-800',
     instagram: 'bg-pink-100 text-pink-800',
     youtube: 'bg-red-100 text-red-800',
+    pixiv: 'bg-blue-100 text-blue-800',
+    threads: 'bg-gray-100 text-gray-800',
     other: 'bg-blue-100 text-blue-800',
   }
   return colors[platform]

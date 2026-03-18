@@ -1,4 +1,4 @@
-export type Platform = 'note' | 'x' | 'instagram' | 'youtube' | 'other'
+export type Platform = 'note' | 'x' | 'instagram' | 'youtube' | 'pixiv' | 'threads' | 'other'
 export type ContentStatus = 'pending' | 'processing' | 'completed' | 'error'
 
 export interface Team {
@@ -47,6 +47,7 @@ export interface Content {
   // Like (populated client-side)
   likes_count?: number
   is_liked_by_me?: boolean
+  liked_user_ids?: string[]
 }
 
 export interface Database {

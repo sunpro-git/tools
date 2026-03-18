@@ -27,3 +27,4 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+my-input/yt-transcript-service/__pycache__/

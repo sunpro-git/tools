@@ -2,18 +2,22 @@ import { useEffect, useState, useCallback } from 'react'
 import { ArrowLeft, ExternalLink, Trash2, RefreshCw, Loader2, MessageSquare, Share2, Check } from 'lucide-react'
 import type { Content, User } from '../types/database'
 import { fetchContentById, deleteContent, processContent, updateContentFeedback, toggleLike, fetchLikesForContents } from '../lib/api'
-import { getPlatformLabel, getPlatformColor, extractYoutubeVideoId, getYoutubeEmbedUrl } from '../lib/platform'
+import { proxyImageUrl } from '../lib/supabase'
+import { getPlatformLabel, getPlatformColor, extractYoutubeVideoId, getYoutubeEmbedUrl, getThreadsEmbedUrl, getInstagramEmbedUrl } from '../lib/platform'
 import StarRating from './StarRating'
 import FeedbackButtons from './FeedbackButtons'
 import LikeButton from './LikeButton'
 import ImageCarousel from './ImageCarousel'
+import ThreadsPost from './ThreadsPost'
 
 interface Props {
   contentId: string
   currentUserId: string
+  isAdmin?: boolean
   users?: User[]
   onBack: () => void
   onDeleted: () => void
+  onTagClick?: (tag: string) => void
 }
 
 function isEmojiUrl(url: string): boolean {
@@ -47,7 +51,7 @@ function renderInlineMarkdown(text: string) {
       return (
         <span key={i} className="block my-4">
           <img
-            src={src}
+            src={proxyImageUrl(src)}
             alt={alt}
             className="w-full rounded"
             loading="lazy"
@@ -76,8 +80,10 @@ function isSiteUiImage(url: string): boolean {
 function RenderedText({ text }: { text: string }) {
   // Clean leftover markdown remnants (keep valid links and images intact)
   const cleaned = text
-    // Fix broken linked images: [Image](img-url)](link-url) or [![Image](img-url)](link-url) → ![Image](img-url)
-    .replace(/\[?!?\[Image\]\((https?:\/\/[^\s)]+)\)\]\(https?:\/\/[^\s)]+\)/g, '![Image]($1)')
+    // Fix linked images: [![alt](img-url)](link-url) → ![alt](img-url)
+    .replace(/\[!\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)\]\(https?:\/\/[^\s)]+\)/g, '![$1]($2)')
+    // Fix broken linked images: [Image](img-url)](link-url) → ![Image](img-url)
+    .replace(/\[Image\]\((https?:\/\/[^\s)]+)\)\]\(https?:\/\/[^\s)]+\)/g, '![Image]($1)')
     .replace(/^\s*\[\s*$/gm, '')
     // Only strip broken image fragments (![Image N: NOT followed by text](url) pattern)
     .replace(/!\[Image \d+:?\s*(?![^\]]*\]\()/g, '')
@@ -95,7 +101,29 @@ function RenderedText({ text }: { text: string }) {
     }
   }
 
-  for (const line of lines) {
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const nextLine = i + 1 < lines.length ? lines[i + 1] : ''
+
+    // Setext headings: text followed by === (h1) or --- (h2)
+    if (nextLine && /^={3,}\s*$/.test(nextLine) && line.trim()) {
+      flushText()
+      blocks.push({ type: 'heading', content: line.trim(), level: 1 })
+      i++ // skip the === line
+      continue
+    }
+    if (nextLine && /^-{3,}\s*$/.test(nextLine) && line.trim()) {
+      flushText()
+      blocks.push({ type: 'heading', content: line.trim(), level: 2 })
+      i++ // skip the --- line
+      continue
+    }
+
+    // Horizontal rule: * * * or --- or *** (skip as separator)
+    if (/^\s*(\*\s*\*\s*\*|---+|\*\*\*+)\s*$/.test(line)) {
+      continue
+    }
+
     // Markdown headings: ## or ###
     const headingMatch = line.match(/^(#{1,3})\s+(.+)$/)
     if (headingMatch) {
@@ -129,9 +157,9 @@ function RenderedText({ text }: { text: string }) {
             return <h2 key={i} className="text-xl font-bold text-[#06821c] mt-8 mb-3 pl-3 pb-2 border-l-[10px] border-b border-[#06821c]">{renderInlineMarkdown(block.content)}</h2>
           }
           if (block.level === 2) {
-            return <h3 key={i} className="text-lg font-bold text-[#06821c] mt-6 mb-3 pl-3 pb-2 border-l-[10px] border-b border-[#06821c]">{renderInlineMarkdown(block.content)}</h3>
+            return <h3 key={i} className="text-lg font-bold text-[#06821c] mt-6 mb-3 pb-1.5 border-b-2 border-[#06821c]/30">{renderInlineMarkdown(block.content)}</h3>
           }
-          return <h4 key={i} className="text-base font-semibold text-[#06821c] mt-5 mb-2 pl-3 pb-2 border-l-[10px] border-b border-[#06821c]">{renderInlineMarkdown(block.content)}</h4>
+          return <h4 key={i} className="text-base font-semibold text-[#06821c] mt-5 mb-2 pl-3 border-l-4 border-[#06821c]/40">{renderInlineMarkdown(block.content)}</h4>
         }
         if (block.type === 'image') {
           const m = block.content.match(/^!\[(.*?)\]\((.*?)\)/)
@@ -142,7 +170,7 @@ function RenderedText({ text }: { text: string }) {
             return (
               <figure key={i} className="my-6">
                 <img
-                  src={src}
+                  src={proxyImageUrl(src)}
                   alt={alt}
                   className="w-full rounded"
                   loading="lazy"
@@ -165,7 +193,7 @@ function RenderedText({ text }: { text: string }) {
 
 import UserAvatar from './UserAvatar'
 
-export default function ContentDetail({ contentId, currentUserId, users, onBack, onDeleted }: Props) {
+export default function ContentDetail({ contentId, currentUserId, isAdmin = false, users, onBack, onDeleted, onTagClick }: Props) {
   const [content, setContent] = useState<Content | null>(null)
   const [loading, setLoading] = useState(true)
   const [retrying, setRetrying] = useState(false)
@@ -173,9 +201,11 @@ export default function ContentDetail({ contentId, currentUserId, users, onBack,
   const [showComment, setShowComment] = useState(false)
   const [likesCount, setLikesCount] = useState(0)
   const [isLikedByMe, setIsLikedByMe] = useState(false)
+  const [likedUserIds, setLikedUserIds] = useState<string[]>([])
   const [copied, setCopied] = useState(false)
 
   const isOwner = content?.user_id === currentUserId
+  const canRetry = isOwner || isAdmin
 
   // Sync comment draft when content loads
   useEffect(() => {
@@ -190,6 +220,7 @@ export default function ContentDetail({ contentId, currentUserId, users, onBack,
       const info = likes[contentId]
       setLikesCount(info?.count || 0)
       setIsLikedByMe(info?.likedByMe || false)
+      setLikedUserIds(info?.likedUserIds || [])
     } catch {
       // ignore
     }
@@ -198,14 +229,17 @@ export default function ContentDetail({ contentId, currentUserId, users, onBack,
   async function handleLikeToggle() {
     // Optimistic update
     const wasLiked = isLikedByMe
+    const prevUserIds = [...likedUserIds]
     setIsLikedByMe(!wasLiked)
     setLikesCount(prev => wasLiked ? prev - 1 : prev + 1)
+    setLikedUserIds(wasLiked ? prevUserIds.filter(id => id !== currentUserId) : [...prevUserIds, currentUserId])
     try {
       await toggleLike(contentId, currentUserId)
     } catch {
       // Revert
       setIsLikedByMe(wasLiked)
       setLikesCount(prev => wasLiked ? prev + 1 : prev - 1)
+      setLikedUserIds(prevUserIds)
     }
   }
 
@@ -309,8 +343,8 @@ export default function ContentDetail({ contentId, currentUserId, users, onBack,
           >
             <ArrowLeft className="w-4 h-4" /> 一覧に戻る
           </button>
-          {isOwner && (
-            <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2">
+            {canRetry && (
               <button
                 onClick={handleRetry}
                 disabled={retrying}
@@ -319,14 +353,16 @@ export default function ContentDetail({ contentId, currentUserId, users, onBack,
                 {retrying ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                 再処理
               </button>
+            )}
+            {isOwner && (
               <button
                 onClick={handleDelete}
                 className="flex items-center gap-1 px-3 py-2 text-sm bg-red-50 text-red-700 rounded-lg hover:bg-red-100"
               >
                 <Trash2 className="w-4 h-4" /> 削除
               </button>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
@@ -344,10 +380,10 @@ export default function ContentDetail({ contentId, currentUserId, users, onBack,
               allowFullScreen
             />
           </div>
-        ) : content.image_urls && content.image_urls.length > 1 ? (
+        ) : content.image_urls && content.image_urls.length > 1 && content.platform !== 'instagram' ? (
           <div className="w-full max-w-lg mx-auto">
             <ImageCarousel
-              images={content.image_urls}
+              images={content.image_urls.map(proxyImageUrl)}
               alt={content.title || ''}
               aspectRatio="square"
             />
@@ -355,7 +391,7 @@ export default function ContentDetail({ contentId, currentUserId, users, onBack,
         ) : content.thumbnail_url ? (
           <div className="w-full max-h-80 overflow-hidden bg-gray-100">
             <img
-              src={content.thumbnail_url}
+              src={proxyImageUrl(content.thumbnail_url)}
               alt={content.title || ''}
               className="w-full h-full object-cover"
               onError={(e) => { e.currentTarget.parentElement!.classList.add('hidden') }}
@@ -380,7 +416,7 @@ export default function ContentDetail({ contentId, currentUserId, users, onBack,
             {content.title || 'タイトル未取得'}
           </h1>
 
-          <div className="flex items-center gap-4 text-sm text-gray-500">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
             {content.user && (
               <span className="flex items-center gap-1.5">
                 <UserAvatar user={content.user} users={users} size="sm" />
@@ -421,15 +457,19 @@ export default function ContentDetail({ contentId, currentUserId, users, onBack,
           {content.tags && content.tags.length > 0 && (
             <div className="flex flex-wrap gap-2 mt-3">
               {content.tags.map((tag) => (
-                <span key={tag} className="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded-full">
+                <button
+                  key={tag}
+                  onClick={() => { onTagClick?.(tag); onBack() }}
+                  className="text-xs bg-gray-100 text-gray-700 hover:bg-blue-50 hover:text-blue-600 px-2 py-1 rounded-full transition-colors"
+                >
                   #{tag}
-                </span>
+                </button>
               ))}
             </div>
           )}
 
           {/* Feedback controls */}
-          <div className="flex items-center justify-between mt-4 pt-3 border-t border-gray-100">
+          <div className="flex flex-wrap items-center justify-between gap-2 mt-4 pt-3 border-t border-gray-100">
             <div className="flex items-center gap-2">
               <StarRating
                 rating={content.rating}
@@ -443,6 +483,8 @@ export default function ContentDetail({ contentId, currentUserId, users, onBack,
                 onToggle={handleLikeToggle}
                 size="md"
                 isOwner={isOwner}
+                likedUserIds={likedUserIds}
+                users={users}
               />
             </div>
             <div className="flex items-center gap-1">
@@ -520,15 +562,53 @@ export default function ContentDetail({ contentId, currentUserId, users, onBack,
           </div>
         )}
 
-        {/* Full text with images */}
-        {content.full_text && (
+        {/* Instagram embed + caption */}
+        {content.platform === 'instagram' && (
+          <div className="p-6">
+            <h2 className="text-sm font-bold text-[#06821c] mb-3 pl-2 pb-2 border-l-[10px] border-b border-[#06821c]">投稿内容</h2>
+            {getInstagramEmbedUrl(content.url) && (
+              <div className="flex justify-center mb-4">
+                <iframe
+                  src={getInstagramEmbedUrl(content.url)!}
+                  title={content.title || 'Instagram'}
+                  className="w-full max-w-lg border-0 rounded-xl"
+                  style={{ minHeight: '900px' }}
+                  allowFullScreen
+                />
+              </div>
+            )}
+            {content.full_text && (
+              <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap leading-relaxed mt-4">
+                {content.full_text}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Full text / Threads post */}
+        {content.platform === 'threads' && content.full_text && (() => {
+          try {
+            const parsed = JSON.parse(content.full_text)
+            if (parsed.type === 'threads') {
+              return (
+                <div className="p-6">
+                  <h2 className="text-sm font-bold text-[#06821c] mb-3 pl-2 pb-2 border-l-[10px] border-b border-[#06821c]">投稿内容</h2>
+                  <div className="border border-gray-200 rounded-xl overflow-hidden bg-white">
+                    <ThreadsPost data={parsed} embedUrl={getThreadsEmbedUrl(content.url)} />
+                  </div>
+                </div>
+              )
+            }
+          } catch { /* not JSON, fall through to default rendering */ }
+          return null
+        })() || (content.full_text && content.platform !== 'instagram' ? (
           <div className="p-6">
             <h2 className="text-sm font-bold text-[#06821c] mb-3 pl-2 pb-2 border-l-[10px] border-b border-[#06821c]">全文アーカイブ</h2>
             <div className="prose prose-sm max-w-none text-gray-700 whitespace-pre-wrap leading-relaxed">
               <RenderedText text={content.full_text} />
             </div>
           </div>
-        )}
+        ) : null)}
 
         {content.status === 'pending' && (
           <div className="p-6 text-center text-gray-400">

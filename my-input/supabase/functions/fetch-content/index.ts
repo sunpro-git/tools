@@ -1091,6 +1091,159 @@ async function fetchDiamondArticle(url: string): Promise<{
   return { title, fullText: allText, thumbnailUrl, author }
 }
 
+/** Parse Threads post text into structured JSON: main post + comments */
+function formatThreadsText(text: string): string {
+  const lines = text.split('\n')
+
+  // Extract username from profile picture link pattern: [![Image N: username's profile picture](avatar)](profile_url)
+  const profilePattern = /\[!\[Image \d+: (.+?)'s profile picture\]\((.*?)\)\]\((https:\/\/www\.threads\.(?:com|net)\/@([^)]+))\)/
+  // Simple profile pic (no link): ![Image N: username's profile picture](avatar)
+  const replyAvatarPattern = /^!\[Image \d+: .+?'s profile picture\]/
+
+  let mainPost = { username: '', avatar: '', handle: '', text: '', likes: 0, comments: 0, reposts: 0, shares: 0 }
+  const replies: { username: string; handle: string; avatar: string; text: string; likes: number }[] = []
+
+  let state: 'main' | 'main_text' | 'replies' = 'main'
+  let currentReply: { username: string; handle: string; avatar: string; text: string; likes: number } | null = null
+  let skipNextAvatar = false
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim()
+    if (!line) continue
+
+    // Skip "Translate", "Log in" lines, sign up prompts
+    if (line === 'Translate' || line.startsWith('Log in') || line.startsWith('Continue with') || line.startsWith('[Log in')) continue
+    // Skip "Sorry, we're having trouble playing this video."
+    if (line.includes('having trouble playing')) continue
+
+    const profileMatch = line.match(profilePattern)
+
+    if (state === 'main') {
+      if (profileMatch) {
+        mainPost.username = profileMatch[4] // Use handle as username (alt text is often generic)
+        mainPost.avatar = profileMatch[2]
+        mainPost.handle = profileMatch[4]
+        state = 'main_text'
+      }
+      continue
+    }
+
+    if (state === 'main_text') {
+      // Skip reply avatar of main poster
+      if (replyAvatarPattern.test(line)) continue
+      // Skip media images
+      if (/^!\[Image \d+\]/.test(line)) continue
+
+      // Check if this is a number (engagement metrics)
+      if (/^\d+$/.test(line)) {
+        const num = parseInt(line, 10)
+        if (mainPost.likes === 0) mainPost.likes = num
+        else if (mainPost.comments === 0) mainPost.comments = num
+        else if (mainPost.reposts === 0) mainPost.reposts = num
+        else if (mainPost.shares === 0) { mainPost.shares = num; state = 'replies' }
+        continue
+      }
+
+      // This is the post text
+      if (mainPost.text) mainPost.text += '\n' + line
+      else mainPost.text = line
+      continue
+    }
+
+    if (state === 'replies') {
+      if (profileMatch) {
+        // Save previous reply
+        if (currentReply && currentReply.text) replies.push(currentReply)
+        currentReply = { username: profileMatch[1], handle: profileMatch[4], avatar: profileMatch[2], text: '', likes: 0 }
+        skipNextAvatar = true
+        continue
+      }
+
+      if (!currentReply) continue
+
+      // Skip reply avatars (poster's reply icon)
+      if (replyAvatarPattern.test(line)) { skipNextAvatar = false; continue }
+      if (skipNextAvatar && /^!\[Image/.test(line)) { skipNextAvatar = false; continue }
+
+      // GIF images in replies
+      if (/^!\[.*?GIF\]/.test(line) || /giphy\.com/.test(line)) {
+        const gifMatch = line.match(/\((https:\/\/[^)]+)\)/)
+        if (gifMatch) currentReply.text += (currentReply.text ? '\n' : '') + '[GIF]'
+        continue
+      }
+
+      // Like count for reply
+      if (/^\d+$/.test(line)) {
+        currentReply.likes = parseInt(line, 10)
+        replies.push(currentReply)
+        currentReply = { username: '', handle: '', avatar: '', text: '', likes: 0 }
+        continue
+      }
+
+      // Reply text
+      if (currentReply.username && line) {
+        if (currentReply.text) currentReply.text += '\n' + line
+        else currentReply.text = line
+      }
+    }
+  }
+
+  // Save last reply
+  if (currentReply && currentReply.text && currentReply.username) replies.push(currentReply)
+
+  return JSON.stringify({ type: 'threads', post: mainPost, replies })
+}
+
+/** Clean pixiv page text: remove navigation, sidebar, related works, footer etc. */
+function formatPixivText(text: string): string {
+  let cleaned = text
+
+  // Remove everything after common pixiv footer/sidebar markers
+  const cutMarkers = [
+    /\n+.*?Sketch.*?FANBOX.*?BOOTH[\s\S]*$/m,
+    /\n+.*?pixivコミック[\s\S]*$/m,
+    /\n+.*?Terms of Use[\s\S]*$/m,
+    /\n+.*?利用規約[\s\S]*$/m,
+    /\n+.*?プライバシーポリシー[\s\S]*$/m,
+    /\n+Related Works\s*\n[\s\S]*$/mi,
+    /\n+関連作品[\s\S]*$/m,
+    /\n+.*?Sign up.*?Login[\s\S]*$/mi,
+    /\n+.*?新規登録.*?ログイン[\s\S]*$/m,
+    /\n+.*?百科事典[\s\S]*$/m,
+    /\n+.*?VRoid[\s\S]*$/m,
+    /\n+.*?pixivision[\s\S]*$/m,
+  ]
+  for (const marker of cutMarkers) {
+    cleaned = cleaned.replace(marker, '')
+  }
+
+  // Remove navigation links and UI elements at the start
+  cleaned = cleaned
+    .replace(/^[\s\S]*?(?=!\[|#\s|[^\n\[\](){}<>]{20,})/m, '') // Remove everything before first content
+    .replace(/\[.*?ログイン.*?\]\(.*?\)/g, '')
+    .replace(/\[.*?新規登録.*?\]\(.*?\)/g, '')
+    .replace(/\[.*?Home.*?\]\(.*?\)/gi, '')
+    .replace(/\[.*?Rankings.*?\]\(.*?\)/gi, '')
+    .replace(/\[.*?Recommendations.*?\]\(.*?\)/gi, '')
+    .replace(/\[.*?Collections.*?\]\(.*?\)/gi, '')
+    .replace(/\[.*?Help.*?\]\(.*?\)/gi, '')
+
+  // Remove pixiv service links
+  cleaned = cleaned
+    .replace(/\[.*?(?:Sketch|FANBOX|BOOTH|FACTORY|sensei|Pastela).*?\]\(.*?\)\s*/gi, '')
+
+  // Remove tracking pixels and tiny images
+  cleaned = cleaned.replace(/!\[.*?\]\(https:\/\/.*?(?:analytics|tracking|pixel|\.gif\?).*?\)\s*/g, '')
+
+  // Remove follower/bookmark count lines
+  cleaned = cleaned.replace(/.*?\d+\s*(?:users入り|ブックマーク|いいね|フォロー).*?\n/g, '')
+
+  // Clean up excessive blank lines
+  cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim()
+
+  return cleaned
+}
+
 /** Format general article/long text: add paragraph breaks for readability */
 function formatLongText(text: string): string {
   // If text already has reasonable line breaks, leave it
@@ -1275,21 +1428,204 @@ Deno.serve(async (req) => {
         }
       }
 
-      // Format long text for other platforms (note, other, etc.) — skip Instagram (handled separately)
-      if (content.platform !== "x" && content.platform !== "instagram" && fullText) {
+      // Threads: extract post image for thumbnail, then parse into structured JSON
+      if (content.platform === "threads") {
+        // Extract non-profile images from raw text for thumbnail
+        const threadsImgRegex = /!\[(?!.*profile picture)(.*?)\]\((https:\/\/scontent[^)]+)\)/g
+        let threadsImgMatch
+        while ((threadsImgMatch = threadsImgRegex.exec(rawFullText)) !== null) {
+          const url = threadsImgMatch[2]
+          if (!/s150x150/.test(url)) {
+            thumbnailUrl = url
+            hasPlatformThumbnail = true
+            break
+          }
+        }
+        if (fullText) {
+          fullText = formatThreadsText(fullText)
+        }
+      }
+
+      // Clean pixiv text before general formatting
+      if (content.platform === "pixiv" && fullText) {
+        fullText = formatPixivText(fullText)
+      }
+
+      // Format long text for other platforms (note, other, etc.) — skip Instagram, Threads (handled separately)
+      if (content.platform !== "x" && content.platform !== "instagram" && content.platform !== "threads" && fullText) {
         fullText = formatLongText(fullText)
       }
 
-      // Instagram: extract carousel images and clean up caption text
+      // Instagram: fetch images from embed page (bypasses login wall)
       if (content.platform === "instagram") {
-        const igImages = extractInstagramImages(rawFullText)
-        if (igImages.length > 0) {
-          imageUrls = igImages
-          thumbnailUrl = igImages[0]
-          hasPlatformThumbnail = true
+        // Clear Jina's login-page content
+        fullText = ""
+        thumbnailUrl = ""
+        imageUrls = []
+        hasPlatformThumbnail = false
+        try {
+          const igMatch = content.url.match(/\/(?:p|reel)\/([A-Za-z0-9_-]+)/)
+          if (igMatch) {
+            const embedRes = await fetchWithTimeout(
+              `https://www.instagram.com/p/${igMatch[1]}/embed/`,
+              { headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36" } },
+              10000
+            )
+            if (embedRes.ok) {
+              const embedHtml = await embedRes.text()
+
+              // Extract carousel images from embed JSON (display_url in edge_sidecar_to_children)
+              // HTML has escaped JSON: display_url\":\"https:\/\/scontent...\"
+              const displayUrlRegex = /display_url\\?":\\?"(https:[^"]*scontent[^"]*?)\\?"/g
+              const displayUrlMatches = [...embedHtml.matchAll(displayUrlRegex)]
+              const embedImages: string[] = []
+              const seen = new Set<string>()
+              for (const m of displayUrlMatches) {
+                const url = m[1].replace(/\\\//g, '/').replace(/\\\\?\//g, '/').replace(/&amp;/g, '&')
+                const base = url.match(/\/([^/?]+)\.jpg/)?.[1] || url
+                if (seen.has(base)) continue
+                seen.add(base)
+                embedImages.push(url)
+              }
+
+              // Fallback: extract from src/srcset attributes
+              if (embedImages.length === 0) {
+                const imgMatches = [...embedHtml.matchAll(/(?:src|srcset)=["']?(https:\/\/scontent[^"'\s,]+\.jpg[^"'\s,]*)/g)]
+                for (const m of imgMatches) {
+                  const url = m[1].replace(/&amp;/g, '&')
+                  if (/s150x150/.test(url) || /s240x240/.test(url)) continue
+                  const base = url.match(/\/([^/?]+)\.jpg/)?.[1] || url
+                  if (seen.has(base)) continue
+                  seen.add(base)
+                  embedImages.push(url)
+                }
+              }
+
+              if (embedImages.length > 0) {
+                imageUrls = embedImages
+                thumbnailUrl = embedImages[0]
+                hasPlatformThumbnail = true
+              }
+
+              // Extract caption text from embed JSON data
+              // The embed HTML contains escaped JSON like: "text\":\"\\u30af...\"
+              const captionIdx = embedHtml.indexOf('edge_media_to_caption')
+              if (captionIdx !== -1) {
+                // Try multiple text marker patterns
+                const markers = ['"text\\":\\"', '"text":"']
+                for (const textMarker of markers) {
+                  const textIdx = embedHtml.indexOf(textMarker, captionIdx)
+                  if (textIdx === -1) continue
+                  const start = textIdx + textMarker.length
+                  // Determine the closing delimiter based on the marker
+                  const closer = textMarker.endsWith('\\"') ? '\\"' : '"'
+                  let end = start
+                  while (end < embedHtml.length) {
+                    if (embedHtml.substring(end, end + closer.length) === closer) {
+                      // Check it's not a double-escaped backslash
+                      if (closer === '\\"' && end > 0 && embedHtml[end - 1] === '\\' && embedHtml[end - 2] !== '\\') {
+                        end++
+                        continue
+                      }
+                      break
+                    }
+                    end++
+                  }
+                  const rawCaption = embedHtml.substring(start, end)
+                  if (rawCaption.length > 5) {
+                    try {
+                      // Unescape the JSON string
+                      const unescaped = rawCaption.replace(/\\\\u/g, '\\u').replace(/\\\\n/g, '\\n')
+                      const decoded = JSON.parse(`"${unescaped}"`)
+                      if (decoded) { fullText = decoded; break }
+                    } catch { /* try next marker */ }
+                  }
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.error("Failed to fetch Instagram embed:", e)
         }
-        fullText = formatInstagramPostText(rawFullText)
-        // Fallback: try OGP image
+
+        // Fallback: try Jina extracted images if embed failed
+        if (!thumbnailUrl) {
+          const igImages = extractInstagramImages(rawFullText)
+          if (igImages.length > 0) {
+            imageUrls = igImages
+            thumbnailUrl = igImages[0]
+            hasPlatformThumbnail = true
+          }
+        }
+        // Do NOT fall back to Jina text for Instagram — it's always a login page
+      }
+
+      // pixiv: fetch illustration info and page images via Ajax API
+      if (content.platform === "pixiv") {
+        const pixivMatch = content.url.match(/artworks\/(\d+)/)
+        if (pixivMatch) {
+          const pixivHeaders = { "Referer": "https://www.pixiv.net/", "User-Agent": "Mozilla/5.0" }
+          const illustId = pixivMatch[1]
+
+          // Fetch illustration metadata (title, author, description)
+          try {
+            const illustRes = await fetchWithTimeout(
+              `https://www.pixiv.net/ajax/illust/${illustId}`,
+              { headers: pixivHeaders },
+              10000
+            )
+            if (illustRes.ok) {
+              const illustJson = await illustRes.json()
+              if (!illustJson.error && illustJson.body) {
+                const pixivTitle = illustJson.body.illustTitle || ""
+                const pixivUser = illustJson.body.userName || ""
+                const pixivDesc = (illustJson.body.description || "")
+                  .replace(/<br\s*\/?>/gi, '\n')
+                  .replace(/<a\s[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/gi, '$2 ($1)')
+                  .replace(/<[^>]+>/g, '')
+                  .trim()
+
+                if (pixivUser && pixivTitle) {
+                  title = `${pixivUser}「${pixivTitle}」`
+                } else if (pixivTitle) {
+                  title = pixivTitle
+                }
+                if (pixivUser) author = pixivUser
+
+                // Build full_text: images first, then description
+                let pixivFullText = ""
+
+                // Fetch page images
+                const pagesRes = await fetchWithTimeout(
+                  `https://www.pixiv.net/ajax/illust/${illustId}/pages`,
+                  { headers: pixivHeaders },
+                  10000
+                )
+                if (pagesRes.ok) {
+                  const pagesJson = await pagesRes.json()
+                  if (!pagesJson.error && Array.isArray(pagesJson.body)) {
+                    imageUrls = pagesJson.body.map((p: { urls: { regular: string } }) => p.urls.regular)
+                    if (imageUrls.length > 0) {
+                      thumbnailUrl = imageUrls[0]
+                      hasPlatformThumbnail = true
+                      pixivFullText = imageUrls.map((url: string, i: number) => `![page${i + 1}](${url})`).join('\n\n')
+                    }
+                  }
+                }
+
+                // Append description below images
+                if (pixivDesc) {
+                  pixivFullText = pixivFullText ? pixivFullText + '\n\n---\n\n' + pixivDesc : pixivDesc
+                }
+
+                if (pixivFullText) fullText = pixivFullText
+              }
+            }
+          } catch (e) {
+            console.error("Failed to fetch pixiv illust info:", e)
+          }
+        }
+        // Fallback: OGP image
         if (!thumbnailUrl) {
           const ogImage = extractOgImageFromMetadata(metadata)
           if (ogImage) {

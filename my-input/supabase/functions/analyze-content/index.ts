@@ -5,6 +5,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 }
 
+/** Fetch with timeout using AbortController */
+function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs = 30000): Promise<Response> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer))
+}
+
 /** Extract image URLs from markdown text, filtering out emoji/icon images */
 function extractArticleImages(text: string): string[] {
   const imgRegex = /!\[.*?\]\((.*?)\)/g
@@ -98,7 +105,7 @@ Deno.serve(async (req) => {
         // Process all chunks in parallel to stay within timeout
         const formattedChunks = await Promise.all(chunks.map(async (chunk) => {
           try {
-            const fmtResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+            const fmtResponse = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
               method: "POST",
               headers: {
                 "Content-Type": "application/json",
@@ -113,7 +120,7 @@ Deno.serve(async (req) => {
                 temperature: 0.2,
                 max_tokens: 8000,
               }),
-            })
+            }, 60000)
             if (fmtResponse.ok) {
               const fmtData = await fmtResponse.json()
               return fmtData.choices?.[0]?.message?.content || chunk
@@ -148,11 +155,30 @@ Deno.serve(async (req) => {
         }).join('\n')}`
       : ''
 
+    // Fetch existing tags for normalization
+    const { data: tagRows } = await supabase
+      .from("contents")
+      .select("tags")
+      .not("tags", "is", null)
+    const tagCounts = new Map<string, number>()
+    for (const row of tagRows || []) {
+      for (const t of (row.tags as string[]) || []) {
+        tagCounts.set(t, (tagCounts.get(t) || 0) + 1)
+      }
+    }
+    const existingTags = [...tagCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 50)
+      .map(([t]) => t)
+    const existingTagsText = existingTags.length > 0
+      ? `\n\n既存タグ一覧（使用頻度順）: ${existingTags.join(', ')}`
+      : ''
+
     // Truncate text if too long for API
     const textToAnalyze = content.full_text.substring(0, 16000)
 
     // Call OpenAI API (gpt-4o for higher quality summary)
-    const openaiResponse = await fetch("https://api.openai.com/v1/chat/completions", {
+    const openaiResponse = await fetchWithTimeout("https://api.openai.com/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -167,20 +193,20 @@ Deno.serve(async (req) => {
 {
   "summary": "コンテンツの内容が十分に伝わる詳細な日本語の要約。基本は2000文字前後で、内容が薄い場合は短く、濃い場合は最大3000文字まで拡張してよい。単なる概要ではなく、主要なポイント・主張・結論・具体的なエピソードを含めること。読者がこの要約だけで内容を把握できるレベルの情報量にする。話題の区切りでは改行（\\n）を入れて読みやすくすること。見出しや箇条書きは不要で、自然な文章で書くこと。",
   "category": "以下のカテゴリーから1つ選択: テクノロジー, ビジネス, ライフスタイル, エンタメ, 教育, ニュース, スポーツ, 科学, 政治, 文化, 健康, 料理, 旅行, ファッション, アート, 音楽, ゲーム, その他",
-  "tags": ["関連するタグを3〜5個"],
+  "tags": ["関連するタグを3〜5個。既存タグ一覧に同じ意味・類似する概念のタグがあれば、新しいタグを作らずにそれを優先的に使うこと。表記ゆれ（例: 仮想通貨/暗号資産）を避け、既存タグに統一すること。"],
   "best_thumbnail": "記事内の画像URL一覧から、記事のサムネイルとして最も適切な画像のURLを1つ選んでください。記事のヘッダー画像、タイトルが含まれるメインビジュアル、記事のテーマを象徴するアイキャッチ画像を最優先してください。表やグラフよりも、デザインされたビジュアル画像を優先してください。画像がない場合はnullにしてください。"
 }
 必ず有効なJSONのみを返してください。`,
           },
           {
             role: "user",
-            content: `以下のコンテンツを分析してください:\n\nタイトル: ${content.title || "不明"}\nプラットフォーム: ${content.platform}\n\n本文:\n${textToAnalyze}${imageListText}`,
+            content: `以下のコンテンツを分析してください:\n\nタイトル: ${content.title || "不明"}\nプラットフォーム: ${content.platform}\n\n本文:\n${textToAnalyze}${imageListText}${existingTagsText}`,
           },
         ],
         temperature: 0.3,
         max_tokens: 4000,
       }),
-    })
+    }, 60000)
 
     if (!openaiResponse.ok) {
       const err = await openaiResponse.json()
@@ -202,7 +228,7 @@ Deno.serve(async (req) => {
 
     // Use AI-selected thumbnail only if no platform-specific thumbnail exists
     // (platform thumbnails like YouTube/note/X are set by fetch-content)
-    const hasPlatformThumbnail = ['youtube', 'note', 'x'].includes(content.platform) && content.thumbnail_url
+    const hasPlatformThumbnail = ['youtube', 'note', 'x', 'instagram', 'threads', 'pixiv'].includes(content.platform) && content.thumbnail_url
     const bestThumbnail = hasPlatformThumbnail
       ? content.thumbnail_url
       : (analysis.best_thumbnail || content.thumbnail_url || null)

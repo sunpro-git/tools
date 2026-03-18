@@ -7,6 +7,22 @@
   }
 }
 
+@keyframes heart-nudge {
+  0%, 97%, 100% {
+    transform: scale(1) rotate(0deg);
+  }
+  97.9% {
+    transform: scale(1.25) rotate(-8deg);
+  }
+  98.8% {
+    transform: scale(1.15) rotate(6deg);
+  }
+}
+
+.animate-heart-nudge {
+  animation: heart-nudge 10s ease-in-out infinite;
+}
+
 @keyframes float-heart {
   0% {
     transform: translateY(0) scale(0.3) rotate(0deg);

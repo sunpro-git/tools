@@ -53,6 +53,12 @@ export default function UserSelectScreen({ users, teams, onSelect, onAddUser, on
     }
   }
 
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null)
+
+  const filteredUsers = selectedTeamId
+    ? users.filter(u => u.team_id === selectedTeamId)
+    : users
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -72,29 +78,55 @@ export default function UserSelectScreen({ users, teams, onSelect, onAddUser, on
           </p>
         </div>
 
-        <div className="space-y-3">
-          {users.map((user) => (
-            <div key={user.id} className="flex items-center gap-2 group">
+        {teams.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-5">
+            <button
+              onClick={() => setSelectedTeamId(null)}
+              className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                selectedTeamId === null
+                  ? 'bg-gray-900 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              すべて
+            </button>
+            {teams.map((team) => (
+              <button
+                key={team.id}
+                onClick={() => setSelectedTeamId(team.id)}
+                className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                  selectedTeamId === team.id
+                    ? 'bg-gray-900 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                {team.name}
+              </button>
+            ))}
+          </div>
+        )}
+
+        <div className="space-y-1.5">
+          {filteredUsers.map((user) => (
+            <div key={user.id} className="flex items-center gap-1.5 group">
               <button
                 onClick={() => onSelect(user)}
-                className="flex-1 flex items-center gap-3 px-4 py-3 rounded-xl border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all"
+                className="flex-1 flex items-center gap-2.5 px-3 py-1.5 rounded-lg border border-gray-200 hover:border-gray-300 hover:bg-gray-50 transition-all"
               >
-                <UserAvatar user={user} users={users} size="lg" />
-                <div className="flex flex-col items-start">
-                  <span className="text-base font-medium text-gray-900">
-                    {user.name}
-                  </span>
-                  {user.team && (
-                    <span className="text-xs text-gray-400">{user.team.name}</span>
-                  )}
-                </div>
+                <UserAvatar user={user} users={users} size="md" />
+                <span className="text-sm font-medium text-gray-900">
+                  {user.name}
+                </span>
+                {user.team && (
+                  <span className="ml-auto text-xs text-gray-400">{user.team.name}</span>
+                )}
               </button>
               <button
                 onClick={() => { setEditingUser(user); setSaveError('') }}
-                className="p-2 text-gray-300 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-all rounded-lg hover:bg-gray-100"
+                className="p-1.5 text-gray-300 hover:text-gray-600 opacity-0 group-hover:opacity-100 transition-all rounded-lg hover:bg-gray-100"
                 title="編集"
               >
-                <Pencil className="w-4 h-4" />
+                <Pencil className="w-3.5 h-3.5" />
               </button>
             </div>
           ))}

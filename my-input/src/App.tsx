@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { X, Star, Pin, AlertTriangle, SlidersHorizontal, ChevronDown, UserPlus, LogOut, Trash2, Pencil } from 'lucide-react'
-import { SakuraIcon, ZzIcon } from './components/icons'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
+import { X, Star, Pin, AlertTriangle, SlidersHorizontal, ChevronDown, UserPlus, LogOut, Trash2, Pencil, ThumbsUp, Loader2 } from 'lucide-react'
+import { SakuraIcon } from './components/icons'
 import ContentCard from './components/ContentCard'
 import ContentDetail from './components/ContentDetail'
 import InputSection from './components/InputSection'
@@ -10,9 +10,8 @@ import UserAvatar from './components/UserAvatar'
 import UserEditModal from './components/UserEditModal'
 import TeamManageModal from './components/TeamManageModal'
 import InstallPrompt from './components/InstallPrompt'
-import { fetchContents, addContent, processContent, getCategories, getAllTags, updateContentFeedback, fetchUsers, fetchLikesForContents, toggleLike, addUser, updateUser, deleteUser, fetchTeams, addTeam as apiAddTeam, updateTeam as apiUpdateTeam, deleteTeam as apiDeleteTeam } from './lib/api'
-import { getPlatformLabel } from './lib/platform'
-import type { Content, Platform, User, Team } from './types/database'
+import { fetchContents, fetchProcessingStatuses, addContent, processContent, getCategories, getAllTags, updateContentFeedback, fetchUsers, fetchLikesForContents, toggleLike, addUser, updateUser, deleteUser, fetchTeams, addTeam as apiAddTeam, updateTeam as apiUpdateTeam, deleteTeam as apiDeleteTeam } from './lib/api'
+import type { Content, User, Team } from './types/database'
 
 const STORAGE_KEY = 'my-input-user'
 
@@ -26,7 +25,16 @@ interface Filters {
   filterUserIds?: string[]
 }
 
-const platforms: Platform[] = ['note', 'x', 'instagram', 'youtube']
+const platforms: { key: string; label: string }[] = [
+  { key: 'note', label: 'note' },
+  { key: 'x', label: 'X (Twitter)' },
+  { key: 'instagram', label: 'Instagram' },
+  { key: 'youtube', label: 'YouTube' },
+  { key: 'pixiv', label: 'pixiv' },
+  { key: 'threads', label: 'Threads' },
+  { key: 'reform-online', label: 'リフォーム産業新聞' },
+  { key: 'shinken-housing', label: '新建ハウジング' },
+]
 
 /** Read content ID from URL hash (#content/{id}) */
 function getHashContentId(): string | null {
@@ -58,6 +66,8 @@ export default function App() {
   const [editError, setEditError] = useState('')
   const [teams, setTeams] = useState<Team[]>([])
   const [showTeamManageModal, setShowTeamManageModal] = useState(false)
+  const [showTeamDropdown, setShowTeamDropdown] = useState(false)
+  const [teamDropdownPos, setTeamDropdownPos] = useState({ top: 0, right: 0 })
 
   // Content state
   const [contents, setContents] = useState<Content[]>([])
@@ -67,6 +77,7 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('')
   const [categories, setCategories] = useState<string[]>([])
   const [tags, setTags] = useState<string[]>([])
+  const [tagsExpanded, setTagsExpanded] = useState(false)
   const [showFilterPanel, setShowFilterPanel] = useState(false)
 
   // Responsive check
@@ -77,6 +88,17 @@ export default function App() {
     mq.addEventListener('change', handler)
     return () => mq.removeEventListener('change', handler)
   }, [])
+
+  // Close team dropdown on outside click
+  useEffect(() => {
+    if (!showTeamDropdown) return
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement
+      if (!target.closest('[data-team-dropdown]')) setShowTeamDropdown(false)
+    }
+    document.addEventListener('click', handler)
+    return () => document.removeEventListener('click', handler)
+  }, [showTeamDropdown])
 
   // Date-based content sections (client-side filtering)
   const isLandingView = !filters.platform && !filters.category && !filters.tag && !filters.search && !filters.dateRange && !filters.feedback && (!filters.filterUserIds || filters.filterUserIds.length === 0)
@@ -89,10 +111,8 @@ export default function App() {
 
   const weekContents = useMemo(() => {
     const now = new Date()
-    const day = now.getDay() // 0=Sun
-    const mondayOffset = day === 0 ? 6 : day - 1
-    const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - mondayOffset)
-    return contents.filter(c => new Date(c.created_at) >= startOfWeek)
+    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
+    return contents.filter(c => new Date(c.created_at) >= sevenDaysAgo)
   }, [contents])
 
   // Week contents excluding today's items (for landing view section only)
@@ -120,6 +140,10 @@ export default function App() {
 
   function handleViewMore(range: 'today' | 'week') {
     setFilters(prev => ({ ...prev, dateRange: range }))
+  }
+
+  function handleTagClick(tag: string) {
+    setFilters(prev => ({ ...prev, tag, dateRange: 'all' }))
   }
 
   // URL registration (always visible in header)
@@ -313,7 +337,7 @@ export default function App() {
     if (!currentUser) return
     setLoading(true)
     try {
-      const data = await fetchContents(apiFilters)
+      const data = await fetchContents(apiFilters, tags)
       // Load likes for all fetched contents
       const ids = data.map(c => c.id)
       const likes = await fetchLikesForContents(ids, currentUser.id)
@@ -321,6 +345,7 @@ export default function App() {
         ...c,
         likes_count: likes[c.id]?.count || 0,
         is_liked_by_me: likes[c.id]?.likedByMe || false,
+        liked_user_ids: likes[c.id]?.likedUserIds || [],
       }))
       setContents(enriched)
     } catch (err) {
@@ -329,7 +354,7 @@ export default function App() {
     } finally {
       setLoading(false)
     }
-  }, [apiFilters, currentUser])
+  }, [apiFilters, currentUser, tags])
 
   // Feedback handler (optimistic update + API)
   const handleFeedbackChange = useCallback(async (id: string, fields: Partial<Content>) => {
@@ -350,11 +375,15 @@ export default function App() {
     if (!content) return
 
     const wasLiked = content.is_liked_by_me
+    const prevUserIds = content.liked_user_ids || []
     // Optimistic
     setContents(prev => prev.map(c => c.id === contentId ? {
       ...c,
       is_liked_by_me: !wasLiked,
       likes_count: (c.likes_count || 0) + (wasLiked ? -1 : 1),
+      liked_user_ids: wasLiked
+        ? prevUserIds.filter(id => id !== currentUser.id)
+        : [...prevUserIds, currentUser.id],
     } : c))
 
     try {
@@ -365,6 +394,7 @@ export default function App() {
         ...c,
         is_liked_by_me: wasLiked,
         likes_count: (c.likes_count || 0) + (wasLiked ? 1 : -1),
+        liked_user_ids: prevUserIds,
       } : c))
     }
   }, [currentUser, contents])
@@ -378,13 +408,46 @@ export default function App() {
     getAllTags().then(setTags).catch((err) => console.error('Failed to load tags:', err))
   }, [])
 
-  // Poll for processing items
+  // Poll for processing items — lightweight status-only check
+  const processingIdsRef = useRef<Set<string>>(new Set())
+
+  // Keep ref in sync with contents
   useEffect(() => {
-    const hasProcessing = contents.some((c) => c.status === 'processing' || c.status === 'pending')
-    if (!hasProcessing) return
-    const interval = setInterval(loadContents, 5000)
+    const ids = new Set(
+      contents.filter(c => c.status === 'processing' || c.status === 'pending').map(c => c.id)
+    )
+    processingIdsRef.current = ids
+  }, [contents])
+
+  useEffect(() => {
+    if (processingIdsRef.current.size === 0) return
+
+    const interval = setInterval(async () => {
+      try {
+        const statuses = await fetchProcessingStatuses()
+        const stillProcessing = new Set(statuses.map(s => s.id))
+
+        // Check if any previously processing item has finished
+        const hadFinished = [...processingIdsRef.current].some(id => !stillProcessing.has(id))
+
+        if (hadFinished) {
+          // A status changed — do a full reload to get updated data
+          loadContents()
+        }
+
+        // If nothing is processing anymore, clear ref to stop polling on next cycle
+        if (stillProcessing.size === 0) {
+          processingIdsRef.current = new Set()
+        } else {
+          processingIdsRef.current = stillProcessing
+        }
+      } catch (err) {
+        console.error('Polling error:', err)
+      }
+    }, 5000)
+
     return () => clearInterval(interval)
-  }, [contents, loadContents])
+  }, [loadContents])
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault()
@@ -411,7 +474,7 @@ export default function App() {
       const content = await addContent(newUrl, currentUser.id)
       setNewUrl('')
       // Add new content to the list immediately (status=processing triggers polling)
-      setContents(prev => [{ ...content, likes_count: 0, is_liked_by_me: false } as Content, ...prev])
+      setContents(prev => [{ ...content, likes_count: 0, is_liked_by_me: false, liked_user_ids: [] } as Content, ...prev])
       // Fire-and-forget: processContent saves transcript & triggers AI analysis.
       // The 5s polling (useEffect on processing status) will pick up updates automatically.
       processContent(content.id).catch(err => console.error('processContent failed:', err))
@@ -436,6 +499,7 @@ export default function App() {
         <ContentDetail
           contentId={selectedId}
           currentUserId={currentUser.id}
+          isAdmin={currentUser.name === 'イモト'}
           users={users}
           onBack={() => {
             navigateToList()
@@ -444,6 +508,9 @@ export default function App() {
           onDeleted={() => {
             navigateToList()
             loadContents()
+          }}
+          onTagClick={(tag) => {
+            setFilters(prev => ({ ...prev, tag, dateRange: 'all' }))
           }}
         />
       </div>
@@ -458,7 +525,17 @@ export default function App() {
       <header className="bg-white border-b border-gray-200 sticky top-0 z-20">
         <div className="max-w-[1800px] mx-auto px-2 sm:px-6 h-14 flex items-center gap-2 sm:gap-4">
           {/* Logo */}
-          <h1 className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-1.5 shrink-0">
+          <h1
+            className="text-base sm:text-lg font-bold text-gray-900 flex items-center gap-1.5 shrink-0 cursor-pointer"
+            onClick={() => {
+              setSelectedId(null)
+              setFilters({})
+              setSearchQuery('')
+              setViewMode('mine')
+              setShowFilterPanel(false)
+              window.history.pushState(null, '', window.location.pathname + window.location.search)
+            }}
+          >
             <AppIcon className="w-8 h-8 sm:w-9 sm:h-9" />
             <span className="text-sm sm:text-base">MY INPUT</span>
           </h1>
@@ -562,32 +639,76 @@ export default function App() {
       <div className="sticky top-14 z-10 bg-white border-b border-gray-200">
         <div className="max-w-[1800px] mx-auto px-4 sm:px-6 py-2 flex items-center gap-2 overflow-x-auto scrollbar-hide">
           {/* View mode toggle: 自分のみ / みんな / チーム */}
-          <div className="flex shrink-0 border border-[#188b65] rounded-full overflow-hidden">
-            {[
-              { key: 'mine', label: '自分のみ' },
-              { key: 'all', label: 'みんな' },
-              ...teams.map(t => ({ key: t.id, label: t.name })),
-            ].map((item, i) => (
-              <button
-                key={item.key}
-                onClick={() => setViewMode(item.key)}
-                className={`px-3.5 py-1 text-sm font-medium whitespace-nowrap transition-all ${
-                  i > 0 ? 'border-l border-[#188b65] ' : ''
-                }${
-                  viewMode === item.key
-                    ? 'bg-[#188b65] text-white'
-                    : 'bg-white text-[#188b65] hover:bg-[#188b65]/10'
-                }`}
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
+          {isMobile ? (
+            <div className="shrink-0" data-team-dropdown>
+              <div className="flex border border-[#188b65] rounded-full overflow-hidden">
+                {[
+                  { key: 'mine', label: '自分のみ' },
+                  { key: 'all', label: 'みんな' },
+                  { key: '_team', label: teams.find(t => t.id === viewMode)?.name || 'チームごと' },
+                ].map((item, i) => {
+                  const isTeamBtn = item.key === '_team'
+                  const isActive = isTeamBtn
+                    ? viewMode !== 'mine' && viewMode !== 'all'
+                    : viewMode === item.key
+                  return (
+                    <button
+                      key={item.key}
+                      onClick={(e) => {
+                        if (isTeamBtn) {
+                          const rect = e.currentTarget.getBoundingClientRect()
+                          setTeamDropdownPos({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+                          setShowTeamDropdown(prev => !prev)
+                        } else {
+                          setViewMode(item.key)
+                          setShowTeamDropdown(false)
+                        }
+                      }}
+                      className={`px-3 py-1 text-xs font-medium whitespace-nowrap transition-all flex items-center gap-1 ${
+                        i > 0 ? 'border-l border-[#188b65] ' : ''
+                      }${
+                        isActive
+                          ? 'bg-[#188b65] text-white'
+                          : 'bg-white text-[#188b65] hover:bg-[#188b65]/10'
+                      }`}
+                    >
+                      {item.label}
+                      {isTeamBtn && (
+                        <ChevronDown className={`w-3 h-3 transition-transform ${showTeamDropdown ? 'rotate-180' : ''}`} />
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          ) : (
+            <div className="flex shrink-0 border border-[#188b65] rounded-full overflow-hidden">
+              {[
+                { key: 'mine', label: '自分のみ' },
+                { key: 'all', label: 'みんな' },
+                ...teams.map(t => ({ key: t.id, label: t.name })),
+              ].map((item, i) => (
+                <button
+                  key={item.key}
+                  onClick={() => setViewMode(item.key)}
+                  className={`px-3.5 py-1 text-sm font-medium whitespace-nowrap transition-all ${
+                    i > 0 ? 'border-l border-[#188b65] ' : ''
+                  }${
+                    viewMode === item.key
+                      ? 'bg-[#188b65] text-white'
+                      : 'bg-white text-[#188b65] hover:bg-[#188b65]/10'
+                  }`}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Filter toggle button */}
           <button
             onClick={() => setShowFilterPanel(!showFilterPanel)}
-            className={`shrink-0 px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-colors flex items-center gap-1.5 ${
+            className={`shrink-0 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors flex items-center gap-1 ${
               showFilterPanel || hasFilters || (filters.filterUserIds && filters.filterUserIds.length > 0)
                 ? 'bg-gray-900 text-white'
                 : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
@@ -679,9 +800,11 @@ export default function App() {
                 <div className="flex flex-wrap gap-1.5">
                   {[
                     { key: 'adopted', label: '採用した', icon: SakuraIcon, color: 'text-pink-500' },
+                    { key: 'furui', label: 'シェアしたい', icon: ThumbsUp, color: 'text-violet-500' },
                     { key: 'stocked', label: 'ストック', icon: Pin, color: 'text-blue-500' },
-                    { key: 'furui', label: 'もう古い', icon: ZzIcon, color: 'text-slate-500' },
-                    { key: 'bimyou', label: 'もう微妙', icon: AlertTriangle, color: 'text-amber-500' },
+                    { key: 'bimyou', label: '微妙', icon: AlertTriangle, color: 'text-amber-500' },
+                    { key: 'processing', label: '処理中', icon: Loader2, color: 'text-cyan-500' },
+                    { key: 'error', label: 'エラー', icon: AlertTriangle, color: 'text-red-500' },
                   ].map(({ key, label, icon: Icon, color }) => (
                     <button
                       key={key}
@@ -734,17 +857,17 @@ export default function App() {
               <div>
                 <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">プラットフォーム</h3>
                 <div className="flex flex-wrap gap-1.5">
-                  {platforms.map((p) => (
+                  {platforms.map(({ key, label }) => (
                     <button
-                      key={p}
-                      onClick={() => toggleFilter('platform', p)}
+                      key={key}
+                      onClick={() => toggleFilter('platform', key)}
                       className={`px-2.5 py-1 rounded-md text-xs font-medium whitespace-nowrap transition-colors ${
-                        filters.platform === p
+                        filters.platform === key
                           ? 'bg-gray-900 text-white'
                           : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                       }`}
                     >
-                      {getPlatformLabel(p)}
+                      {label}
                     </button>
                   ))}
                 </div>
@@ -808,7 +931,7 @@ export default function App() {
                 <div>
                   <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">タグ</h3>
                   <div className="flex flex-wrap gap-1.5">
-                    {tags.slice(0, 12).map((tag) => (
+                    {(tagsExpanded ? tags : tags.slice(0, 12)).map((tag) => (
                       <button
                         key={tag}
                         onClick={() => toggleFilter('tag', tag)}
@@ -821,6 +944,22 @@ export default function App() {
                         #{tag}
                       </button>
                     ))}
+                    {!tagsExpanded && tags.length > 12 && (
+                      <button
+                        onClick={() => setTagsExpanded(true)}
+                        className="px-2.5 py-1 rounded-md text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors"
+                      >
+                        +{tags.length - 12} もっと見る
+                      </button>
+                    )}
+                    {tagsExpanded && (
+                      <button
+                        onClick={() => setTagsExpanded(false)}
+                        className="px-2.5 py-1 rounded-md text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 transition-colors"
+                      >
+                        閉じる
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
@@ -828,6 +967,32 @@ export default function App() {
           </div>
         )}
       </div>
+
+      {/* Team dropdown (fixed, rendered outside overflow container) */}
+      {isMobile && showTeamDropdown && teams.length > 0 && (
+        <div
+          data-team-dropdown
+          className="fixed bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[140px]"
+          style={{ top: teamDropdownPos.top, right: teamDropdownPos.right }}
+        >
+          {teams.map(t => (
+            <button
+              key={t.id}
+              onClick={() => {
+                setViewMode(t.id)
+                setShowTeamDropdown(false)
+              }}
+              className={`block w-full text-left px-4 py-2.5 text-sm whitespace-nowrap transition-colors ${
+                viewMode === t.id
+                  ? 'bg-[#188b65]/10 text-[#188b65] font-medium'
+                  : 'text-gray-700 hover:bg-gray-50'
+              }`}
+            >
+              {t.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Main content - Grid */}
       <main className="max-w-[1800px] mx-auto px-4 sm:px-6 py-6">
@@ -861,6 +1026,7 @@ export default function App() {
                     onCardClick={navigateToDetail}
                     onFeedbackChange={handleFeedbackChange}
                     onLikeToggle={handleLikeToggle}
+                    onTagClick={handleTagClick}
                     currentUserId={currentUser.id}
                     showUser={showUser}
                     users={users}
@@ -875,6 +1041,7 @@ export default function App() {
                     onCardClick={navigateToDetail}
                     onFeedbackChange={handleFeedbackChange}
                     onLikeToggle={handleLikeToggle}
+                    onTagClick={handleTagClick}
                     currentUserId={currentUser.id}
                     showUser={showUser}
                     users={users}
@@ -888,12 +1055,14 @@ export default function App() {
               {isLandingView && (todayContents.length > 0 || weekContents.length > 0) ? (
                 <InputSection
                   title="すべてのインプット"
+                  bannerLabel="インプット"
                   items={landingAllContents.slice(0, 4)}
                   totalCount={contents.length}
                   onViewMore={() => setFilters(prev => ({ ...prev, dateRange: 'all' }))}
                   onCardClick={navigateToDetail}
                   onFeedbackChange={handleFeedbackChange}
                   onLikeToggle={handleLikeToggle}
+                  onTagClick={handleTagClick}
                   currentUserId={currentUser.id}
                   showUser={showUser}
                   users={users}
@@ -907,6 +1076,7 @@ export default function App() {
                       onClick={() => navigateToDetail(content.id)}
                       onFeedbackChange={handleFeedbackChange}
                       onLikeToggle={handleLikeToggle}
+                      onTagClick={handleTagClick}
                       isOwner={content.user_id === currentUser.id}
                       showUser={showUser}
                       users={users}

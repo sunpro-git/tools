@@ -1,7 +1,8 @@
 import { useState } from 'react'
-import { Clock, Loader2, AlertCircle, FileText, Twitter, Instagram, Youtube, Globe, MessageSquare } from 'lucide-react'
+import { Clock, Loader2, AlertCircle, FileText, Twitter, Instagram, Youtube, Globe, MessageSquare, Palette } from 'lucide-react'
 import type { Content, User } from '../types/database'
 import { getPlatformLabel, getPlatformColor } from '../lib/platform'
+import { proxyImageUrl } from '../lib/supabase'
 import type { Platform } from '../types/database'
 import StarRating from './StarRating'
 import FeedbackButtons from './FeedbackButtons'
@@ -12,6 +13,7 @@ interface Props {
   onClick: () => void
   onFeedbackChange: (id: string, fields: Partial<Content>) => void
   onLikeToggle?: (id: string) => void
+  onTagClick?: (tag: string) => void
   isOwner?: boolean
   showUser?: boolean
   users?: User[]
@@ -24,6 +26,8 @@ function PlatformIcon({ platform, className }: { platform: Platform; className?:
     case 'x': return <Twitter className={cls} />
     case 'instagram': return <Instagram className={cls} />
     case 'youtube': return <Youtube className={cls} />
+    case 'pixiv': return <Palette className={cls} />
+    case 'threads': return <MessageSquare className={cls} />
     default: return <Globe className={cls} />
   }
 }
@@ -33,6 +37,8 @@ const platformBgColors: Record<Platform, string> = {
   x: 'bg-gray-800',
   instagram: 'bg-gradient-to-br from-purple-500 via-pink-500 to-orange-400',
   youtube: 'bg-red-600',
+  pixiv: 'bg-blue-500',
+  threads: 'bg-gray-900',
   other: 'bg-blue-500',
 }
 
@@ -51,7 +57,7 @@ function StatusDot({ status }: { status: Content['status'] }) {
 
 import UserAvatar from './UserAvatar'
 
-export default function ContentCard({ content, onClick, onFeedbackChange, onLikeToggle, isOwner = true, showUser = false, users }: Props) {
+export default function ContentCard({ content, onClick, onFeedbackChange, onLikeToggle, onTagClick, isOwner = true, showUser = false, users }: Props) {
   const [showComment, setShowComment] = useState(false)
   const [localComment, setLocalComment] = useState(content.comment || '')
 
@@ -64,7 +70,7 @@ export default function ContentCard({ content, onClick, onFeedbackChange, onLike
       <div className="relative aspect-video rounded-xl overflow-hidden bg-gray-100 mb-3 border border-gray-200">
         {content.thumbnail_url ? (
           <img
-            src={content.thumbnail_url}
+            src={proxyImageUrl(content.thumbnail_url)}
             alt={content.title || ''}
             className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
             onError={(e) => {
@@ -132,6 +138,8 @@ export default function ContentCard({ content, onClick, onFeedbackChange, onLike
                 onToggle={() => onLikeToggle(content.id)}
                 size="sm"
                 isOwner={isOwner}
+                likedUserIds={content.liked_user_ids}
+                users={users}
               />
             </div>
           )}
@@ -139,9 +147,13 @@ export default function ContentCard({ content, onClick, onFeedbackChange, onLike
         {content.tags && content.tags.length > 0 && (
           <div className="flex items-center gap-1 mt-1.5 flex-wrap">
             {content.tags.slice(0, 2).map((tag) => (
-              <span key={tag} className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
+              <button
+                key={tag}
+                onClick={(e) => { e.stopPropagation(); onTagClick?.(tag) }}
+                className="text-[10px] bg-gray-100 text-gray-500 hover:bg-blue-50 hover:text-blue-600 px-1.5 py-0.5 rounded transition-colors"
+              >
                 #{tag}
-              </span>
+              </button>
             ))}
             {content.tags.length > 2 && (
               <span className="text-[10px] text-gray-400">+{content.tags.length - 2}</span>
