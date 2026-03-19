@@ -8,7 +8,7 @@ const navItems = [
   { to: '/inquiry', icon: Megaphone, label: '新規反響', badge: 'A' },
   { to: '/event-inquiry', icon: Flag, label: 'イベント反響', badge: 'B' },
   { to: '/orders', icon: ShoppingCart, label: '受注管理', badge: 'C' },
-  { to: '/sales', icon: DollarSign, label: '売上管理', badge: 'D' },
+  { to: '/sales', icon: DollarSign, label: '完工管理', badge: 'D' },
   { to: '/events', icon: CalendarDays, label: 'イベント集計', badge: '' },
   { to: '/staff', icon: Users, label: '担当者管理', badge: '' },
   { to: '/import', icon: Upload, label: 'CSVインポート', badge: '' },

@@ -200,6 +200,7 @@ export default function InquiryPage() {
 
   const [stale, setStale] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [selectedA5Venues, setSelectedA5Venues] = useState<string[]>(['総展_長野', '総展_松本', '総展_上田', '総展_伊那'])
 
   // Supabaseから最新データを取得してキャッシュ更新
   const fetchLatest = useCallback(async () => {
@@ -566,7 +567,7 @@ export default function InquiryPage() {
     const venueOrder = ['総展_長野', '総展_松本', '総展_上田', '総展_伊那']
     const allVenues = new Set<string>()
     for (const p of periods) Object.keys(qMap[p]).forEach((v) => allVenues.add(v))
-    const venueKeys = venueOrder.filter((v) => allVenues.has(v))
+    const venueKeys = venueOrder.filter((v) => allVenues.has(v) && selectedA5Venues.includes(v))
     const chartData = periods.map((key) => {
       const [y, q] = key.split('-')
       const entry: Record<string, unknown> = { period: key, label: `${y}sn ${q}` }
@@ -577,7 +578,7 @@ export default function InquiryPage() {
       return entry
     })
     return { chartData, venueKeys }
-  }, [summaryRows])
+  }, [summaryRows, selectedA5Venues])
 
   // A6: 完成お披露目会のイベントごとの新規来場数
   const a6Data = useMemo(() => {
@@ -601,8 +602,8 @@ export default function InquiryPage() {
       events.push({ date: dateStr, label: m[2], cnt: val.cnt, contracted: val.contracted })
     }
     events.sort((a, b) => a.date.localeCompare(b.date))
-    // 直近40イベントに絞る
-    return events.slice(-40)
+    // 直近120イベントに絞る
+    return events.slice(-120)
   }, [summaryRows])
 
   const totalInquiries = useMemo(() => summaryRows.reduce((s, r) => s + r.cnt, 0), [summaryRows])
@@ -1178,8 +1179,26 @@ export default function InquiryPage() {
               <span className="font-semibold" style={{ color: '#dc2626' }}>■ 契約になった反響数</span>
             </div>
           </div>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-xs text-slate-500 mr-1">展示場:</span>
+            {(['総展_長野', '総展_松本', '総展_上田', '総展_伊那'] as const).map((v) => {
+              const colors: Record<string, string> = { '総展_松本': '#3b82f6', '総展_長野': '#10b981', '総展_上田': '#f59e0b', '総展_伊那': '#8b5cf6' }
+              const active = selectedA5Venues.includes(v)
+              return (
+                <button
+                  key={v}
+                  onClick={() => setSelectedA5Venues((prev) => prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v])}
+                  className={`px-2.5 py-1 text-xs rounded-full border transition-colors ${active ? 'text-white font-semibold' : 'bg-white text-slate-400 border-slate-200'}`}
+                  style={active ? { backgroundColor: colors[v], borderColor: colors[v] } : undefined}
+                >
+                  {v.replace('総展_', '')}
+                </button>
+              )
+            })}
+          </div>
           {(() => {
             const a5Colors: Record<string, string> = { '総展_松本': '#3b82f6', '総展_長野': '#10b981', '総展_上田': '#f59e0b', '総展_伊那': '#8b5cf6' }
+            const a5LightColors: Record<string, string> = { '総展_松本': '#93c5fd', '総展_長野': '#6ee7b7', '総展_上田': '#fcd34d', '総展_伊那': '#c4b5fd' }
             return (
               <ResponsiveContainer width="100%" height={350}>
                 <ComposedChart data={a5Data.chartData} style={{ outline: 'none' }} margin={{ top: 30, right: 5, left: 5, bottom: 5 }}>
@@ -1264,6 +1283,9 @@ export default function InquiryPage() {
                       />
                     </Bar>
                   ))}
+                  {a5Data.venueKeys.length === 1 && (
+                    <Line type="monotone" dataKey={a5Data.venueKeys[0]} stroke={a5LightColors[a5Data.venueKeys[0]] || '#cbd5e1'} strokeWidth={3} dot={{ r: 5, fill: a5LightColors[a5Data.venueKeys[0]] || '#cbd5e1', stroke: a5LightColors[a5Data.venueKeys[0]] || '#cbd5e1' }} isAnimationActive={false} legendType="none" />
+                  )}
                 </ComposedChart>
               </ResponsiveContainer>
             )

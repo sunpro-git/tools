@@ -23,6 +23,17 @@ export default function StaffDepartmentPage() {
   const [form, setForm] = useState({ staff_name: '', department: DEPARTMENTS[0] as string, start_date: '', end_date: '', note: '' })
   const [saving, setSaving] = useState(false)
 
+  // 所属を主担当店舗で分ける設定（担当者ごと）
+  const [deptByStoreStaff, setDeptByStoreStaff] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem('deptByStoreStaff') || '{}') } catch { return {} }
+  })
+  const toggleDeptByStoreStaff = (staffName: string, v: boolean) => {
+    const next = { ...deptByStoreStaff, [staffName]: v }
+    if (!v) delete next[staffName]
+    setDeptByStoreStaff(next)
+    localStorage.setItem('deptByStoreStaff', JSON.stringify(next))
+  }
+
   const fetchData = useCallback(async () => {
     setLoading(true)
     const { data } = await supabase
@@ -175,6 +186,11 @@ export default function StaffDepartmentPage() {
           ))}
         </div>
 
+        {/* 店舗振分の説明 */}
+        <p className="text-xs text-slate-400 mt-3 pt-3 border-t border-slate-100">
+          「店舗振分」にチェックを入れた担当者は、C表・D表の課別集計で案件の主担当店舗から地域を判定します（本社/松本→中信、長野→北信、伊那→南信、上田→東信）。中信1課/2課の判定には所属課を使います。
+        </p>
+
         {/* フィルタ */}
         <div className="flex items-center gap-3 mt-3">
           <select value={filterDept} onChange={(e) => setFilterDept(e.target.value)} className="px-3 py-1 border border-slate-300 rounded-lg text-sm bg-white">
@@ -308,12 +324,13 @@ export default function StaffDepartmentPage() {
                 <th className="text-center py-2 px-3 border-b border-slate-200 font-semibold text-slate-700">終了日</th>
                 <th className="text-center py-2 px-3 border-b border-slate-200 font-semibold text-slate-700">状態</th>
                 <th className="text-left py-2 px-3 border-b border-slate-200 font-semibold text-slate-700">備考</th>
+                <th className="text-center py-2 px-3 border-b border-slate-200 font-semibold text-slate-700 w-20">店舗振分</th>
                 <th className="text-center py-2 px-3 border-b border-slate-200 font-semibold text-slate-700 w-24">操作</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
-                <tr><td colSpan={7} className="py-8 text-center text-slate-400">データなし</td></tr>
+                <tr><td colSpan={8} className="py-8 text-center text-slate-400">データなし</td></tr>
               ) : filtered.map((r) => {
                 const isCurrent = r.start_date <= today && (!r.end_date || r.end_date >= today)
                 return (
@@ -328,6 +345,10 @@ export default function StaffDepartmentPage() {
                         : <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-xs">過去</span>}
                     </td>
                     <td className="py-1.5 px-3 text-slate-500 text-xs">{r.note || '-'}</td>
+                    <td className="py-1.5 px-3 text-center">
+                      <input type="checkbox" checked={!!deptByStoreStaff[r.staff_name]} onChange={(e) => toggleDeptByStoreStaff(r.staff_name, e.target.checked)}
+                        className="w-4 h-4 rounded border-slate-300 text-blue-600 cursor-pointer" />
+                    </td>
                     <td className="py-1.5 px-3 text-center">
                       <div className="flex items-center justify-center gap-2">
                         <button onClick={() => startEdit(r)} className="text-blue-500 hover:text-blue-700"><Pencil className="w-3.5 h-3.5" /></button>

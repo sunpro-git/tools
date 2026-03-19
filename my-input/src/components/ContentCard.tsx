@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Clock, Loader2, AlertCircle, FileText, Twitter, Instagram, Youtube, Globe, MessageSquare, Palette } from 'lucide-react'
 import type { Content, User } from '../types/database'
 import { getPlatformLabel, getPlatformColor } from '../lib/platform'
@@ -59,10 +59,32 @@ import UserAvatar from './UserAvatar'
 
 export default function ContentCard({ content, onClick, onFeedbackChange, onLikeToggle, onTagClick, isOwner = true, showUser = false, users }: Props) {
   const [showComment, setShowComment] = useState(false)
+  const [showCommentPreview, setShowCommentPreview] = useState(false)
   const [localComment, setLocalComment] = useState(content.comment || '')
+  const cardRef = useRef<HTMLDivElement>(null)
+
+  // Show comment preview on scroll into view
+  useEffect(() => {
+    if (!content.comment) return
+    const el = cardRef.current
+    if (!el) return
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setShowCommentPreview(true)
+          observer.disconnect()
+        }
+      },
+      { threshold: 0.3 }
+    )
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [content.comment])
 
   return (
     <div
+      ref={cardRef}
       onClick={onClick}
       className="group cursor-pointer relative"
     >
@@ -205,7 +227,7 @@ export default function ContentCard({ content, onClick, onFeedbackChange, onLike
           </div>
         </div>
 
-        {/* Comment popover */}
+        {/* Comment popover (edit mode) */}
         {showComment && isOwner && (
           <div
             className="mt-1 bg-white rounded-lg shadow-lg border border-gray-200 p-2 z-10"
@@ -214,17 +236,47 @@ export default function ContentCard({ content, onClick, onFeedbackChange, onLike
             <textarea
               value={localComment}
               onChange={(e) => setLocalComment(e.target.value)}
-              onBlur={() => {
-                if (localComment !== (content.comment || '')) {
-                  onFeedbackChange(content.id, { comment: localComment || null })
-                }
-                setShowComment(false)
-              }}
               placeholder="コメントを入力..."
               className="w-full text-base border border-gray-200 rounded p-2 resize-none focus:ring-1 focus:ring-blue-500 outline-none"
               rows={3}
               autoFocus
             />
+            <div className="flex justify-end gap-1.5 mt-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setLocalComment(content.comment || '')
+                  setShowComment(false)
+                }}
+                className="px-2.5 py-1 text-xs text-gray-500 hover:bg-gray-100 rounded transition-colors"
+              >
+                キャンセル
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onFeedbackChange(content.id, { comment: localComment || null })
+                  setShowComment(false)
+                }}
+                className="px-2.5 py-1 text-xs text-white rounded transition-colors font-medium"
+                style={{ backgroundColor: '#188b65' }}
+                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#146e50'}
+                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#188b65'}
+              >
+                投稿
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Comment preview (read-only, shown on scroll-in) */}
+        {!showComment && showCommentPreview && content.comment && (
+          <div className="relative mt-3 animate-pop-in">
+            {/* Speech bubble arrow */}
+            <div className="absolute -top-1 right-4 w-2 h-2 bg-green-50 border-l border-t border-green-500 rotate-45 z-10" />
+            <div className="relative px-3 py-2 bg-green-50 border border-green-500 rounded-xl text-xs text-green-700 leading-relaxed">
+              <span className="line-clamp-2">{content.comment}</span>
+            </div>
           </div>
         )}
       </div>
