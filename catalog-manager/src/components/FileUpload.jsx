@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import Icon from './Icon';
-import { supabase } from '../config';
+import { storage } from '../config';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 
 const FileUpload = ({ label, fileUrl, fileName, onFileChange }) => {
     const [uploading, setUploading] = useState(false);
@@ -20,11 +21,11 @@ const FileUpload = ({ label, fileUrl, fileName, onFileChange }) => {
         setUploading(true);
         try {
             const ext = file.name.split('.').pop() || 'pdf';
-            const filePath = `${Date.now()}.${ext}`;
-            const { error } = await supabase.storage.from('catalog-files').upload(filePath, file, { contentType: file.type, upsert: false });
-            if (error) throw error;
-            const { data: urlData } = supabase.storage.from('catalog-files').getPublicUrl(filePath);
-            onFileChange(urlData.publicUrl, file.name);
+            const filePath = `catalog-files/${Date.now()}.${ext}`;
+            const storageRef = ref(storage, filePath);
+            await uploadBytes(storageRef, file, { contentType: file.type });
+            const url = await getDownloadURL(storageRef);
+            onFileChange(url, file.name);
         } catch (err) {
             console.error(err);
             const reader = new FileReader();

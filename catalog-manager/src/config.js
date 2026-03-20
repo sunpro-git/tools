@@ -1,9 +1,20 @@
-import { createClient } from '@supabase/supabase-js';
+import { initializeApp } from 'firebase/app';
+import { getFirestore } from 'firebase/firestore';
+import { getStorage } from 'firebase/storage';
 
-const SUPABASE_URL = 'https://vkovflhltggyrgimeabp.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZrb3ZmbGhsdGdneXJnaW1lYWJwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzIwMzkyMTksImV4cCI6MjA4NzYxNTIxOX0.lhuwdgJMouVg08qgOc3GsTCXObGuRIIETC5ix6scYlE';
+const firebaseConfig = {
+  apiKey: "AIzaSyCoELophNYa8mOQL8ZjWzqaOM4DRuCWD38",
+  authDomain: "zaiko-2d49e.firebaseapp.com",
+  projectId: "zaiko-2d49e",
+  storageBucket: "zaiko-2d49e.firebasestorage.app",
+  messagingSenderId: "730461857037",
+  appId: "1:730461857037:web:7e687555213ac4608e7c44",
+  measurementId: "G-9K663BT1NV"
+};
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const app = initializeApp(firebaseConfig);
+export const db = getFirestore(app);
+export const storage = getStorage(app);
 
 export const GENRES = ['新築', 'リフォーム', '不動産', 'ソリューション', '共通'];
 

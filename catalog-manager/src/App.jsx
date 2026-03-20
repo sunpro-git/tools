@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import Icon from './components/Icon';
 import FileUpload from './components/FileUpload';
-import { supabase, GENRES, GENRE_COLORS, GROUPS } from './config';
+import { db, storage, GENRES, GENRE_COLORS, GROUPS } from './config';
+import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, getDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { makeDemoImage } from './demoImage';
 
 // ─── ユーティリティ ───
@@ -117,8 +119,8 @@ export default function App() {
     const DEFAULT_PASSWORD = 'catalog1234';
     let password = DEFAULT_PASSWORD;
     try {
-      const { data } = await supabase.from('catalog_settings').select('value').eq('key', 'app_password').single();
-      if (data) password = data.value;
+      const snap = await getDoc(doc(db, 'catalog_settings', 'app_password'));
+      if (snap.exists()) password = snap.data().value;
     } catch (_) {}
     if (pw === password) {
       sessionStorage.setItem('catalog_authed', '1');
@@ -129,37 +131,41 @@ export default function App() {
   };
 
   // ─── データ読み込み ───
-  const loadData = async () => {
-    setLoading(true);
+  const loadSettings = async () => {
     try {
-      const [itemsRes, reprintsRes, settingsRes] = await Promise.all([
-        supabase.from('catalog_items').select('*').order('created_at', { ascending: false }),
-        supabase.from('catalog_reprints').select('*').order('reprint_date', { ascending: false }),
-        supabase.from('catalog_settings').select('*'),
-      ]);
-      if (itemsRes.data) setItems(itemsRes.data);
-      if (reprintsRes.data) setReprints(reprintsRes.data);
-      if (settingsRes.data) {
-        const obj = {};
-        settingsRes.data.forEach(r => { obj[r.key] = r.value; });
-        setSettings(obj);
-        setChatworkForm({
-          chatwork_room_id: obj.chatwork_room_id || '',
-          chatwork_api_token: obj.chatwork_api_token || '',
-          chatwork_notify_days_before: obj.chatwork_notify_days_before || '7',
-          chatwork_notify_enabled: obj.chatwork_notify_enabled || 'true',
-        });
-      }
+      const snap = await getDocs(collection(db, 'catalog_settings'));
+      const obj = {};
+      snap.forEach(d => { obj[d.id] = d.data().value; });
+      setSettings(obj);
+      setChatworkForm({
+        chatwork_room_id: obj.chatwork_room_id || '',
+        chatwork_api_token: obj.chatwork_api_token || '',
+        chatwork_notify_days_before: obj.chatwork_notify_days_before || '7',
+        chatwork_notify_enabled: obj.chatwork_notify_enabled || 'true',
+      });
     } catch (_) {}
-    setLoading(false);
   };
 
   useEffect(() => {
     if (!authed) return;
-    loadData();
-    const ch1 = supabase.channel('catalog_items_rt').on('postgres_changes', { event: '*', schema: 'public', table: 'catalog_items' }, () => loadData()).subscribe();
-    const ch2 = supabase.channel('catalog_reprints_rt').on('postgres_changes', { event: '*', schema: 'public', table: 'catalog_reprints' }, () => loadData()).subscribe();
-    return () => { supabase.removeChannel(ch1); supabase.removeChannel(ch2); };
+    setLoading(true);
+    loadSettings();
+
+    const unsubItems = onSnapshot(
+      query(collection(db, 'catalog_items'), orderBy('created_at', 'desc')),
+      (snap) => {
+        setItems(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setLoading(false);
+      },
+      () => setLoading(false)
+    );
+    const unsubReprints = onSnapshot(
+      query(collection(db, 'catalog_reprints'), orderBy('reprint_date', 'desc')),
+      (snap) => {
+        setReprints(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }
+    );
+    return () => { unsubItems(); unsubReprints(); };
   }, [authed]);
 
   // ─── フィルタ ───
@@ -237,7 +243,7 @@ export default function App() {
     const item = items.find(i => i.id === id);
     if (!item) return;
     const newStock = Math.max(0, (Number(item.stock) || 0) + delta);
-    await supabase.from('catalog_items').update({ stock: newStock, updated_at: new Date().toISOString() }).eq('id', id);
+    try { await updateDoc(doc(db, 'catalog_items', id), { stock: newStock, updated_at: new Date().toISOString() }); } catch (_) {}
     setItems(prev => prev.map(i => i.id === id ? { ...i, stock: newStock } : i));
   };
 
@@ -248,11 +254,11 @@ export default function App() {
     if (!allowed.includes(file.type)) { alert('画像ファイル（JPG, PNG, GIF, WebP）のみ'); return; }
     try {
       const ext = file.name.split('.').pop() || 'jpg';
-      const filePath = `thumbnails/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage.from('catalog-files').upload(filePath, file, { contentType: file.type, upsert: false });
-      if (error) throw error;
-      const { data: urlData } = supabase.storage.from('catalog-files').getPublicUrl(filePath);
-      setItemForm(f => ({ ...f, image_url: urlData.publicUrl }));
+      const filePath = `catalog-files/thumbnails/${Date.now()}.${ext}`;
+      const storageRef = ref(storage, filePath);
+      await uploadBytes(storageRef, file, { contentType: file.type });
+      const url = await getDownloadURL(storageRef);
+      setItemForm(f => ({ ...f, image_url: url }));
     } catch (err) {
       const reader = new FileReader();
       reader.onload = (ev) => setItemForm(f => ({ ...f, image_url: ev.target.result }));
@@ -312,44 +318,36 @@ export default function App() {
       last_reprint_date: itemForm.last_reprint_date || null,
       updated_at: new Date().toISOString(),
     };
-    if (editingItemId) {
-      const { error } = await supabase.from('catalog_items').update(payload).eq('id', editingItemId);
-      if (error) {
-        setItems(prev => prev.map(i => i.id === editingItemId ? { ...i, ...payload } : i));
-      }
-      showToast('更新しました');
-    } else {
-      const newItemId = crypto.randomUUID();
-      const { data, error } = await supabase.from('catalog_items').insert(payload).select();
-      const itemId = (data && data[0]) ? data[0].id : newItemId;
-      if (error || !data) {
-        const newItem = { ...payload, id: newItemId, created_at: new Date().toISOString() };
-        setItems(prev => [newItem, ...prev]);
-      }
-      // 前回増刷情報があれば増刷履歴に自動登録
-      if (itemForm.last_reprint_date) {
-        const reprintPayload = {
-          catalog_item_id: itemId,
-          reprint_date: itemForm.last_reprint_date,
-          cost: Number(itemForm.last_reprint_cost) || 0,
-          quantity: Number(itemForm.last_reprint_qty) || 0,
-          file_url: '', file_name: '', notes: '', delivery_to: '',
-        };
-        const { data: rData, error: rError } = await supabase.from('catalog_reprints').insert(reprintPayload).select();
-        if (rError || !rData) {
-          setReprints(prev => [{ ...reprintPayload, id: crypto.randomUUID(), created_at: new Date().toISOString() }, ...prev]);
+    try {
+      if (editingItemId) {
+        await updateDoc(doc(db, 'catalog_items', editingItemId), payload);
+        showToast('更新しました');
+      } else {
+        payload.created_at = new Date().toISOString();
+        const docRef = await addDoc(collection(db, 'catalog_items'), payload);
+        // 前回増刷情報があれば増刷履歴に自動登録
+        if (itemForm.last_reprint_date) {
+          const reprintPayload = {
+            catalog_item_id: docRef.id,
+            reprint_date: itemForm.last_reprint_date,
+            cost: Number(itemForm.last_reprint_cost) || 0,
+            quantity: Number(itemForm.last_reprint_qty) || 0,
+            file_url: '', file_name: '', notes: '', delivery_to: '',
+            created_at: new Date().toISOString(),
+          };
+          await addDoc(collection(db, 'catalog_reprints'), reprintPayload);
         }
+        showToast('登録しました');
       }
-      showToast('登録しました');
+    } catch (err) {
+      console.error(err);
+      showToast('保存に失敗しました');
     }
     setShowItemModal(false);
   };
   const deleteItem = async (id) => {
     if (!confirm('このカタログを削除しますか？')) return;
-    const { error } = await supabase.from('catalog_items').delete().eq('id', id);
-    if (error) {
-      setItems(prev => prev.filter(i => i.id !== id));
-    }
+    try { await deleteDoc(doc(db, 'catalog_items', id)); } catch (_) {}
     if (expandedId === id) setExpandedId(null);
     showToast('削除しました');
   };
@@ -366,20 +364,20 @@ export default function App() {
     e.preventDefault();
     if (!reprintForm.reprint_date) return;
     const payload = { catalog_item_id: reprintTargetItemId, reprint_date: reprintForm.reprint_date, cost: Number(reprintForm.cost) || 0, quantity: Number(reprintForm.quantity) || 0, file_url: reprintForm.file_url, file_name: reprintForm.file_name, notes: reprintForm.notes };
-    if (editingReprintId) {
-      const { error } = await supabase.from('catalog_reprints').update(payload).eq('id', editingReprintId);
-      if (error) setReprints(prev => prev.map(r => r.id === editingReprintId ? { ...r, ...payload } : r));
-    } else {
-      const { data, error } = await supabase.from('catalog_reprints').insert(payload).select();
-      if (error || !data) setReprints(prev => [{ ...payload, id: crypto.randomUUID(), created_at: new Date().toISOString() }, ...prev]);
-    }
+    try {
+      if (editingReprintId) {
+        await updateDoc(doc(db, 'catalog_reprints', editingReprintId), payload);
+      } else {
+        payload.created_at = new Date().toISOString();
+        await addDoc(collection(db, 'catalog_reprints'), payload);
+      }
+    } catch (_) {}
     showToast(editingReprintId ? '増刷記録を更新しました' : '増刷記録を追加しました');
     setShowReprintModal(false);
   };
   const deleteReprint = async (id) => {
     if (!confirm('この増刷記録を削除しますか？')) return;
-    const { error } = await supabase.from('catalog_reprints').delete().eq('id', id);
-    if (error) setReprints(prev => prev.filter(r => r.id !== id));
+    try { await deleteDoc(doc(db, 'catalog_reprints', id)); } catch (_) {}
     showToast('削除しました');
   };
 
@@ -388,26 +386,31 @@ export default function App() {
     e.preventDefault();
     try {
       for (const [key, value] of Object.entries(chatworkForm)) {
-        await supabase.from('catalog_settings').upsert({ key, value, updated_at: new Date().toISOString() });
+        await setDoc(doc(db, 'catalog_settings', key), { value, updated_at: new Date().toISOString() });
       }
       if (newPassword.trim()) {
-        await supabase.from('catalog_settings').upsert({ key: 'app_password', value: newPassword.trim(), updated_at: new Date().toISOString() });
+        await setDoc(doc(db, 'catalog_settings', 'app_password'), { value: newPassword.trim(), updated_at: new Date().toISOString() });
         setNewPassword('');
       }
     } catch (_) {}
     showToast('設定を保存しました');
     setShowSettings(false);
-    loadData();
+    loadSettings();
   };
 
   // ─── Chatwork通知 ───
   const sendChatworkNotify = async (item) => {
     const roomId = settings.chatwork_room_id;
-    if (!roomId) { alert('設定画面でチャットワークのルームIDを設定してください'); return; }
+    const apiToken = settings.chatwork_api_token;
+    if (!roomId || !apiToken) { alert('設定画面でチャットワークのAPIトークンとルームIDを設定してください'); return; }
     const message = `[info][title]カタログ増刷リマインド[/title]商品名: ${item.name}\n事業部: ${item.genre}\nグループ: ${item.group || '—'}\n在庫数: ${item.stock ?? '—'}\n次回増刷予定日: ${formatDate(item.next_reprint_date)}\n前回増刷金額: ${formatCost(item.last_reprint_cost)}\n備考: ${item.notes || 'なし'}[/info]`;
     try {
-      const { error } = await supabase.functions.invoke('chatwork-notify', { body: { room_id: roomId, message } });
-      if (error) throw error;
+      const res = await fetch(`https://api.chatwork.com/v2/rooms/${roomId}/messages`, {
+        method: 'POST',
+        headers: { 'X-ChatWorkToken': apiToken, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `body=${encodeURIComponent(message)}`,
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       showToast('チャットワークに通知しました');
     } catch (err) {
       alert('通知送信に失敗しました: ' + err.message);
@@ -445,9 +448,9 @@ export default function App() {
     // ローカルstate保存
     setRequests(prev => [newReq, ...prev]);
 
-    // Supabase保存（テーブルあれば）
+    // Firebase保存
     try {
-      await supabase.from('catalog_requests').insert(newReq);
+      await addDoc(collection(db, 'catalog_requests'), newReq);
     } catch (_) {}
 
     // Chatwork通知
@@ -467,14 +470,14 @@ export default function App() {
         `申請日時: ${new Date().toLocaleString('ja-JP')}[/info]`;
 
       try {
-        // Supabase Edge Function経由
-        const { error } = await supabase.functions.invoke('chatwork-notify', {
-          body: { room_id: roomId, message, api_token: apiToken }
+        const res = await fetch(`https://api.chatwork.com/v2/rooms/${roomId}/messages`, {
+          method: 'POST',
+          headers: { 'X-ChatWorkToken': apiToken, 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: `body=${encodeURIComponent(message)}`,
         });
-        if (error) throw error;
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         showToast('増刷リクエストを送信し、チャットワークに通知しました');
       } catch (err) {
-        // 直接Chatwork APIを試行（CORSの場合はEdge Function必要）
         showToast('増刷リクエストを送信しました（チャットワーク通知は設定を確認してください）');
       }
     } else {
@@ -483,10 +486,10 @@ export default function App() {
     setShowRequestModal(false);
   };
 
-  const updateRequestStatus = (id, status) => {
+  const updateRequestStatus = async (id, status) => {
     setRequests(prev => prev.map(r => r.id === id ? { ...r, status, updated_at: new Date().toISOString() } : r));
     try {
-      supabase.from('catalog_requests').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
+      await updateDoc(doc(db, 'catalog_requests', id), { status, updated_at: new Date().toISOString() });
     } catch (_) {}
     showToast(`ステータスを「${REQUEST_STATUS_LABELS[status]}」に変更しました`);
   };
@@ -1392,7 +1395,7 @@ export default function App() {
                         <input type="number" value={di.stock ?? ''} onClick={e => e.stopPropagation()} onChange={(e) => { const v = Math.max(0, Number(e.target.value) || 0); setDetailItem(prev => prev ? { ...prev, stock: v } : prev); }} className="w-12 text-center font-bold text-sm text-slate-800 bg-white border border-slate-200 rounded px-1 py-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" min="0" />
                         <button onClick={(e) => { e.stopPropagation(); setDetailItem(prev => prev ? { ...prev, stock: (Number(prev.stock) || 0) + 1 } : prev); }} className="w-5 h-5 rounded bg-slate-200 hover:bg-slate-300 text-slate-600 flex items-center justify-center transition text-xs">+</button>
                         <div className="flex-1" />
-                        <button onClick={async (e) => { e.stopPropagation(); const v = Number(di.stock) || 0; await supabase.from('catalog_items').update({ stock: v, updated_at: new Date().toISOString() }).eq('id', di.id); setItems(prev => prev.map(i => i.id === di.id ? { ...i, stock: v } : i)); showToast('在庫数を保存しました'); }} className="px-1.5 py-0.5 rounded bg-slate-200 hover:bg-slate-300 text-slate-600 text-[9px] font-bold transition">保存</button>
+                        <button onClick={async (e) => { e.stopPropagation(); const v = Number(di.stock) || 0; try { await updateDoc(doc(db, 'catalog_items', di.id), { stock: v, updated_at: new Date().toISOString() }); } catch(_){} setItems(prev => prev.map(i => i.id === di.id ? { ...i, stock: v } : i)); showToast('在庫数を保存しました'); }} className="px-1.5 py-0.5 rounded bg-slate-200 hover:bg-slate-300 text-slate-600 text-[9px] font-bold transition">保存</button>
                       </div>
                     </div>
                     <div className="bg-slate-50 rounded-lg px-2 py-2 border border-slate-100 overflow-hidden col-span-2">
@@ -1460,15 +1463,16 @@ export default function App() {
                       <button onClick={async () => {
                         if (!inlineReprintForm.reprint_date) return;
                         const payload = { catalog_item_id: di.id, reprint_date: inlineReprintForm.reprint_date, cost: Number(inlineReprintForm.cost) || 0, quantity: Number(inlineReprintForm.quantity) || 0, file_url: inlineReprintForm.file_url, file_name: inlineReprintForm.file_name, notes: inlineReprintForm.notes, delivery_to: inlineReprintForm.delivery_to || '', supplier: inlineReprintForm.supplier || '' };
-                        if (inlineReprintEditId) {
-                          const { error } = await supabase.from('catalog_reprints').update(payload).eq('id', inlineReprintEditId);
-                          if (error) setReprints(prev => prev.map(r => r.id === inlineReprintEditId ? { ...r, ...payload } : r));
-                          showToast('増刷記録を更新しました');
-                        } else {
-                          const { data, error } = await supabase.from('catalog_reprints').insert(payload).select();
-                          if (error || !data) setReprints(prev => [{ ...payload, id: crypto.randomUUID(), created_at: new Date().toISOString() }, ...prev]);
-                          showToast('増刷記録を追加しました');
-                        }
+                        try {
+                          if (inlineReprintEditId) {
+                            await updateDoc(doc(db, 'catalog_reprints', inlineReprintEditId), payload);
+                            showToast('増刷記録を更新しました');
+                          } else {
+                            payload.created_at = new Date().toISOString();
+                            await addDoc(collection(db, 'catalog_reprints'), payload);
+                            showToast('増刷記録を追加しました');
+                          }
+                        } catch (_) {}
                         setShowInlineReprintForm(false);
                         setInlineReprintForm(EMPTY_REPRINT);
                         setInlineReprintEditId(null);
