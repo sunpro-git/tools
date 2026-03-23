@@ -147,7 +147,7 @@ export default function CsvImportPage() {
                   const found = Object.entries(row).find(([, v]) => String(v) === badValue)
                   if (found) colInfo = ` [項目: ${dbToLabel[found[0]] || found[0]}, 値: "${badValue}"]`
                 }
-                const id = (row.andpad_id || row.name || '') as string
+                const id = ((row as Record<string, unknown>).andpad_id || (row as Record<string, unknown>).name || '') as string
                 errors.push(`行${rowNum} (${id})${colInfo}: ${rowError.message}`)
               } else {
                 successCount += 1

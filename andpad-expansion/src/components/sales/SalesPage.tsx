@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 import { cacheGet, cacheSet } from '../../lib/cache'
-import { Loader2, ArrowUp, ArrowDown, ArrowUpDown, ExternalLink, Building2, MapPin, User, ChevronDown, ChevronUp, RefreshCw, Download } from 'lucide-react'
+import { Loader2, ArrowUp, ArrowDown, ArrowUpDown, ExternalLink, MapPin, User, ChevronDown, ChevronUp, RefreshCw, Download } from 'lucide-react'
 import { useBusinessType } from '../../hooks/useBusinessType'
 import { BUSINESS_TYPES } from '../../hooks/useDepartments'
 import { useFiscalYear } from '../../hooks/useFiscalYear'
@@ -147,7 +147,8 @@ export default function SalesPage() {
 
     // ページネーションで全件取得（Supabaseデフォルト1000件制限対策）
     const PAGE = 1000
-    const fetchAll = async (buildQuery: (from: number, to: number) => ReturnType<ReturnType<typeof supabase.from>['select']>) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fetchAll = async (buildQuery: (from: number, to: number) => PromiseLike<{ data: any[] | null }>) => {
       const all: SalesDeal[] = []
       let offset = 0
       while (true) {

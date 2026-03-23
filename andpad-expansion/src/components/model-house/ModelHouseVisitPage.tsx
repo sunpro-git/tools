@@ -113,7 +113,7 @@ function CustomerSearch({ onSelect, onClear, selected }: {
   const [searching, setSearching] = useState(false)
   const [showResults, setShowResults] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
-  const timerRef = useRef<ReturnType<typeof setTimeout>>()
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined)
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {

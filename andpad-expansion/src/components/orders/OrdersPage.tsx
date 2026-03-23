@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 import { cacheGet, cacheSet } from '../../lib/cache'
-import { Loader2, ArrowUp, ArrowDown, ArrowUpDown, ExternalLink, Building2, MapPin, User, ChevronDown, ChevronUp, RefreshCw, Download } from 'lucide-react'
+import { Loader2, ArrowUp, ArrowDown, ArrowUpDown, ExternalLink, MapPin, User, ChevronDown, ChevronUp, RefreshCw, Download } from 'lucide-react'
 import { useBusinessType } from '../../hooks/useBusinessType'
 import { BUSINESS_TYPES } from '../../hooks/useDepartments'
 import { useFiscalYear } from '../../hooks/useFiscalYear'
@@ -177,7 +177,8 @@ export default function OrdersPage() {
 
     // ページネーションで全件取得（Supabaseデフォルト1000件制限対策）
     const PAGE = 1000
-    const fetchAll = async (buildQuery: (from: number, to: number) => ReturnType<ReturnType<typeof supabase.from>['select']>) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const fetchAll = async (buildQuery: (from: number, to: number) => PromiseLike<{ data: any[] | null }>) => {
       const all: OrderDeal[] = []
       let offset = 0
       while (true) {
@@ -1266,7 +1267,7 @@ export default function OrdersPage() {
           </div>
           {[{ tableData: c2Data, label: `${fiscal.snYear}sn（今期）`, labelClass: 'text-blue-700 bg-blue-50 border-blue-200', isCollapsible: false, isPrev: false, isNext: false, open: true, setOpen: undefined as unknown as ((v: boolean) => void) },
             { tableData: c2PrevData, label: `${prevFiscal.snYear}sn（前期）`, labelClass: 'text-slate-600 bg-slate-50 border-slate-300', isCollapsible: true, isPrev: true, isNext: false, open: c2PrevOpen, setOpen: setC2PrevOpen },
-            { tableData: c2NextData, label: `${nextFiscalPeriod.snYear}sn（来期）`, labelClass: 'text-slate-600 bg-slate-50 border-slate-300', isCollapsible: true, isPrev: false, isNext: true, open: c2NextOpen, setOpen: setC2NextOpen }].map(({ tableData, label, labelClass, isCollapsible, isPrev, isNext, open, setOpen }) => {
+            { tableData: c2NextData, label: `${nextFiscalPeriod.snYear}sn（来期）`, labelClass: 'text-slate-600 bg-slate-50 border-slate-300', isCollapsible: true, isPrev: false, isNext: true, open: c2NextOpen, setOpen: setC2NextOpen }].map(({ tableData, label, labelClass, isCollapsible, isPrev, isNext: _isNext, open, setOpen }) => {
             if (tableData.keys.length === 0) return null
             const getVal = (k: C2Key, ym: string, key: 'ordered' | 'planned' | 'total') => tableData.data[k]?.[ym]?.[key] || 0
             const yearVal = (k: C2Key, key: 'ordered' | 'planned' | 'total') => tableData.months.reduce((s, ym) => s + getVal(k, ym, key), 0)

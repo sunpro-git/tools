@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../lib/supabase'
 import type { CsvImport } from '../../types/database'
 import { TABLE_LABELS, type TargetTable } from '../../types/csv'
-import { formatDate } from '../../lib/formatters'
 import { Clock, CheckCircle2, AlertCircle } from 'lucide-react'
 
 export default function ImportHistory() {

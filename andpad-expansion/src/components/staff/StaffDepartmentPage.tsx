@@ -16,7 +16,7 @@ interface StaffDept {
 
 export default function StaffDepartmentPage() {
   const { businessType, setBusinessType } = useBusinessType()
-  const { deptNames, loading: deptLoading } = useDepartments(businessType)
+  const { deptNames } = useDepartments(businessType)
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<StaffDept[]>([])
   const [filterDept, setFilterDept] = useState<string>('all')
