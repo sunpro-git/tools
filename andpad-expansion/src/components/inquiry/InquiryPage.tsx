@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../../lib/supabase'
 import { cacheGet, cacheSet } from '../../lib/cache'
-import { Loader2, ChevronDown, ChevronUp, ExternalLink, X, Building2, MapPin, Tag, ArrowUp, ArrowDown, ArrowUpDown, Megaphone, RefreshCw } from 'lucide-react'
+import { Loader2, ChevronDown, ChevronUp, ExternalLink, X, Building2, MapPin, Tag, ArrowUp, ArrowDown, ArrowUpDown, RefreshCw } from 'lucide-react'
+import { useBusinessType } from '../../hooks/useBusinessType'
+import { BUSINESS_TYPES } from '../../hooks/useDepartments'
 import {
   ComposedChart,
-  LineChart,
   Bar,
   Line,
   XAxis,
@@ -145,9 +146,11 @@ interface DealRow {
 }
 
 export default function InquiryPage() {
+  const { businessType, setBusinessType } = useBusinessType()
   const [loading, setLoading] = useState(true)
   const [viewMode, setViewMode] = useState<ViewMode>('quarterly')
-  const [selectedType, setSelectedType] = useState<string>('新築')
+  const [selectedType, setSelectedType] = useState<string>(businessType)
+  useEffect(() => { setSelectedType(businessType) }, [businessType])
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
   const [selectedStoreGroups, setSelectedStoreGroups] = useState<string[]>([])
   const [selectedPeriod, setSelectedPeriod] = useState<string | null>(null)
@@ -652,126 +655,136 @@ export default function InquiryPage() {
 
   return (
     <div className="space-y-6">
-      {/* ヘッダー: タイトル + サマリー + フィルタ */}
-      <div className="bg-white rounded-xl border border-slate-200 px-4 py-3">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-6">
-            <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2"><span className="inline-flex items-center justify-center gap-1 w-auto px-2 h-10 rounded-lg bg-gray-500 text-white font-bold text-lg"><Megaphone className="w-5 h-5" />A</span>新規反響</h1>
-            <div className="flex items-center gap-5 text-sm">
-              <div className="flex items-baseline gap-1.5">
-                <span className="text-slate-400">期間内新規反響数</span>
-                <span className="text-lg font-bold text-slate-900">{totalInquiries.toLocaleString()}</span>
-                <span className="text-slate-400">件</span>
-              </div>
-              <div className="flex items-baseline gap-1.5 text-xs text-slate-400">
-                (全{currentVerify.raw_total.toLocaleString()} / 重複{currentVerify.duplicates.toLocaleString()} /
-                新規<span className={currentVerify.deduped_total === totalInquiries ? 'text-emerald-600' : 'text-red-600'}>{currentVerify.deduped_total.toLocaleString()}</span>)
-              </div>
-            </div>
-            {stale && <span className="text-[10px] text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded">キャッシュ表示中…</span>}
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 disabled:opacity-50 transition-colors"
-              title="データを再取得"
+      {/* ヘッダー: 3段構成 */}
+      <div className="bg-white rounded-xl border border-slate-200">
+        {/* 1段目: タイトル + 期間 + 更新 */}
+        <div className="flex items-center gap-4 px-4 py-2.5 border-b border-slate-100">
+          <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2"><span className="inline-flex items-center justify-center gap-1 w-auto px-2 h-10 rounded-lg bg-gray-500 text-white font-bold text-lg"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" fill="currentColor" className="w-5 h-5"><path d="M328 256C306.9 243.9 285.7 231.8 256 226.7L256 86.4C289.7 77 343.4 64 384 64C480 64 608 112 608 192C608 272 488.4 288 432 288C384 288 356 272 328 256zM160 96L208 96L208 224L160 224C124.7 224 96 195.3 96 160C96 124.7 124.7 96 160 96zM264 384C292 368 320 352 368 352C424.4 352 544 368 544 448C544 528 416 576 320 576C279.5 576 225.7 563 192 553.6L192 413.3C221.7 408.1 242.9 396 264 383.9zM96 544C60.7 544 32 515.3 32 480C32 444.7 60.7 416 96 416L144 416L144 544L96 544z"/></svg>A1</span>新規反響
+            <select
+              value={businessType}
+              onChange={(e) => setBusinessType(e.target.value as typeof businessType)}
+              className="text-sm font-semibold px-2 py-0.5 rounded-lg border-0 cursor-pointer text-white"
+              style={{ backgroundColor: businessType === '新築' ? '#15803d' : businessType === 'リフォーム' ? '#d97706' : '#1e40af' }}
             >
-              <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
-            </button>
+              {BUSINESS_TYPES.map((bt) => <option key={bt} value={bt} className="bg-white text-slate-700">{bt}</option>)}
+            </select>
+          </h1>
+          {stale && <span className="text-[10px] text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded">キャッシュ表示中…</span>}
+          <button
+            onClick={handleRefresh}
+            disabled={refreshing}
+            className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 disabled:opacity-50 transition-colors"
+            title="データを再取得"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+          </button>
+        </div>
+        {/* 2段目: フィルター（グループ間を縦線で区切り） */}
+        <div className="flex items-center gap-3 px-4 py-2 border-b border-slate-100 flex-wrap">
+          {/* 案件種別 */}
+          <div className="flex items-center gap-2">
+            <Building2 className="w-3.5 h-3.5 text-slate-400" />
+            <select
+              value={selectedType}
+              onChange={(e) => setSelectedType(e.target.value)}
+              className="px-3 py-1 border border-slate-300 rounded-lg text-sm bg-white"
+            >
+              <option value="all">全案件種別</option>
+              {dealTypes.map((t) => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
           </div>
-          <div className="flex items-center gap-3">
-            {/* 案件種別フィルタ */}
-            <div className="flex items-center gap-2">
-              <Building2 className="w-3.5 h-3.5 text-slate-400" />
-              <select
-                value={selectedType}
-                onChange={(e) => setSelectedType(e.target.value)}
-                className="px-3 py-1 border border-slate-300 rounded-lg text-sm bg-white"
-              >
-                <option value="all">全案件種別</option>
-                {dealTypes.map((t) => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* 店舗フィルタ（常時表示） */}
-            <div className="flex items-center gap-1.5">
-              <MapPin className="w-3.5 h-3.5 text-slate-400" />
-              {storeGroups.map((group) => {
-                const isChecked = selectedStoreGroups.includes(group)
-                return (
-                  <button
-                    key={group}
-                    onClick={() => {
-                      const next = isChecked ? selectedStoreGroups.filter((s) => s !== group) : [...selectedStoreGroups, group]
-                      setSelectedStoreGroups(next)
-                    }}
-                    className={`px-2 py-1 rounded border text-xs cursor-pointer select-none transition-colors ${
-                      isChecked ? 'bg-blue-50 text-blue-700 border-blue-300 font-semibold' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
-                    }`}
-                  >
-                    {group}
-                  </button>
-                )
-              })}
-            </div>
-
-            {/* 反響区分フィルタボタン */}
-            <div className="relative">
-              <button
-                onClick={() => setShowCategoryFilter(!showCategoryFilter)}
-                className={`flex items-center gap-1.5 px-3 py-1 text-sm border rounded-lg transition-colors ${
-                  selectedCategories.length > 0
-                    ? 'bg-blue-50 text-blue-700 border-blue-300'
-                    : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
-                }`}
-              >
-                <Tag className="w-3.5 h-3.5" />
-                反響きっかけ
-                {selectedCategories.length > 0 && (
-                  <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
-                    {selectedCategories.length}
-                  </span>
-                )}
-                {showCategoryFilter ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-              </button>
-              {showCategoryFilter && (
-                <div className="absolute right-0 top-full mt-1 z-30 bg-white border border-slate-200 rounded-lg shadow-lg p-4 min-w-[640px]">
-                  <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
-                    <span className="text-sm font-semibold text-slate-600">反響きっかけで絞り込み</span>
-                    <button
-                      onClick={() => setSelectedCategories([])}
-                      className="text-xs font-semibold text-blue-600 hover:text-blue-800"
-                    >
-                      すべて解除
-                    </button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
-                    {responseCategories.map((cat) => {
-                      const isChecked = selectedCategories.includes(cat)
-                      return (
-                        <label key={cat} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-50 cursor-pointer select-none">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => {
-                              setSelectedCategories((prev) =>
-                                isChecked ? prev.filter((c) => c !== cat) : [...prev, cat]
-                              )
-                            }}
-                            className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: getCategoryColor(cat, detailToCategory) }} />
-                          <span className={`text-sm ${isChecked ? 'font-semibold text-slate-800' : 'text-slate-500'}`}>
-                            {cat}
-                          </span>
-                        </label>
-                      )
-                    })}
-                  </div>
-                </div>
+          <div className="border-l border-slate-200 h-6" />
+          {/* 店舗 */}
+          <div className="flex items-center gap-1.5">
+            <MapPin className="w-3.5 h-3.5 text-slate-400" />
+            {storeGroups.map((group) => {
+              const isChecked = selectedStoreGroups.includes(group)
+              return (
+                <button
+                  key={group}
+                  onClick={() => {
+                    const next = isChecked ? selectedStoreGroups.filter((s) => s !== group) : [...selectedStoreGroups, group]
+                    setSelectedStoreGroups(next)
+                  }}
+                  className={`px-2 py-1 rounded border text-xs cursor-pointer select-none transition-colors ${
+                    isChecked ? 'bg-blue-50 text-blue-700 border-blue-300 font-semibold' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'
+                  }`}
+                >
+                  {group}
+                </button>
+              )
+            })}
+          </div>
+          <div className="border-l border-slate-200 h-6" />
+          {/* 反響きっかけ */}
+          <div className="relative">
+            <button
+              onClick={() => setShowCategoryFilter(!showCategoryFilter)}
+              className={`flex items-center gap-1.5 px-3 py-1 text-sm border rounded-lg transition-colors ${
+                selectedCategories.length > 0
+                  ? 'bg-blue-50 text-blue-700 border-blue-300'
+                  : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'
+              }`}
+            >
+              <Tag className="w-3.5 h-3.5" />
+              反響きっかけ
+              {selectedCategories.length > 0 && (
+                <span className="bg-blue-600 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full leading-none">
+                  {selectedCategories.length}
+                </span>
               )}
-            </div>
+              {showCategoryFilter ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+            </button>
+            {showCategoryFilter && (
+              <div className="absolute left-0 top-full mt-1 z-30 bg-white border border-slate-200 rounded-lg shadow-lg p-4 min-w-[640px]">
+                <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-100">
+                  <span className="text-sm font-semibold text-slate-600">反響きっかけで絞り込み</span>
+                  <button
+                    onClick={() => setSelectedCategories([])}
+                    className="text-xs font-semibold text-blue-600 hover:text-blue-800"
+                  >
+                    すべて解除
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-0.5">
+                  {responseCategories.map((cat) => {
+                    const isChecked = selectedCategories.includes(cat)
+                    return (
+                      <label key={cat} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-50 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => {
+                            setSelectedCategories((prev) =>
+                              isChecked ? prev.filter((c) => c !== cat) : [...prev, cat]
+                            )
+                          }}
+                          className="w-4 h-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: getCategoryColor(cat, detailToCategory) }} />
+                        <span className={`text-sm ${isChecked ? 'font-semibold text-slate-800' : 'text-slate-500'}`}>
+                          {cat}
+                        </span>
+                      </label>
+                    )
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        {/* 3段目: サマリー */}
+        <div className="flex items-center gap-5 px-4 py-2 text-xs">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-slate-400">期間内新規反響数</span>
+            <span className="text-lg font-bold text-slate-900">{totalInquiries.toLocaleString()}</span>
+            <span className="text-slate-400">件</span>
+          </div>
+          <div className="flex items-baseline gap-1.5 text-xs text-slate-400">
+            (全{currentVerify.raw_total.toLocaleString()} / 重複{currentVerify.duplicates.toLocaleString()} /
+            新規<span className={currentVerify.deduped_total === totalInquiries ? 'text-emerald-600' : 'text-red-600'}>{currentVerify.deduped_total.toLocaleString()}</span>)
           </div>
         </div>
       </div>
@@ -797,7 +810,7 @@ export default function InquiryPage() {
       {/* 年次チャート */}
       <div className="bg-white rounded-xl border border-slate-200 p-4">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2"><span className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-gray-500 text-white font-bold text-lg">A1</span>新規反響数推移（年次）</h2>
+          <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2"><span className="inline-flex items-center justify-center h-10 rounded-lg bg-gray-500 text-white font-bold text-sm px-3">A1 - <span className="text-xl">1</span></span>新規反響数推移（年次）</h2>
           <div className="flex items-center gap-3 text-xs">
             <span className="text-blue-600 font-semibold">■ 新規反響数</span>
             <span className="font-semibold" style={{ color: '#dc2626' }}>■ 契約になった反響数</span>
@@ -815,9 +828,9 @@ export default function InquiryPage() {
                 if (!data) return null
                 return (
                   <div className="bg-white border border-slate-200 rounded-lg shadow-md px-3 py-2">
-                    <p className="font-semibold text-slate-900 text-sm">{data.label as string}</p>
+                    <p className="font-semibold text-slate-900 text-xs">{data.label as string}</p>
                     <p className="text-xs text-slate-500">{getYearRange(data.period as string)}</p>
-                    <p className="text-sm text-slate-700">{(data.total as number).toLocaleString()}件</p>
+                    <p className="text-xs text-slate-700">{(data.total as number).toLocaleString()}件</p>
                   </div>
                 )
               }}
@@ -849,7 +862,7 @@ export default function InquiryPage() {
       {/* 四半期チャート */}
       <div className="bg-white rounded-xl border border-slate-200 p-4">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2"><span className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-gray-500 text-white font-bold text-lg">A2</span>新規反響数推移（四半期）</h2>
+          <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2"><span className="inline-flex items-center justify-center h-10 rounded-lg bg-gray-500 text-white font-bold text-sm px-3">A1 - <span className="text-xl">2</span></span>新規反響数推移（四半期）</h2>
           <div className="flex items-center gap-3 text-xs">
             <span className="text-blue-600 font-semibold">■ 新規反響数</span>
             <span className="font-semibold" style={{ color: '#dc2626' }}>■ 契約になった反響数</span>
@@ -890,9 +903,9 @@ export default function InquiryPage() {
                 if (!data) return null
                 return (
                   <div className="bg-white border border-slate-200 rounded-lg shadow-md px-3 py-2">
-                    <p className="font-semibold text-slate-900 text-sm">{data.label as string}</p>
+                    <p className="font-semibold text-slate-900 text-xs">{data.label as string}</p>
                     <p className="text-xs text-slate-500">{getQuarterRange(data.period as string)}</p>
-                    <p className="text-sm text-slate-700">{(data.total as number).toLocaleString()}件</p>
+                    <p className="text-xs text-slate-700">{(data.total as number).toLocaleString()}件</p>
                   </div>
                 )
               }}
@@ -924,7 +937,7 @@ export default function InquiryPage() {
       {/* 月次チャート */}
       <div className="bg-white rounded-xl border border-slate-200 p-4">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2"><span className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-gray-500 text-white font-bold text-lg">A3</span>新規反響数推移（月次）</h2>
+          <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2"><span className="inline-flex items-center justify-center h-10 rounded-lg bg-gray-500 text-white font-bold text-sm px-3">A1 - <span className="text-xl">3</span></span>新規反響数推移（月次）</h2>
           <div className="flex items-center gap-3 text-xs">
             <span className="text-blue-600 font-semibold">■ 新規反響数</span>
             <span className="font-semibold" style={{ color: '#dc2626' }}>■ 契約になった反響数</span>
@@ -969,8 +982,8 @@ export default function InquiryPage() {
                 if (!data) return null
                 return (
                   <div className="bg-white border border-slate-200 rounded-lg shadow-md px-3 py-2">
-                    <p className="font-semibold text-slate-900 text-sm">{data.label as string}</p>
-                    <p className="text-sm text-slate-700">{(data.total as number).toLocaleString()}件</p>
+                    <p className="font-semibold text-slate-900 text-xs">{data.label as string}</p>
+                    <p className="text-xs text-slate-700">{(data.total as number).toLocaleString()}件</p>
                   </div>
                 )
               }}
@@ -1032,7 +1045,7 @@ export default function InquiryPage() {
           <div className="bg-white rounded-xl border border-slate-200 p-4">
             <div className="flex items-center justify-between mb-3">
               <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
-                <span className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-gray-500 text-white font-bold text-lg">A4</span>
+                <span className="inline-flex items-center justify-center h-10 rounded-lg bg-gray-500 text-white font-bold text-sm px-3">A1 - <span className="text-xl">4</span></span>
                 {(() => {
                   const [y, m] = (period || '').split('-')
                   const levelLabel = '反響きっかけ'
@@ -1059,7 +1072,7 @@ export default function InquiryPage() {
                 ))}
               </div>
             </div>
-            <table className="w-full text-sm border-collapse">
+            <table className="w-full text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-50">
                   <th
@@ -1119,7 +1132,7 @@ export default function InquiryPage() {
                               fetchDetailDeals(from, to)
                             }
                           }}
-                          className="px-3 py-0.5 text-sm rounded border transition-colors text-blue-600 border-blue-300 hover:bg-blue-50"
+                          className="px-3 py-0.5 text-xs rounded border transition-colors text-blue-600 border-blue-300 hover:bg-blue-50"
                         >
                           詳細
                         </button>
@@ -1153,7 +1166,7 @@ export default function InquiryPage() {
                             fetchDetailDeals(from, to, row.name, detailLevel)
                           }
                         }}
-                        className="px-3 py-0.5 text-sm rounded border transition-colors text-blue-600 border-blue-300 hover:bg-blue-50"
+                        className="px-3 py-0.5 text-xs rounded border transition-colors text-blue-600 border-blue-300 hover:bg-blue-50"
                       >
                         詳細
                       </button>
@@ -1171,7 +1184,7 @@ export default function InquiryPage() {
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
-              <span className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-gray-500 text-white font-bold text-lg">A5</span>
+              <span className="inline-flex items-center justify-center h-10 rounded-lg bg-gray-500 text-white font-bold text-sm px-3">A1 - <span className="text-xl">5</span></span>
               総合展示場 反響数推移（四半期・展示場別）
             </h2>
             <div className="flex items-center gap-3 text-xs">
@@ -1237,7 +1250,7 @@ export default function InquiryPage() {
                       const entryMap = new Map(payload.filter((e) => !(e.dataKey as string).endsWith('_contracted')).map((e) => [e.dataKey as string, e]))
                       const ordered = venueOrder.map((v) => entryMap.get(v)).filter(Boolean)
                       return (
-                        <div className="bg-white border border-slate-200 rounded-lg shadow-md px-3 py-2 text-sm">
+                        <div className="bg-white border border-slate-200 rounded-lg shadow-md px-3 py-2 text-xs">
                           <p className="font-semibold text-slate-900 mb-1">{label as string}</p>
                           <table className="border-collapse">
                             <tbody>
@@ -1298,7 +1311,7 @@ export default function InquiryPage() {
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
-              <span className="inline-flex items-center justify-center w-10 h-10 rounded-lg bg-gray-500 text-white font-bold text-lg">A6</span>
+              <span className="inline-flex items-center justify-center h-10 rounded-lg bg-gray-500 text-white font-bold text-sm px-3">A1 - <span className="text-xl">6</span></span>
               完成お披露目会 新規来場数推移（イベント別）
             </h2>
             <div className="flex items-center gap-3 text-xs">
@@ -1335,7 +1348,7 @@ export default function InquiryPage() {
                       const d = payload[0]?.payload as { date: string; label: string; cnt: number; contracted: number }
                       if (!d) return null
                       return (
-                        <div className="bg-white border border-slate-200 rounded-lg shadow-md px-3 py-2 text-sm">
+                        <div className="bg-white border border-slate-200 rounded-lg shadow-md px-3 py-2 text-xs">
                           <p className="font-semibold text-slate-900">{d.date}</p>
                           <p className="text-slate-600">{d.label}</p>
                           <div className="flex gap-3 mt-1">
@@ -1377,7 +1390,7 @@ export default function InquiryPage() {
             <div className="flex items-center justify-between px-5 py-3 border-b border-slate-200">
               <h3 className="text-base font-semibold text-slate-900">
                 {expandedCategory} の詳細
-                {!detailLoading && <span className="ml-3 text-sm font-normal text-slate-500">{detailDeals.length}件</span>}
+                {!detailLoading && <span className="ml-3 text-xs font-normal text-slate-500">{detailDeals.length}件</span>}
               </h3>
               <button onClick={() => setExpandedCategory(null)} className="text-slate-400 hover:text-slate-600 p-1">
                 <X className="w-5 h-5" />
@@ -1387,10 +1400,10 @@ export default function InquiryPage() {
               {detailLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
-                  <span className="ml-2 text-sm text-slate-500">読み込み中...</span>
+                  <span className="ml-2 text-xs text-slate-500">読み込み中...</span>
                 </div>
               ) : (
-                <table className="w-full text-sm border-collapse">
+                <table className="w-full text-xs border-collapse">
                   <thead className="sticky top-0 z-10">
                     <tr className="bg-slate-100">
                       <th className="text-center py-2 px-3 border-b border-slate-200 font-semibold text-slate-700 whitespace-nowrap w-10">No.</th>
@@ -1482,7 +1495,7 @@ export default function InquiryPage() {
                 return sum
               }, 0)
               return (
-                <div className="px-5 py-3 border-t border-slate-200 text-sm text-slate-500">
+                <div className="px-5 py-3 border-t border-slate-200 text-xs text-slate-500">
                   {detailDeals.length}件
                   {totalAmount > 0 && <span className="ml-3">契約金額合計: <span className="font-semibold text-red-600">¥{totalAmount.toLocaleString()}</span></span>}
                 </div>

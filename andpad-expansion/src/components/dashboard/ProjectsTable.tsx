@@ -63,7 +63,7 @@ export default function ProjectsTable({ deals }: Props) {
     <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
       <h3 className="text-base font-semibold text-slate-900 mb-4">案件一覧（直近50件）</h3>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+        <table className="w-full text-xs">
           <thead className="border-b border-slate-200">
             <tr>
               <SortHeader label="案件名" field="name" />

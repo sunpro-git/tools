@@ -16,7 +16,7 @@ export default function StatusFunnel({ data }: Props) {
       <div className="space-y-3">
         {data.map((step, i) => (
           <div key={step.name} className="flex items-center gap-3">
-            <span className="text-sm text-slate-600 w-20 text-right flex-shrink-0">{step.name}</span>
+            <span className="text-xs text-slate-600 w-20 text-right flex-shrink-0">{step.name}</span>
             <div className="flex-1 relative">
               <div className="h-8 bg-slate-100 rounded-md overflow-hidden">
                 <div
@@ -29,7 +29,7 @@ export default function StatusFunnel({ data }: Props) {
                 />
               </div>
             </div>
-            <span className="text-sm font-semibold text-slate-900 w-12 text-right">{step.count}件</span>
+            <span className="text-xs font-semibold text-slate-900 w-12 text-right">{step.count}件</span>
             <span className="text-xs text-slate-500 w-14 text-right">
               {formatPercentValue(step.rate * 100)}
             </span>

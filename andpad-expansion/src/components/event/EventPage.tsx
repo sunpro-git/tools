@@ -402,7 +402,7 @@ export default function EventPage() {
         {/* 来場者テーブル */}
         <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <table className="w-full text-xs">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-400 uppercase">
                   <th className="px-3 py-2 text-left">氏名</th>
@@ -540,7 +540,7 @@ export default function EventPage() {
       {/* イベントテーブル */}
       <div className="bg-white border border-slate-200 rounded-lg shadow-sm overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-xs">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200">
                 <SortTh label="イベント名" sKey="name" sortConfig={sortConfig} onSort={handleSort} className="text-left min-w-[200px]" />

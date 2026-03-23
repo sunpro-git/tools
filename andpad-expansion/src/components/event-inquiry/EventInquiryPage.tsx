@@ -1,6 +1,8 @@
 import { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
-import { Flag, Loader2, Plus, ClipboardEdit, X, Trash2, ImagePlus, Pencil, ExternalLink } from 'lucide-react'
+import { Loader2, Plus, ClipboardEdit, X, Trash2, ImagePlus, Pencil, ExternalLink } from 'lucide-react'
+import { useBusinessType } from '../../hooks/useBusinessType'
+import { BUSINESS_TYPES } from '../../hooks/useDepartments'
 import type { Event, EventVisitor } from '../../types/database'
 
 interface EventWithVisitors extends Event {
@@ -11,7 +13,7 @@ interface EventWithVisitors extends Event {
   appointmentCount: number
 }
 
-const DIVISIONS = ['新築', 'リフォーム'] as const
+const DIVISIONS = ['新築', 'リフォーム', '不動産'] as const
 const BRANDS: Record<string, { label: string; short: string }[]> = {
   '新築': [
     { label: 'サンプロ建築設計', short: '建築設計' },
@@ -58,6 +60,7 @@ const initialForm: EventForm = {
 }
 
 export default function EventInquiryPage() {
+  const { businessType, setBusinessType } = useBusinessType()
   const [loading, setLoading] = useState(true)
   const [events, setEvents] = useState<EventWithVisitors[]>([])
   const [showRegister, setShowRegister] = useState(false)
@@ -103,8 +106,9 @@ export default function EventInquiryPage() {
     setLoading(false)
   }
 
-  const totalVisitors = useMemo(() => events.reduce((s, e) => s + e.visitorCount, 0), [events])
-  const totalAppointments = useMemo(() => events.reduce((s, e) => s + e.appointmentCount, 0), [events])
+  const filteredEvents = useMemo(() => events.filter((e) => e.division?.includes(businessType)), [events, businessType])
+  const totalVisitors = useMemo(() => filteredEvents.reduce((s, e) => s + e.visitorCount, 0), [filteredEvents])
+  const totalAppointments = useMemo(() => filteredEvents.reduce((s, e) => s + e.appointmentCount, 0), [filteredEvents])
 
   const formatDates = (dates: string[]) => {
     if (!dates || dates.length === 0) return '-'
@@ -229,23 +233,24 @@ export default function EventInquiryPage() {
 
   return (
     <div className="space-y-6">
-      {/* ヘッダー */}
-      <div className="bg-white rounded-xl border border-slate-200 p-5">
-        <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-6">
-            <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-              <span className="inline-flex items-center justify-center gap-1 w-auto px-2 h-10 rounded-lg bg-gray-500 text-white font-bold text-lg">
-                <Flag className="w-5 h-5" />B
-              </span>
-              イベント反響
-            </h1>
-            <div className="flex items-baseline gap-1.5 text-sm">
-              <span className="text-slate-500">来場数</span>
-              <span className="text-lg font-bold text-slate-900">{totalVisitors.toLocaleString()}</span>
-              <span className="text-slate-500 ml-3">アポイント数</span>
-              <span className="text-lg font-bold text-red-600">{totalAppointments.toLocaleString()}</span>
-            </div>
-          </div>
+      {/* ヘッダー: 3段構成（フィルター段なし） */}
+      <div className="bg-white rounded-xl border border-slate-200">
+        {/* 1段目: タイトル + アクション */}
+        <div className="flex items-center justify-between gap-4 px-4 py-2.5 border-b border-slate-100">
+          <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
+            <span className="inline-flex items-center justify-center gap-1 w-auto px-2 h-10 rounded-lg bg-gray-500 text-white font-bold text-lg">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 640" fill="currentColor" className="w-5 h-5"><path d="M224 64C241.7 64 256 78.3 256 96L256 128L384 128L384 96C384 78.3 398.3 64 416 64C433.7 64 448 78.3 448 96L448 128L480 128C515.3 128 544 156.7 544 192L544 480C544 515.3 515.3 544 480 544L160 544C124.7 544 96 515.3 96 480L96 192C96 156.7 124.7 128 160 128L192 128L192 96C192 78.3 206.3 64 224 64zM160 304L160 336C160 344.8 167.2 352 176 352L208 352C216.8 352 224 344.8 224 336L224 304C224 295.2 216.8 288 208 288L176 288C167.2 288 160 295.2 160 304zM288 304L288 336C288 344.8 295.2 352 304 352L336 352C344.8 352 352 344.8 352 336L352 304C352 295.2 344.8 288 336 288L304 288C295.2 288 288 295.2 288 304zM432 288C423.2 288 416 295.2 416 304L416 336C416 344.8 423.2 352 432 352L464 352C472.8 352 480 344.8 480 336L480 304C480 295.2 472.8 288 464 288L432 288zM160 432L160 464C160 472.8 167.2 480 176 480L208 480C216.8 480 224 472.8 224 464L224 432C224 423.2 216.8 416 208 416L176 416C167.2 416 160 423.2 160 432zM304 416C295.2 416 288 423.2 288 432L288 464C288 472.8 295.2 480 304 480L336 480C344.8 480 352 472.8 352 464L352 432C352 423.2 344.8 416 336 416L304 416zM416 432L416 464C416 472.8 423.2 480 432 480L464 480C472.8 480 480 472.8 480 464L480 432C480 423.2 472.8 416 464 416L432 416C423.2 416 416 423.2 416 432z"/></svg>A2
+            </span>
+            イベント
+            <select
+              value={businessType}
+              onChange={(e) => setBusinessType(e.target.value as typeof businessType)}
+              className="text-sm font-semibold px-2 py-0.5 rounded-lg border-0 cursor-pointer text-white"
+              style={{ backgroundColor: businessType === '新築' ? '#15803d' : businessType === 'リフォーム' ? '#d97706' : '#1e40af' }}
+            >
+              {BUSINESS_TYPES.map((bt) => <option key={bt} value={bt} className="bg-white text-slate-700">{bt}</option>)}
+            </select>
+          </h1>
           <div className="flex items-center gap-2">
             <button
               onClick={() => { setForm({ ...initialForm }); setEditingEventId(null); setShowRegister(true) }}
@@ -260,6 +265,18 @@ export default function EventInquiryPage() {
             </button>
           </div>
         </div>
+        {/* 3段目: サマリー（フィルター段なし） */}
+        <div className="flex items-center gap-6 px-4 py-2">
+          <div className="flex items-baseline gap-1.5 text-xs">
+            <span className="text-slate-500">来場数</span>
+            <span className="text-lg font-bold text-slate-900">{totalVisitors.toLocaleString()}</span>
+          </div>
+          <div className="border-l border-slate-200 h-6" />
+          <div className="flex items-baseline gap-1.5 text-xs">
+            <span className="text-slate-500">アポイント数</span>
+            <span className="text-lg font-bold text-red-600">{totalAppointments.toLocaleString()}</span>
+          </div>
+        </div>
       </div>
 
       {/* イベント一覧 */}
@@ -267,13 +284,13 @@ export default function EventInquiryPage() {
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
-            <span className="ml-2 text-sm text-slate-500">読み込み中...</span>
+            <span className="ml-2 text-xs text-slate-500">読み込み中...</span>
           </div>
-        ) : events.length === 0 ? (
-          <p className="text-sm text-slate-500 text-center py-8">イベントデータがありません</p>
+        ) : filteredEvents.length === 0 ? (
+          <p className="text-xs text-slate-500 text-center py-8">イベントデータがありません</p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
+            <table className="w-full text-xs border-collapse">
               <thead>
                 <tr className="bg-slate-100">
                   <th className="text-center py-2 px-3 border-b border-slate-200 font-semibold text-slate-700 whitespace-nowrap w-16"></th>
@@ -290,7 +307,7 @@ export default function EventInquiryPage() {
                 </tr>
               </thead>
               <tbody>
-                {events.map((ev, idx) => {
+                {filteredEvents.map((ev, idx) => {
                   const apoRate = ev.visitorCount > 0 ? ((ev.appointmentCount / ev.visitorCount) * 100).toFixed(1) : '-'
                   return (
                     <tr key={ev.id} className={`hover:bg-slate-100 cursor-pointer ${idx % 2 === 1 ? 'bg-slate-100/70' : ''}`} onClick={() => openEdit(ev)}>

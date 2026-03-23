@@ -1,26 +1,29 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
 import { Loader2, Plus, Pencil, Trash2, X, Check, Users, Upload, Download, Copy } from 'lucide-react'
-
-const DEPARTMENTS = ['中信1課', '中信2課', '北信3課', '東信4課', '南信5課'] as const
+import { useDepartments, BUSINESS_TYPES } from '../../hooks/useDepartments'
+import { useBusinessType } from '../../hooks/useBusinessType'
 
 interface StaffDept {
   id: string
   staff_name: string
   department: string
+  business_type: string
   start_date: string
   end_date: string | null
   note: string | null
 }
 
 export default function StaffDepartmentPage() {
+  const { businessType, setBusinessType } = useBusinessType()
+  const { deptNames, loading: deptLoading } = useDepartments(businessType)
   const [loading, setLoading] = useState(true)
   const [rows, setRows] = useState<StaffDept[]>([])
   const [filterDept, setFilterDept] = useState<string>('all')
   const [filterName, setFilterName] = useState('')
   const [editing, setEditing] = useState<StaffDept | null>(null)
   const [adding, setAdding] = useState(false)
-  const [form, setForm] = useState({ staff_name: '', department: DEPARTMENTS[0] as string, start_date: '', end_date: '', note: '' })
+  const [form, setForm] = useState({ staff_name: '', department: '', start_date: '', end_date: '', note: '' })
   const [saving, setSaving] = useState(false)
 
   // 所属を主担当店舗で分ける設定（担当者ごと）
@@ -39,13 +42,14 @@ export default function StaffDepartmentPage() {
     const { data } = await supabase
       .from('staff_departments')
       .select('*')
+      .eq('business_type', businessType)
       .order('department')
       .order('staff_name')
       .order('start_date', { ascending: false })
       .limit(5000)
     setRows((data as StaffDept[]) || [])
     setLoading(false)
-  }, [])
+  }, [businessType])
 
   useEffect(() => { fetchData() }, [fetchData])
 
@@ -60,6 +64,7 @@ export default function StaffDepartmentPage() {
     const payload = {
       staff_name: form.staff_name.trim(),
       department: form.department,
+      business_type: businessType,
       start_date: form.start_date || null,
       end_date: form.end_date || null,
       note: form.note || null,
@@ -72,7 +77,7 @@ export default function StaffDepartmentPage() {
     setSaving(false)
     setEditing(null)
     setAdding(false)
-    setForm({ staff_name: '', department: DEPARTMENTS[0], start_date: '', end_date: '', note: '' })
+    setForm({ staff_name: '', department: deptNames[0] || '', start_date: '', end_date: '', note: '' })
     fetchData()
   }
 
@@ -97,7 +102,7 @@ export default function StaffDepartmentPage() {
   const startAdd = () => {
     setAdding(true)
     setEditing(null)
-    setForm({ staff_name: '', department: DEPARTMENTS[0], start_date: '', end_date: '', note: '' })
+    setForm({ staff_name: '', department: deptNames[0] || '', start_date: '', end_date: '', note: '' })
   }
 
   const cancel = () => {
@@ -130,7 +135,7 @@ export default function StaffDepartmentPage() {
       if (!staffName || !department) { errors.push(`行${i + 1}: 担当者名または所属課が空`); continue }
       if (startDate && !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) { errors.push(`行${i + 1}: 開始日の形式が不正（YYYY-MM-DD）`); continue }
       if (endDate && !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) { errors.push(`行${i + 1}: 終了日の形式が不正`); continue }
-      const { error } = await supabase.from('staff_departments').insert({ staff_name: staffName, department, start_date: startDate, end_date: endDate, note })
+      const { error } = await supabase.from('staff_departments').insert({ staff_name: staffName, department, business_type: businessType, start_date: startDate, end_date: endDate, note })
       if (error) { errors.push(`行${i + 1}: ${error.message}`) } else { success++ }
     }
     setBulkSaving(false)
@@ -150,7 +155,7 @@ export default function StaffDepartmentPage() {
 
   // 現在所属の担当者数を課ごとにカウント
   const today = new Date().toISOString().slice(0, 10)
-  const deptCounts = DEPARTMENTS.map((d) => ({
+  const deptCounts = deptNames.map((d) => ({
     dept: d,
     count: rows.filter((r) => r.department === d && r.start_date <= today && (!r.end_date || r.end_date >= today)).length,
   }))
@@ -162,6 +167,14 @@ export default function StaffDepartmentPage() {
           <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
             <Users className="w-5 h-5 text-slate-500" />
             担当者 所属課管理
+            <select
+              value={businessType}
+              onChange={(e) => setBusinessType(e.target.value as typeof businessType)}
+              className="text-sm font-semibold px-2 py-0.5 rounded-lg border-0 cursor-pointer text-white"
+              style={{ backgroundColor: businessType === '新築' ? '#15803d' : businessType === 'リフォーム' ? '#d97706' : '#1e40af' }}
+            >
+              {BUSINESS_TYPES.map((bt) => <option key={bt} value={bt} className="bg-white text-slate-700">{bt}</option>)}
+            </select>
           </h1>
           <div className="flex items-center gap-2">
             <button onClick={() => { setShowExport(!showExport); setShowBulkImport(false) }} className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 rounded-lg text-sm text-slate-600 hover:bg-slate-50">
@@ -179,7 +192,7 @@ export default function StaffDepartmentPage() {
         {/* 課ごとの現在人数 */}
         <div className="flex items-center gap-4 mt-3">
           {deptCounts.map(({ dept, count }) => (
-            <div key={dept} className="text-sm">
+            <div key={dept} className="text-xs">
               <span className="text-slate-500">{dept}</span>
               <span className="ml-1 font-bold text-slate-900">{count}名</span>
             </div>
@@ -195,7 +208,7 @@ export default function StaffDepartmentPage() {
         <div className="flex items-center gap-3 mt-3">
           <select value={filterDept} onChange={(e) => setFilterDept(e.target.value)} className="px-3 py-1 border border-slate-300 rounded-lg text-sm bg-white">
             <option value="all">全課</option>
-            {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
+            {deptNames.map((d) => <option key={d} value={d}>{d}</option>)}
           </select>
           <input
             type="text"
@@ -277,7 +290,7 @@ export default function StaffDepartmentPage() {
               <label className="block text-xs text-slate-500 mb-1">所属課</label>
               <select value={form.department} onChange={(e) => setForm({ ...form, department: e.target.value })}
                 className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm">
-                {DEPARTMENTS.map((d) => <option key={d} value={d}>{d}</option>)}
+                {deptNames.map((d) => <option key={d} value={d}>{d}</option>)}
               </select>
             </div>
             <div>
@@ -312,10 +325,10 @@ export default function StaffDepartmentPage() {
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-5 h-5 animate-spin text-blue-500" />
-            <span className="ml-2 text-sm text-slate-500">読み込み中...</span>
+            <span className="ml-2 text-xs text-slate-500">読み込み中...</span>
           </div>
         ) : (
-          <table className="w-full text-sm border-collapse">
+          <table className="w-full text-xs border-collapse">
             <thead>
               <tr className="bg-slate-100">
                 <th className="text-left py-2 px-3 border-b border-slate-200 font-semibold text-slate-700">担当者名</th>

@@ -9,7 +9,12 @@ import EventPage from './components/event/EventPage'
 import EventInquiryPage from './components/event-inquiry/EventInquiryPage'
 import OrdersPage from './components/orders/OrdersPage'
 import SalesPage from './components/sales/SalesPage'
+import ModelHouseVisitPage from './components/model-house/ModelHouseVisitPage'
 import StaffDepartmentPage from './components/staff/StaffDepartmentPage'
+import TargetPage from './components/targets/TargetPage'
+import DepartmentsPage from './components/departments/DepartmentsPage'
+import { BusinessTypeProvider } from './hooks/useBusinessType'
+import { FiscalYearProvider } from './hooks/useFiscalYear'
 import { Loader2 } from 'lucide-react'
 
 function AuthGate() {
@@ -28,20 +33,27 @@ function AuthGate() {
   }
 
   return (
+    <BusinessTypeProvider>
+    <FiscalYearProvider>
     <HashRouter>
       <Routes>
         <Route element={<AppShell />}>
           <Route path="/" element={<DashboardPage />} />
           <Route path="/inquiry" element={<InquiryPage />} />
           <Route path="/event-inquiry" element={<EventInquiryPage />} />
+          <Route path="/model-house" element={<ModelHouseVisitPage />} />
           <Route path="/orders" element={<OrdersPage />} />
           <Route path="/sales" element={<SalesPage />} />
           <Route path="/events" element={<EventPage />} />
+          <Route path="/targets" element={<TargetPage />} />
           <Route path="/staff" element={<StaffDepartmentPage />} />
+          <Route path="/departments" element={<DepartmentsPage />} />
           <Route path="/import" element={<CsvImportPage />} />
         </Route>
       </Routes>
     </HashRouter>
+    </FiscalYearProvider>
+    </BusinessTypeProvider>
   )
 }
 

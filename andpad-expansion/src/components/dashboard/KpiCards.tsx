@@ -52,18 +52,18 @@ export default function KpiCards({ current, previous }: Props) {
       {cards.map((card) => (
         <div key={card.label} className="bg-white rounded-xl shadow-sm border border-slate-200 p-5">
           <div className="flex items-center justify-between mb-3">
-            <span className="text-sm text-slate-500 font-medium">{card.label}</span>
+            <span className="text-xs text-slate-500 font-medium">{card.label}</span>
             <div className={`${card.bg} ${card.color} p-2 rounded-lg`}>
               <card.icon className="w-5 h-5" />
             </div>
           </div>
           <div className="flex items-baseline gap-1">
             <span className="text-2xl font-bold text-slate-900">{card.value}</span>
-            {card.unit && <span className="text-sm text-slate-500">{card.unit}</span>}
+            {card.unit && <span className="text-xs text-slate-500">{card.unit}</span>}
           </div>
           <div className="mt-1">
             <span
-              className={`text-sm font-medium ${
+              className={`text-xs font-medium ${
                 card.delta.positive ? 'text-green-600' : 'text-red-600'
               }`}
             >

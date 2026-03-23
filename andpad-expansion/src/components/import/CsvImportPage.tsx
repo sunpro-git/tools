@@ -7,7 +7,7 @@ import { isCompanyManaged, getAreaFromAddress } from '../../lib/store-group'
 import CsvUploader from './CsvUploader'
 import ColumnMapper from './ColumnMapper'
 import ImportHistory from './ImportHistory'
-import { ArrowLeft, Loader2, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, Loader2, CheckCircle2, AlertTriangle, CloudDownload } from 'lucide-react'
 
 type Step = 'upload' | 'mapping' | 'preview' | 'importing' | 'done'
 
@@ -19,6 +19,169 @@ export default function CsvImportPage() {
   const [rows, setRows] = useState<Record<string, string>[]>([])
   const [mappings, setMappings] = useState<ColumnMapping[]>([])
   const [result, setResult] = useState<{ success: number; errors: string[]; customerCount?: number } | null>(null)
+  const [cloudImporting, setCloudImporting] = useState(false)
+  const [cloudStatus, setCloudStatus] = useState('')
+  const [cloudResult, setCloudResult] = useState<{ message: string; results?: { fileName: string; success: number; customerCount: number; errorCount: number; errors: string[] }[] } | null>(null)
+
+  const edgeFetch = useCallback(async (action: string, extra?: Record<string, string>) => {
+    const res = await fetch(
+      `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/import-from-drive`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ action, ...extra }),
+      },
+    )
+    return res
+  }, [])
+
+  const handleCloudImport = useCallback(async () => {
+    setCloudImporting(true)
+    setCloudResult(null)
+    setCloudStatus('ファイル一覧を取得中...')
+    try {
+      // 1. ファイル一覧取得
+      const listRes = await edgeFetch('list')
+      const listData = await listRes.json()
+      const files: { id: string; name: string }[] = listData.files || []
+      if (files.length === 0) {
+        setCloudResult({ message: 'Google Driveにxlsxファイルがありません' })
+        return
+      }
+
+      const allResults: { fileName: string; success: number; customerCount: number; errorCount: number; errors: string[] }[] = []
+
+      for (const file of files) {
+        // 2. ファイルダウンロード
+        setCloudStatus(`ダウンロード中: ${file.name}`)
+        const dlRes = await edgeFetch('download', { fileId: file.id })
+        const buffer = await dlRes.arrayBuffer()
+
+        // 3. ブラウザ側でパース（既存ロジック）
+        setCloudStatus(`パース中: ${file.name}`)
+        const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+        const fileObj = new File([blob], file.name, { type: blob.type })
+        const { headers: h, rows: r } = await parseFile(fileObj)
+        const autoMappings = autoDetectMappings(h, 'deals')
+        const mapped = applyMappings(r, autoMappings)
+
+        // 4. 顧客データupsert
+        setCloudStatus(`インポート中: ${file.name}`)
+        const errors: string[] = []
+        let customerCount = 0
+
+        const customerRows: Record<string, Record<string, unknown>> = {}
+        for (const row of r) {
+          const custId = row['顧客ID']?.trim()
+          const custName = row['顧客名']?.trim()
+          if (!custId || !custName) continue
+          if (customerRows[custId]) continue
+          const custRow: Record<string, unknown> = {}
+          for (const [csvCol, dbCol] of Object.entries(DEALS_CUSTOMER_COLUMN_MAP)) {
+            const val = row[csvCol]?.trim() || null
+            if (val) custRow[dbCol] = val
+          }
+          if (custRow.andpad_id && custRow.name) customerRows[custId] = custRow
+        }
+        const custArray = Object.values(customerRows)
+        for (let i = 0; i < custArray.length; i += 100) {
+          const chunk = custArray.slice(i, i + 100)
+          const { error, data } = await supabase.from('customers').upsert(chunk, { onConflict: 'andpad_id', ignoreDuplicates: false }).select()
+          if (error) {
+            for (const cRow of chunk) {
+              const { error: cErr } = await supabase.from('customers').upsert([cRow], { onConflict: 'andpad_id', ignoreDuplicates: false }).select()
+              if (cErr) errors.push(`顧客 ${cRow.andpad_id} (${cRow.name || ''}): ${cErr.message}`)
+              else customerCount += 1
+            }
+          } else {
+            customerCount += data?.length || 0
+          }
+        }
+
+        // 5. 会社管理スタッフの店舗振り分け
+        const custAddrMap: Record<string, string> = {}
+        for (const row of r) {
+          const custId = row['顧客ID']?.trim()
+          const addr = row['顧客現住所']?.trim()
+          if (custId && addr) custAddrMap[custId] = addr
+        }
+        for (const row of mapped) {
+          const staffName = row.staff_name as string | null
+          if (isCompanyManaged('', staffName)) {
+            const custId = row.customer_andpad_id as string | null
+            const addr = custId ? custAddrMap[custId] : null
+            const area = getAreaFromAddress(addr)
+            if (area) row.store_name = `${area}　会社管理`
+          }
+        }
+
+        // 6. インポートレコード作成
+        const { data: importRecord } = await supabase
+          .from('csv_imports')
+          .insert({ file_name: `[自動] ${file.name}`, table_name: 'deals', status: 'processing' })
+          .select().single()
+
+        // 7. バッチupsert
+        const rowsWithImportId = mapped.map((row) => ({ ...row, csv_import_id: importRecord?.id }))
+        let successCount = 0
+        const dbToLabel: Record<string, string> = {}
+        for (const m of autoMappings) dbToLabel[m.dbColumn] = m.csvColumn
+
+        for (let i = 0; i < rowsWithImportId.length; i += 100) {
+          setCloudStatus(`インポート中: ${file.name} (${Math.min(i + 100, rowsWithImportId.length)}/${rowsWithImportId.length})`)
+          const chunk = rowsWithImportId.slice(i, i + 100)
+          const { error, data } = await supabase.from('deals').upsert(chunk, { onConflict: 'andpad_id', ignoreDuplicates: false }).select()
+          if (error) {
+            for (let j = 0; j < chunk.length; j++) {
+              const row = chunk[j]
+              const rowNum = i + j + 2
+              const { error: rowError } = await supabase.from('deals').upsert([row], { onConflict: 'andpad_id', ignoreDuplicates: false }).select()
+              if (rowError) {
+                const valMatch = rowError.message.match(/invalid input.*?:\s*"(.+?)"/)
+                const badValue = valMatch ? valMatch[1] : null
+                let colInfo = ''
+                if (badValue) {
+                  const found = Object.entries(row).find(([, v]) => String(v) === badValue)
+                  if (found) colInfo = ` [項目: ${dbToLabel[found[0]] || found[0]}, 値: "${badValue}"]`
+                }
+                const id = (row.andpad_id || row.name || '') as string
+                errors.push(`行${rowNum} (${id})${colInfo}: ${rowError.message}`)
+              } else {
+                successCount += 1
+              }
+            }
+          } else {
+            successCount += data?.length || 0
+          }
+        }
+
+        // 8. インポートレコード更新
+        if (importRecord) {
+          await supabase.from('csv_imports').update({
+            status: errors.length > 0 ? 'error' : 'completed',
+            row_count: successCount, error_count: errors.length,
+            error_message: errors.join('; ') || null,
+          }).eq('id', importRecord.id)
+        }
+
+        // 9. Driveから削除
+        setCloudStatus(`削除中: ${file.name}`)
+        await edgeFetch('delete', { fileId: file.id })
+
+        allResults.push({ fileName: file.name, success: successCount, customerCount, errorCount: errors.length, errors: errors.slice(0, 10) })
+      }
+
+      setCloudResult({ message: `${allResults.length}ファイルを処理しました`, results: allResults })
+    } catch (e) {
+      setCloudResult({ message: e instanceof Error ? e.message : '通信エラー' })
+    } finally {
+      setCloudImporting(false)
+      setCloudStatus('')
+    }
+  }, [edgeFetch])
 
   const handleFileSelect = useCallback(async (file: File, table: TargetTable) => {
     setTargetTable(table)
@@ -239,6 +402,47 @@ export default function CsvImportPage() {
 
       {step === 'upload' && (
         <>
+          <div className="bg-white rounded-xl border border-slate-200 p-4">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-slate-700">Google Driveから案件インポート</h2>
+              <button
+                onClick={handleCloudImport}
+                disabled={cloudImporting}
+                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg text-sm font-medium hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+              >
+                {cloudImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <CloudDownload className="w-4 h-4" />}
+                {cloudImporting ? 'インポート中...' : 'クラウドから案件インポート'}
+              </button>
+            </div>
+            <p className="text-xs text-slate-400">指定のGoogle Driveフォルダにあるxlsxファイルを取得してインポートします。インポート後ファイルは自動削除されます。</p>
+            {cloudImporting && cloudStatus && (
+              <div className="mt-2 flex items-center gap-2 text-xs text-blue-600">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                <span>{cloudStatus}</span>
+              </div>
+            )}
+            {cloudResult && (
+              <div className="mt-3 p-3 rounded-lg border text-xs bg-slate-50 border-slate-200">
+                {cloudResult.results && cloudResult.results.length > 0 ? (
+                  cloudResult.results.map((r, i) => (
+                    <div key={i} className={`${i > 0 ? 'mt-2 pt-2 border-t border-slate-200' : ''}`}>
+                      <p className="font-medium text-slate-700">{r.fileName}</p>
+                      <p className="text-slate-500 mt-0.5">
+                        <span className="text-green-600 font-semibold">{r.success}件</span> インポート
+                        {r.customerCount > 0 && <span className="ml-2">（顧客: {r.customerCount}件）</span>}
+                        {r.errorCount > 0 && <span className="text-red-500 ml-2">エラー: {r.errorCount}件</span>}
+                      </p>
+                      {r.errors.length > 0 && (
+                        <div className="mt-1 text-red-500">{r.errors.map((e, j) => <p key={j}>{e}</p>)}</div>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <p className="text-slate-500">{cloudResult.message}</p>
+                )}
+              </div>
+            )}
+          </div>
           <CsvUploader onFileSelect={handleFileSelect} />
           <ImportHistory />
         </>
@@ -252,7 +456,7 @@ export default function CsvImportPage() {
             </button>
             <div>
               <h2 className="text-base font-semibold text-slate-900">{fileName}</h2>
-              <p className="text-sm text-slate-500">
+              <p className="text-xs text-slate-500">
                 {rows.length}行 → {TABLE_LABELS[targetTable]}テーブル
               </p>
             </div>
@@ -313,7 +517,7 @@ export default function CsvImportPage() {
         <div className="flex flex-col items-center justify-center py-16 gap-3">
           <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
           <p className="text-slate-600 font-medium">インポート中...</p>
-          <p className="text-sm text-slate-400">{rows.length}行を処理しています</p>
+          <p className="text-xs text-slate-400">{rows.length}行を処理しています</p>
         </div>
       )}
 
@@ -328,10 +532,10 @@ export default function CsvImportPage() {
             <h2 className="text-lg font-semibold text-slate-900">インポート完了</h2>
             <p className="text-slate-600 mt-1">{result.success}件を正常に取り込みました</p>
             {result.customerCount != null && result.customerCount > 0 && (
-              <p className="text-slate-500 text-sm mt-1">顧客テーブル: {result.customerCount}件を同時更新</p>
+              <p className="text-slate-500 text-xs mt-1">顧客テーブル: {result.customerCount}件を同時更新</p>
             )}
             {result.errors.length > 0 && (
-              <div className="mt-3 text-sm text-red-600 max-w-2xl">
+              <div className="mt-3 text-xs text-red-600 max-w-2xl">
                 <p className="font-medium">{result.errors.length}件のエラー:</p>
                 <div className="mt-2 max-h-60 overflow-auto border border-red-200 rounded-lg p-2 bg-red-50 text-left">
                   {result.errors.map((e, i) => (

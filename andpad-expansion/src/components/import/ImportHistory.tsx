@@ -36,13 +36,13 @@ export default function ImportHistory() {
             )}
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-slate-900 truncate">{imp.file_name}</span>
+                <span className="text-xs font-medium text-slate-900 truncate">{imp.file_name}</span>
                 <span className="text-xs bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
                   {TABLE_LABELS[imp.table_name as TargetTable] || imp.table_name}
                 </span>
               </div>
               <div className="text-xs text-slate-500">
-                {formatDate(imp.created_at)} / {imp.row_count}件取込
+                {imp.created_at ? (() => { const d = new Date(imp.created_at); return isNaN(d.getTime()) ? imp.created_at : `${d.getFullYear()}/${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}:${String(d.getSeconds()).padStart(2,'0')}` })() : '-'} / {imp.row_count}件取込
                 {imp.error_count > 0 && ` / ${imp.error_count}件エラー`}
               </div>
             </div>
