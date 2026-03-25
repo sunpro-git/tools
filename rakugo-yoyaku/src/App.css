@@ -5,7 +5,7 @@
 }
 
 body {
-  font-family: 'Hiragino Sans', 'Meiryo', sans-serif;
+  font-family: 'Noto Sans JP', sans-serif;
   background: #faf8f5;
   color: #333;
 }
@@ -16,15 +16,23 @@ body {
   padding: 0 20px 60px;
 }
 
+
 .title {
   font-size: 1.8rem;
   font-weight: bold;
   text-align: center;
-  margin-bottom: 32px;
+  margin-bottom: 10px;
   color: #5c3317;
   border-bottom: 3px solid #c8a96e;
   padding-bottom: 12px;
   position: relative;
+}
+
+.title-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 24px;
 }
 
 .manual-btn {
@@ -217,20 +225,94 @@ body {
 }
 
 .manual-section {
-  margin-bottom: 14px;
+  margin-bottom: 18px;
 }
 
 .manual-section h3 {
-  font-size: 0.95rem;
+  font-size: 0.92rem;
   font-weight: bold;
   color: #5c3317;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
 }
 
-.manual-section p {
-  font-size: 0.88rem;
+.manual-body {
+  font-size: 0.84rem;
   color: #555;
+  line-height: 1.7;
+}
+
+.manual-body p { margin: 4px 0; }
+
+.manual-body ul.m-list {
+  margin: 6px 0 6px 16px;
+  padding: 0;
+}
+.manual-body .m-list li {
+  margin-bottom: 3px;
+}
+
+/* マニュアル: ボタンサンプル */
+.m-btn {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: 1px solid #ccc;
+  background: #f8f6f2;
+  color: #333;
+  vertical-align: middle;
   line-height: 1.6;
+}
+.m-btn-primary { background: #5c3317; color: #fff; border-color: #5c3317; }
+.m-btn-waitlist { background: #e6a817; color: #fff; border-color: #e6a817; }
+.m-btn-inquiry { background: #c8a96e; color: #fff; border-color: #a88b4a; }
+.m-btn-submit { background: #5c3317; color: #fff; border-color: #5c3317; padding: 4px 16px; }
+.m-btn-ok { background: #27ae60; color: #fff; border-color: #27ae60; }
+.m-btn-cancel { background: #f5f5f5; color: #666; border-color: #ccc; }
+.m-btn-danger { background: #fff0f0; color: #c0392b; border-color: #e7a9a9; }
+.m-btn-add { background: none; color: #c8a96e; border: 1px dashed #c8a96e; }
+
+.m-btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0;
+}
+.m-btn-row-col {
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+/* マニュアル: バッジサンプル */
+.m-badge {
+  display: inline-block;
+  padding: 1px 8px;
+  border-radius: 4px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  vertical-align: middle;
+}
+.m-badge-required { background: #e03e3e; color: #fff; }
+.m-badge-pending { background: #f0f0f0; color: #888; }
+.m-badge-progress { background: #fef3e6; color: #e67e22; }
+.m-badge-done { background: #eafaf1; color: #27ae60; }
+.m-badge-callback { background: #fde8e8; color: #c0392b; }
+.m-badge-reply { background: #eef3ff; color: #3b6dd6; }
+
+/* マニュアル: ステータス一覧 */
+.m-status-list {
+  margin: 8px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.m-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: #555;
 }
 
 .manual-close {
@@ -248,6 +330,111 @@ body {
 
 .manual-close:hover {
   background: #ebe7e0;
+}
+
+/* FAQ検索 */
+.faq-search-box {
+  position: relative;
+  width: 180px;
+}
+
+.faq-search-icon {
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: #999;
+  pointer-events: none;
+}
+
+.faq-search-input {
+  width: 100%;
+  border: 1px solid #d4c8b8;
+  border-radius: 6px;
+  padding: 6px 28px 6px 28px;
+  font-size: 0.82rem;
+  font-family: inherit;
+  background: #fffdf8;
+  transition: border-color 0.2s;
+}
+
+.faq-search-input:focus {
+  outline: none;
+  border-color: #c8a96e;
+  box-shadow: 0 0 0 2px rgba(200,169,110,0.15);
+}
+
+.faq-search-clear {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  color: #999;
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px 4px;
+}
+
+.faq-search-clear:hover {
+  color: #555;
+}
+
+.faq-no-result {
+  text-align: center;
+  color: #999;
+  padding: 24px 0;
+  font-size: 0.9rem;
+}
+
+.faq-item-category {
+  display: inline-block;
+  background: #f0e8d8;
+  color: #5c3317;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin-bottom: 4px;
+}
+
+/* FAQタブ */
+.faq-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.faq-tab {
+  padding: 6px 12px;
+  border: 1px solid #d4c8b8;
+  border-radius: 20px;
+  background: #fffdf8;
+  color: #5c3317;
+  font-size: 0.8rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+}
+
+.faq-tab:hover {
+  background: #f5efe7;
+  border-color: #c8a96e;
+}
+
+.faq-tab.active {
+  background: #5c3317;
+  color: #fff;
+  border-color: #5c3317;
+}
+
+.faq-tab-content {
+  min-height: 100px;
 }
 
 .faq-item {
@@ -365,33 +552,61 @@ body {
   font-size: 0.82rem;
 }
 
-.waitlist-banner {
-  background: #fff3cd;
-  color: #856404;
-  border: 1px solid #ffc107;
-  border-radius: 6px;
-  padding: 10px 14px;
-  margin-bottom: 20px;
-  font-size: 0.9rem;
-  font-weight: bold;
+.reservation-type-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.reservation-type-btn {
+  flex: 1;
+  padding: 10px 4px;
+  border: 2px solid #ccc;
+  border-radius: 8px;
+  background: #fffdf9;
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+  color: #333;
   text-align: center;
 }
 
-.waitlist-check {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 16px;
-  font-size: 0.9rem;
-  color: #5c3317;
-  cursor: pointer;
+.reservation-type-btn:hover:not(:disabled) {
+  border-color: #c8a96e;
+  background: #fdf8ef;
 }
 
-.waitlist-check input[type="checkbox"] {
-  width: 18px;
-  height: 18px;
-  accent-color: #c8a96e;
-  cursor: pointer;
+.reservation-type-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.reservation-type-btn.active {
+  background: #5c3317;
+  color: #fff;
+  border-color: #5c3317;
+}
+
+.reservation-type-btn.waitlist.active {
+  background: #e6a817;
+  border-color: #e6a817;
+  color: #fff;
+}
+
+.reservation-type-btn.inquiry.active {
+  background: #c8a96e;
+  border-color: #a88b4a;
+  color: #fff;
+}
+
+.reservation-type-note {
+  margin-top: 8px;
+  font-size: 0.82rem;
+  color: #856404;
+  background: #fff3cd;
+  padding: 6px 10px;
+  border-radius: 4px;
 }
 
 .reply-check {
@@ -411,32 +626,61 @@ body {
   cursor: pointer;
 }
 
-.card-reply-badge {
-  display: inline-block;
-  background: #eef3ff;
-  color: #3b6dd6;
+/* ステータスラベル（現在の状態表示） */
+.card-status-label {
+  display: inline-flex;
+  align-items: center;
   border-radius: 4px;
-  font-size: 0.78rem;
-  padding: 2px 8px;
-  font-weight: bold;
-  margin-bottom: 4px;
+  font-size: 0.72rem;
+  padding: 3px 10px;
+  font-weight: 700;
+}
+
+.card-status-label.status-pending {
+  background: #f0f0f0;
+  color: #888;
+}
+
+.card-status-label.status-progress {
+  background: #fef3e6;
+  color: #e67e22;
+}
+
+.card-status-label.status-done {
+  background: #eafaf1;
+  color: #27ae60;
+}
+
+.card-status-label.status-callback {
+  background: #fde8e8;
+  color: #c0392b;
+  animation: blink 1.2s infinite;
 }
 
 .submit-btn {
   width: 100%;
-  padding: 12px;
+  padding: 10px 16px;
   background: #5c3317;
   color: #fff;
   font-size: 1rem;
-  font-weight: bold;
-  border: none;
-  border-radius: 6px;
+  font-weight: 600;
+  font-family: inherit;
+  border: 2px solid #5c3317;
+  border-radius: 10px;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: all 0.2s;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
 }
 
 .submit-btn:hover {
   background: #7a4a28;
+  border-color: #7a4a28;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(92, 51, 23, 0.3);
 }
 
 /* ログイン */
@@ -451,19 +695,71 @@ body {
   gap: 12px;
 }
 
+.google-login-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  background: #fff;
+  color: #333;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.google-login-btn:hover {
+  background: #f8f8f8;
+  border-color: #bbb;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.1);
+}
+
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 4px 0;
+  color: #999;
+  font-size: 0.85rem;
+}
+
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  border-top: 1px solid #ddd;
+}
+
 .login-label {
   font-size: 0.9rem;
   font-weight: bold;
   color: #5c3317;
 }
 
+.login-input-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.login-input-row .login-input {
+  flex: 1;
+  min-width: 0;
+}
+
 .login-hint {
-  font-size: 0.85rem;
+  font-size: 0.75rem;
   color: #c8a96e;
   background: #fdf8ef;
   border: 1px dashed #c8a96e;
   border-radius: 4px;
   padding: 6px 10px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .login-input {
@@ -596,49 +892,50 @@ body {
 .reservation-card {
   background: #fff;
   border: 1px solid #e0d6c8;
-  border-radius: 6px;
-  padding: 10px 16px;
+  border-radius: 8px;
+  padding: 14px 16px;
   box-shadow: 0 1px 4px rgba(0,0,0,0.05);
 }
 
 .reservation-card.cancelled {
-  opacity: 0.6;
+  opacity: 0.5;
   background: #f5f3f0;
 }
 
 .card-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 4px;
+  gap: 8px;
+  margin-bottom: 6px;
   flex-wrap: wrap;
 }
 
 .card-name {
-  font-size: 1.05rem;
-  font-weight: bold;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #333;
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .status-waitlist {
   background: #fff3cd;
   color: #856404;
   border-radius: 4px;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   padding: 2px 8px;
-  font-weight: normal;
+  font-weight: 600;
 }
 
 .status-cancelled {
   background: #e03e3e;
   color: #fff;
   border-radius: 4px;
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   padding: 2px 8px;
-  font-weight: normal;
+  font-weight: 600;
 }
 
 .card-count {
@@ -646,17 +943,18 @@ body {
   color: #5c3317;
   border-radius: 4px;
   padding: 2px 10px;
-  font-size: 0.85rem;
-  font-weight: bold;
+  font-size: 0.8rem;
+  font-weight: 700;
 }
 
 /* アクションボタン */
 .action-btn {
   background: none;
-  border: 1px solid #ccc;
+  border: 1px solid #d4c8b8;
   border-radius: 4px;
-  padding: 3px 10px;
-  font-size: 0.8rem;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-family: inherit;
   cursor: pointer;
   transition: all 0.15s;
 }
@@ -669,6 +967,16 @@ body {
   border-color: #c8a96e;
   color: #c8a96e;
   background: #fdf8ef;
+}
+
+.confirm-btn {
+  color: #27ae60;
+  font-weight: 600;
+}
+
+.confirm-btn:hover {
+  border-color: #27ae60;
+  background: #eafaf1;
 }
 
 .cancel-btn {
@@ -731,68 +1039,123 @@ body {
   color: #555;
 }
 
+/* メタ行: フリガナ | 電話番号 */
+.card-meta {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 8px;
+  font-size: 0.78rem;
+}
+
 .card-furigana {
-  font-size: 0.8rem;
   color: #888;
-  margin-bottom: 2px;
+}
+
+.card-meta-sep {
+  width: 1px;
+  height: 12px;
+  background: #ccc;
+  margin: 0 8px;
 }
 
 .card-phone {
-  font-size: 0.85rem;
   color: #5c3317;
-  margin-bottom: 4px;
+  text-decoration: none;
+  font-weight: 500;
 }
 
-.card-consultation {
-  font-size: 0.88rem;
-  line-height: 1.4;
-  color: #444;
-  white-space: pre-wrap;
-  border-left: 3px solid #c8a96e;
-  padding-left: 10px;
-  margin-bottom: 4px;
+.card-phone:hover {
+  text-decoration: underline;
+}
+
+/* 折りたたみセクション */
+.card-section {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border-top: 1px dashed #e8e0d4;
+}
+
+.card-section-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  font-size: 0.72rem;
+  font-family: inherit;
+  color: #999;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.card-section-toggle:hover {
+  color: #5c3317;
+}
+
+.card-section-arrow {
+  font-size: 0.6rem;
+  width: 10px;
+}
+
+.card-section-count {
+  color: #c8a96e;
+  margin-left: 2px;
+}
+
+.card-section .consultation-logs-list,
+.card-section .history-list {
+  width: 100%;
+  margin-top: 4px;
+}
+
+/* フッター: 操作ボタン + 日付 */
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid #f0e8d8;
+}
+
+.card-footer-actions {
+  display: flex;
+  gap: 6px;
 }
 
 .card-date {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   color: #aaa;
-  text-align: right;
+  margin-left: auto;
 }
 
 /* 変更履歴 */
-.history {
-  margin-top: 12px;
-  border-top: 1px dashed #e0d6c8;
-  padding-top: 10px;
-}
-
-.history-title {
-  font-size: 0.78rem;
-  font-weight: bold;
-  color: #999;
-  margin-bottom: 6px;
-}
-
 .history-list {
   list-style: none;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
+  padding-left: 14px;
 }
 
 .history-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 0.8rem;
+  gap: 6px;
+  font-size: 0.75rem;
   color: #666;
 }
 
 .history-type {
   border-radius: 3px;
   padding: 1px 6px;
-  font-size: 0.72rem;
-  font-weight: bold;
+  font-size: 0.68rem;
+  font-weight: 700;
 }
 
 .history-type.cancel {
@@ -812,7 +1175,7 @@ body {
 .history-date {
   color: #aaa;
   margin-left: auto;
-  font-size: 0.72rem;
+  font-size: 0.68rem;
 }
 
 /* 必須・任意バッジ */
@@ -823,7 +1186,7 @@ body {
   border-radius: 3px;
   font-size: 0.65rem;
   padding: 1px 6px;
-  margin-left: 6px;
+  margin-right: 6px;
   font-weight: bold;
   vertical-align: middle;
 }
@@ -835,37 +1198,18 @@ body {
   border-radius: 3px;
   font-size: 0.65rem;
   padding: 1px 6px;
-  margin-left: 6px;
+  margin-right: 6px;
   font-weight: bold;
   vertical-align: middle;
 }
 
-/* 連絡済チェック */
+/* 対応ステータス行 */
 .card-reply-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 4px;
-}
-
-.contacted-check {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.78rem;
-  color: #5c3317;
-  cursor: pointer;
-}
-
-.contacted-check input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
-  accent-color: #5c9e3e;
-  cursor: pointer;
-}
-
-.contacted-check input[type="checkbox"]:checked + .contacted-check {
-  color: #5c9e3e;
+  gap: 5px;
+  margin: 8px 0 6px;
+  flex-wrap: wrap;
 }
 
 /* 定員表示・編集 */
@@ -950,45 +1294,19 @@ body {
   background: none;
   border: 1px dashed #c8a96e;
   border-radius: 4px;
-  padding: 4px 10px;
-  font-size: 0.8rem;
+  padding: 2px 8px;
+  font-size: 0.7rem;
+  font-family: inherit;
   color: #c8a96e;
   cursor: pointer;
-  margin-bottom: 4px;
   transition: background 0.15s;
+  margin-left: auto;
 }
 
 .add-consultation-btn:hover {
   background: #fdf8ef;
 }
 
-/* 問い合わせのみボタン */
-.inquiry-only-btn {
-  width: 100%;
-  margin-top: 8px;
-  padding: 8px;
-  border: 1px dashed #c8a96e;
-  border-radius: 6px;
-  background: #fffdf9;
-  font-size: 0.85rem;
-  font-family: inherit;
-  color: #c8a96e;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.inquiry-only-btn:hover {
-  background: #fdf8ef;
-  border-color: #5c3317;
-  color: #5c3317;
-}
-
-.inquiry-only-btn.active {
-  background: #c8a96e;
-  color: #fff;
-  border-color: #c8a96e;
-  border-style: solid;
-}
 
 /* チャットワーク通知設定 */
 .notify-dot {
@@ -1029,4 +1347,407 @@ body {
   accent-color: #5c3317;
   width: 16px;
   height: 16px;
+}
+
+.notify-section {
+  margin-bottom: 20px;
+}
+
+.notify-section-title {
+  font-size: 0.95rem;
+  font-weight: bold;
+  color: #5c3317;
+  margin-bottom: 10px;
+  padding-bottom: 6px;
+  border-bottom: 2px solid #e8ddd0;
+}
+
+.notify-section-subtitle {
+  font-size: 0.9rem;
+  font-weight: bold;
+  color: #5c3317;
+  margin: 16px 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #e8ddd0;
+}
+
+.notify-field {
+  margin-bottom: 10px;
+}
+
+.notify-field-label {
+  display: block;
+  font-size: 0.82rem;
+  color: #666;
+  margin-bottom: 4px;
+}
+
+.notify-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d4c8b8;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  background: #fffdf8;
+  box-sizing: border-box;
+}
+
+.notify-input:focus {
+  outline: none;
+  border-color: #5c3317;
+}
+
+.notify-event-block {
+  margin-bottom: 8px;
+}
+
+.notify-template {
+  margin: 6px 0 12px 24px;
+}
+
+.notify-template-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #d4c8b8;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-family: monospace;
+  background: #fffdf8;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.notify-template-input:focus {
+  outline: none;
+  border-color: #5c3317;
+}
+
+.notify-template-vars {
+  font-size: 0.75rem;
+  color: #999;
+  margin: 4px 0;
+}
+
+.notify-reset-btn {
+  font-size: 0.75rem;
+  color: #5c3317;
+  background: none;
+  border: 1px solid #d4c8b8;
+  border-radius: 4px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.notify-reset-btn:hover {
+  background: #f5efe7;
+}
+
+/* 表示切替 */
+.list-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.view-toggle {
+  display: flex;
+  border: 1px solid #d4c8b8;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.view-toggle-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 30px;
+  background: #fffdf8;
+  border: none;
+  cursor: pointer;
+  color: #999;
+}
+
+.view-toggle-btn + .view-toggle-btn {
+  border-left: 1px solid #d4c8b8;
+}
+
+.view-toggle-btn.active {
+  background: #5c3317;
+  color: #fff;
+}
+
+.view-toggle-btn:hover:not(.active) {
+  background: #f5efe7;
+}
+
+/* 表形式 */
+.table-wrapper {
+  overflow-x: auto;
+  margin-top: 8px;
+  width: 90vw;
+  margin-left: calc((700px - 90vw) / 2);
+}
+
+.reservation-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+
+.reservation-table th,
+.reservation-table td {
+  padding: 8px 10px;
+  border: 1px solid #e0d6c8;
+  text-align: left;
+}
+
+.reservation-table th {
+  background: #5c3317;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.8rem;
+  position: sticky;
+  top: 0;
+}
+
+.reservation-table tbody tr:nth-child(even) {
+  background: #faf6f0;
+}
+
+.reservation-table tbody tr:hover {
+  background: #f0e8dc;
+}
+
+.reservation-table .row-cancelled {
+  opacity: 0.5;
+}
+
+.reservation-table .row-cancelled td {
+  text-decoration: line-through;
+}
+
+.reservation-table .row-waitlist td:first-child {
+  border-left: 3px solid #e67e22;
+}
+
+.td-center {
+  text-align: center;
+}
+
+.td-date {
+  font-size: 0.78rem;
+  color: #888;
+}
+
+.td-consultation,
+.td-concerns {
+  white-space: normal;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* お悩み複数選択ボタン */
+.badge-multi {
+  background: #3498db;
+  color: #fff;
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 6px;
+  font-weight: 600;
+}
+
+.concern-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.concern-btn {
+  padding: 8px 14px;
+  border: 2px solid #d4c8b8;
+  border-radius: 8px;
+  background: #fffdf8;
+  color: #5c3317;
+  font-size: 0.85rem;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.concern-btn:hover {
+  border-color: #b8860b;
+  background: #faf2e4;
+}
+
+.concern-btn.active {
+  background: #5c3317;
+  color: #fff;
+  border-color: #5c3317;
+}
+
+/* 無料相談希望ボタン */
+.consultation-type-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.consultation-type-btn {
+  padding: 10px 14px;
+  border: 2px solid #d4c8b8;
+  border-radius: 8px;
+  background: #fffdf8;
+  color: #5c3317;
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.15s;
+}
+
+.consultation-type-btn:hover {
+  border-color: #b8860b;
+  background: #faf2e4;
+}
+
+.consultation-type-btn.active {
+  background: #5c3317;
+  color: #fff;
+  border-color: #5c3317;
+}
+
+.consultation-type-note {
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: #e67e22;
+  padding-left: 4px;
+}
+
+/* 受付番号 */
+.card-no {
+  display: inline-block;
+  background: #5c3317;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-right: 4px;
+  letter-spacing: 0.5px;
+}
+
+/* 対応ステータスボタン */
+.contact-status-buttons {
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.contact-status-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid #d4c8b8;
+  border-radius: 4px;
+  background: #fffdf8;
+  font-size: 0.7rem;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+.contact-status-btn:hover {
+  border-color: #b8860b;
+  background: #f5efe7;
+}
+
+.contact-status-btn.callback-btn {
+  background: #fff0f0;
+  color: #c0392b;
+  border-color: #e7a9a9;
+}
+
+.contact-status-btn.callback-btn:hover {
+  background: #e74c3c;
+  color: #fff;
+  border-color: #e74c3c;
+}
+
+.status-reply-pending {
+  display: inline-flex;
+  align-items: center;
+  background: #eef3ff;
+  color: #3b6dd6;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+}
+
+.status-needs-action {
+  display: inline-flex;
+  align-items: center;
+  background: #e74c3c;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 4px;
+  animation: blink 1.2s infinite;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* 相談内容ログ */
+.consultation-logs-list {
+  list-style: none;
+  padding: 0 0 0 14px;
+  margin: 0;
+}
+
+.consultation-log-item {
+  padding: 3px 0;
+  border-bottom: 1px dotted #e0d6c8;
+  font-size: 0.75rem;
+}
+
+.consultation-log-item:last-child {
+  border-bottom: none;
+}
+
+.consultation-log-date {
+  color: #999;
+  font-size: 0.68rem;
+  margin-right: 6px;
+}
+
+.consultation-log-text {
+  color: #444;
+}
+
+/* 印刷ボタン */
+.print-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  border: 1px solid #d4c8b8;
+  border-radius: 6px;
+  background: #fffdf8;
+  color: #5c3317;
+  font-size: 0.75rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: all 0.15s;
+}
+
+.print-btn:hover {
+  background: #5c3317;
+  color: #fff;
 }
