@@ -15,7 +15,7 @@ function renderTemplate(template: string, prop: any, staffs: any[], extraCtx: Re
     return s && s.chatwork_account_id ? `[To:${s.chatwork_account_id}]${s.name}さん` : null;
   }).filter(Boolean).join(" ");
   const map: Record<string, string> = {
-    "{物件名}": ((prop.customerName || prop.name || "") as string).replace(/[\s\u3000]+/g, ""),
+    "{案件名}": ((prop.customerName || prop.name || "") as string).replace(/[\s\u3000]+/g, ""),
     "{住所}": prop.address || "", "{種別}": prop.category || "",
     "{営業担当}": prop.salesRep || "", "{IC担当}": prop.icRep || "", "{工務担当}": prop.constructionRep || "",
     "{設営日}": fd(prop.setupDate), "{撤収日}": fd(prop.teardownDate), "{引渡日}": fd(prop.handoverDate),
@@ -31,7 +31,7 @@ function renderTemplate(template: string, prop: any, staffs: any[], extraCtx: Re
   return template.replace(/\{[^}]+\}/g, (m) => map[m] !== undefined ? map[m] : m);
 }
 
-const DEFAULT_REMIND_TEMPLATE = `{メンション}\n[info][title]シューログ 明日の撮影リマインド[/title]\n物件名: {物件名}\n撮影タイプ: {撮影タイプ}\n撮影日: {撮影日}\n住所: {住所}\n担当: {撮影担当}\n駐車場: {駐車場}\n[/info]`;
+const DEFAULT_REMIND_TEMPLATE = `{メンション}\n[info][title]シューログ 明日の撮影リマインド[/title]\n案件名: {案件名}\n撮影タイプ: {撮影タイプ}\n撮影日: {撮影日}\n住所: {住所}\n担当: {撮影担当}\n駐車場: {駐車場}\n[/info]`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {

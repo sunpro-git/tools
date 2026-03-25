@@ -17,4 +17,4 @@ export const STAFF_ROLES = ['営業', 'インテリアコーディネーター',
 export const STAFF_DEPARTMENTS = ['新築', 'リフォーム', '広報', '工事', '外部パートナー'];
 export const EQUIPMENT_TYPES = ['設備', '車輛', 'カレンダー'];
 export const SHOOTING_TYPES = ['スチール', '外観スチール', 'YouTube', 'インスタ通常投稿用', 'インスタ宣伝用', 'インスタライブ', 'その他'];
-export const ANDPAD_LABELS = { systemId: 'システムID', salesRep: '営業担当', icRep: 'IC担当', constructionRep: '工務担当' };
+export const ANDPAD_LABELS = { systemId: 'システムID', salesRep: '営業担当', icRep: 'IC担当', constructionRep: '工事担当' };

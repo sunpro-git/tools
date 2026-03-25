@@ -19,12 +19,21 @@ export const formatDate = (d) => {
     return (<span>{year}/{month}/{day}<span className={`text-[11px] ml-0.5 ${c}`}>({w})</span></span>);
 };
 export const formatDateTime = (dt) => {
-    if (!dt) return '---'; const date = new Date(dt); if (isNaN(date.getTime())) return '---';
-    const time = date.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
-    const year = date.getFullYear(); const month = (date.getMonth() + 1).toString().padStart(2, '0'); const day = date.getDate().toString().padStart(2, '0');
-    const w = ['日', '月', '火', '水', '木', '金', '土'][date.getDay()];
-    let c = "text-gray-400"; if (date.getDay() === 0) c = "text-red-600"; if (date.getDay() === 6) c = "text-blue-600";
-    return (<span>{year}/{month}/{day}<span className={`text-[11px] ml-0.5 ${c}`}>({w})</span> {time}</span>);
+    if (!dt) return '---';
+    const hasTime = typeof dt === 'string' && dt.includes('T') && !dt.endsWith('T');
+    const dateStr = typeof dt === 'string' ? dt.split('T')[0] : dt;
+    const parts = String(dateStr).split('-');
+    if (parts.length < 3) return '---';
+    const year = parseInt(parts[0]); const month = parseInt(parts[1]); const day = parseInt(parts[2]);
+    if (isNaN(year) || isNaN(month) || isNaN(day)) return '---';
+    const dateObj = new Date(year, month - 1, day);
+    const w = ['日', '月', '火', '水', '木', '金', '土'][dateObj.getDay()];
+    let c = "text-gray-400"; if (dateObj.getDay() === 0) c = "text-red-600"; if (dateObj.getDay() === 6) c = "text-blue-600";
+    const mm = String(month).padStart(2, '0'); const dd = String(day).padStart(2, '0');
+    if (!hasTime) return (<span>{year}/{mm}/{dd}<span className={`text-[11px] ml-0.5 ${c}`}>({w})</span></span>);
+    const timeParts = typeof dt === 'string' ? dt.split('T')[1] : '';
+    const time = timeParts ? timeParts.substring(0, 5) : '00:00';
+    return (<span>{year}/{mm}/{dd}<span className={`text-[11px] ml-0.5 ${c}`}>({w})</span> <span className="text-[11px]">{time}</span></span>);
 };
 export const toYMD = (date) => `${date.getFullYear()}-${(date.getMonth()+1).toString().padStart(2,'0')}-${date.getDate().toString().padStart(2,'0')}`;
 export const formatRepName = (n) => n ? (n.includes(':')?n.split(':').pop():n).replace(/[\s\u3000]+/g,'') : '';
