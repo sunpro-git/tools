@@ -274,6 +274,8 @@ function extractYoutubeVideoId(url: string): string | null {
       if (v) return v
       const embedMatch = u.pathname.match(/\/embed\/([^/?]+)/)
       if (embedMatch) return embedMatch[1]
+      const liveMatch = u.pathname.match(/\/live\/([^/?]+)/)
+      if (liveMatch) return liveMatch[1]
     }
     return null
   } catch {

@@ -372,6 +372,8 @@ function extractVideoId(url: string): string | null {
     if (u.hostname.includes('youtube.com')) {
       const shorts = u.pathname.match(/\/shorts\/([^/?]+)/)
       if (shorts) return shorts[1]
+      const live = u.pathname.match(/\/live\/([^/?]+)/)
+      if (live) return live[1]
       return u.searchParams.get('v') || u.pathname.match(/\/embed\/([^/?]+)/)?.[1] || null
     }
     return null
@@ -447,10 +449,24 @@ export async function processContent(id: string): Promise<void> {
     )
     if (analyzeErr) {
       console.error('AI analysis failed:', analyzeErr)
-      await supabase
+      // Check if content has text — if so, mark as completed (text is available even without summary).
+      // If no text either, mark as error so user knows to retry.
+      const { data: check } = await supabase
         .from('contents')
-        .update({ status: 'completed' })
+        .select('full_text')
         .eq('id', id)
+        .single()
+      if (check?.full_text) {
+        await supabase
+          .from('contents')
+          .update({ status: 'completed', error_message: 'AI分析に失敗しました（テキストは取得済み）' })
+          .eq('id', id)
+      } else {
+        await supabase
+          .from('contents')
+          .update({ status: 'error', error_message: 'コンテンツの取得・分析に失敗しました' })
+          .eq('id', id)
+      }
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error'
