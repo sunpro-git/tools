@@ -1,4 +1,4 @@
-import { HashRouter, Routes, Route } from 'react-router-dom'
+import { createHashRouter, RouterProvider } from 'react-router-dom'
 import { AuthProvider, useAuth } from './hooks/useAuth'
 import LoginPage from './components/LoginPage'
 import AppShell from './components/layout/AppShell'
@@ -7,6 +7,8 @@ import InquiryPage from './components/inquiry/InquiryPage'
 import CsvImportPage from './components/import/CsvImportPage'
 import EventPage from './components/event/EventPage'
 import EventInquiryPage from './components/event-inquiry/EventInquiryPage'
+import FollowUpPage from './components/follow-up/FollowUpPage'
+import FollowUpB2Page from './components/follow-up/FollowUpB2Page'
 import OrdersPage from './components/orders/OrdersPage'
 import SalesPage from './components/sales/SalesPage'
 import ModelHouseVisitPage from './components/model-house/ModelHouseVisitPage'
@@ -16,6 +18,27 @@ import DepartmentsPage from './components/departments/DepartmentsPage'
 import { BusinessTypeProvider } from './hooks/useBusinessType'
 import { FiscalYearProvider } from './hooks/useFiscalYear'
 import { Loader2 } from 'lucide-react'
+
+const router = createHashRouter([
+  {
+    element: <AppShell />,
+    children: [
+      { path: '/', element: <DashboardPage /> },
+      { path: '/inquiry', element: <InquiryPage /> },
+      { path: '/event-inquiry', element: <EventInquiryPage /> },
+      { path: '/model-house', element: <ModelHouseVisitPage /> },
+      { path: '/follow-up', element: <FollowUpPage /> },
+      { path: '/follow-up-b2', element: <FollowUpB2Page /> },
+      { path: '/orders', element: <OrdersPage /> },
+      { path: '/sales', element: <SalesPage /> },
+      { path: '/events', element: <EventPage /> },
+      { path: '/targets', element: <TargetPage /> },
+      { path: '/staff', element: <StaffDepartmentPage /> },
+      { path: '/departments', element: <DepartmentsPage /> },
+      { path: '/import', element: <CsvImportPage /> },
+    ],
+  },
+])
 
 function AuthGate() {
   const { user, loading, error } = useAuth()
@@ -35,23 +58,7 @@ function AuthGate() {
   return (
     <BusinessTypeProvider>
     <FiscalYearProvider>
-    <HashRouter>
-      <Routes>
-        <Route element={<AppShell />}>
-          <Route path="/" element={<DashboardPage />} />
-          <Route path="/inquiry" element={<InquiryPage />} />
-          <Route path="/event-inquiry" element={<EventInquiryPage />} />
-          <Route path="/model-house" element={<ModelHouseVisitPage />} />
-          <Route path="/orders" element={<OrdersPage />} />
-          <Route path="/sales" element={<SalesPage />} />
-          <Route path="/events" element={<EventPage />} />
-          <Route path="/targets" element={<TargetPage />} />
-          <Route path="/staff" element={<StaffDepartmentPage />} />
-          <Route path="/departments" element={<DepartmentsPage />} />
-          <Route path="/import" element={<CsvImportPage />} />
-        </Route>
-      </Routes>
-    </HashRouter>
+      <RouterProvider router={router} />
     </FiscalYearProvider>
     </BusinessTypeProvider>
   )

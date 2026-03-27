@@ -1,10 +1,12 @@
+import { useState, useEffect, useCallback } from 'react'
 import { NavLink } from 'react-router-dom'
-import { LayoutDashboard, Upload, PanelLeftClose, PanelLeftOpen, Users, LogOut, User, Footprints, UserSearch, FileSignature, HardHat, HeartHandshake, Target, Building2 } from 'lucide-react'
+import { LayoutDashboard, Upload, PanelLeftClose, PanelLeftOpen, Users, LogOut, User, Footprints, UserSearch, FileSignature, HardHat, HeartHandshake, Target, Building2, Play, Pause } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { useBusinessType } from '../../hooks/useBusinessType'
 import { BUSINESS_TYPES } from '../../hooks/useDepartments'
 import { useFiscalYear } from '../../hooks/useFiscalYear'
 import { signOut } from '../../lib/auth'
+import { supabase } from '../../lib/supabase'
 
 const navCategories = [
   {
@@ -17,7 +19,10 @@ const navCategories = [
   },
   {
     badge: 'B', label: '追客', icon: UserSearch,
-    items: [],
+    items: [
+      { to: '/follow-up', badge: 'B1', label: '個人商談集計' },
+      { to: '/follow-up-b2', badge: 'B2', label: '追客管理' },
+    ],
   },
   {
     badge: 'C', label: '受注', icon: FileSignature,
@@ -58,9 +63,20 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const email = user?.email || ''
   const avatarUrl = user?.user_metadata?.avatar_url || user?.user_metadata?.picture || ''
 
+  const [autoImportEnabled, setAutoImportEnabled] = useState(true)
+  useEffect(() => {
+    supabase.from('app_settings').select('value').eq('key', 'auto_import_enabled').single()
+      .then(({ data }) => { if (data) setAutoImportEnabled(data.value === 'true') })
+  }, [])
+  const toggleAutoImport = useCallback(async () => {
+    const next = !autoImportEnabled
+    setAutoImportEnabled(next)
+    await supabase.from('app_settings').update({ value: String(next), updated_at: new Date().toISOString() }).eq('key', 'auto_import_enabled')
+  }, [autoImportEnabled])
+
   return (
     <aside
-      className={`text-white h-screen flex-shrink-0 flex flex-col transition-all duration-200 sticky top-0 ${
+      className={`text-white h-screen flex-shrink-0 flex flex-col transition-all duration-200 sticky top-0 z-20 ${
         collapsed ? 'w-14' : 'w-56'
       }`}
       style={{ backgroundColor: '#222' }}
@@ -194,26 +210,38 @@ export default function Sidebar({ collapsed, onToggle }: SidebarProps) {
         </div>
         <nav className="p-2 pt-0">
           {bottomNavItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              title={collapsed ? item.label : undefined}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors ${
-                  collapsed ? 'justify-center px-0' : ''
-                } ${
-                  isActive
-                    ? 'text-white'
-                    : 'text-slate-300 hover:text-white'
-                }`
-              }
-              style={({ isActive }) =>
-                isActive ? { backgroundColor: '#333' } : { backgroundColor: 'transparent' }
-              }
-            >
-              <item.icon className="w-5 h-5 flex-shrink-0" />
-              {!collapsed && item.label}
-            </NavLink>
+            <div key={item.to} className="flex items-center">
+              <NavLink
+                to={item.to}
+                title={collapsed ? item.label : undefined}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors flex-1 ${
+                    collapsed ? 'justify-center px-0' : ''
+                  } ${
+                    isActive
+                      ? 'text-white'
+                      : 'text-slate-300 hover:text-white'
+                  }`
+                }
+                style={({ isActive }) =>
+                  isActive ? { backgroundColor: '#333' } : { backgroundColor: 'transparent' }
+                }
+              >
+                <item.icon className="w-5 h-5 flex-shrink-0" />
+                {!collapsed && item.label}
+              </NavLink>
+              {item.to === '/import' && !collapsed && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); toggleAutoImport() }}
+                  title={autoImportEnabled ? '自動更新中（クリックで一時停止）' : '一時停止中（クリックで再開）'}
+                  className={`p-1.5 rounded transition-colors cursor-pointer flex-shrink-0 ${
+                    autoImportEnabled ? 'text-green-400 hover:text-green-300' : 'text-amber-400 hover:text-amber-300'
+                  }`}
+                >
+                  {autoImportEnabled ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+                </button>
+              )}
+            </div>
           ))}
         </nav>
       <div className="border-t border-slate-700 p-2">

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase } from '../lib/supabase'
 
 export const BUSINESS_TYPES = ['新築', 'リフォーム', '不動産'] as const
@@ -32,7 +32,7 @@ export function useDepartments(businessType?: BusinessType) {
 
   useEffect(() => { fetchDepartments() }, [fetchDepartments])
 
-  const deptNames = departments.map((d) => d.name)
+  const deptNames = useMemo(() => departments.map((d) => d.name), [departments])
 
   return { departments, deptNames, loading, fetchDepartments }
 }
