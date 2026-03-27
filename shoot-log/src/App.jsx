@@ -35,6 +35,10 @@ const App = () => {
     const [branchCategoryFilter, setBranchCategoryFilter] = useState('共通');
     const [newMunicipality, setNewMunicipality] = useState({});
     const [newBranchName, setNewBranchName] = useState('');
+    const [isCalendarEventsModalOpen, setIsCalendarEventsModalOpen] = useState(false);
+    const [calendarEventsList, setCalendarEventsList] = useState([]);
+    const [calendarEventsLoading, setCalendarEventsLoading] = useState(false);
+    const [calendarEventsError, setCalendarEventsError] = useState(null);
 
     const [reqSearch, setReqSearch] = useState({ keyword: '', category: '', staff: '', contractFrom: '', contractTo: '', handoverFrom: '', handoverTo: '' });
     const timeOptions = useMemo(() => Array.from({ length: 49 }, (_, i) => `${Math.floor((480 + (i * 15)) / 60).toString().padStart(2, '0')}:${((480 + (i * 15)) % 60).toString().padStart(2, '0')}`), []);
@@ -459,6 +463,37 @@ const App = () => {
         }
         setIsSyncingCalendar(false);
     };
+    const fetchCalendarEvents = async () => {
+        setCalendarEventsLoading(true); setCalendarEventsError(null);
+        try {
+            const res = await fetch(CALENDAR_GAS_API_URL);
+            const data = await res.json();
+            if (data.success) { setCalendarEventsList(data.events || []); }
+            else { setCalendarEventsError(data.message || '取得失敗'); }
+        } catch (e) { setCalendarEventsError('カレンダー取得エラー: ' + e.message); }
+        finally { setCalendarEventsLoading(false); }
+    };
+    const deleteCalendarEvent = async (evt) => {
+        if (!confirm(`「${evt.title}」を削除しますか？`)) return;
+        try {
+            const res = await fetch(CALENDAR_GAS_API_URL, { method: 'POST', body: JSON.stringify([{ id: evt.id, action: 'delete' }]) });
+            const r = await res.json();
+            if (r.success) { showNotification('カレンダーから削除しました'); setCalendarEventsList(prev => prev.filter(e => e.calendarEventId !== evt.calendarEventId)); }
+            else { alert('削除失敗: ' + r.message); }
+        } catch (e) { alert('削除エラー: ' + e.message); }
+    };
+    const deleteAllCalendarEvents = async () => {
+        if (!confirm(`${calendarEventsList.length}件のカレンダー予定をすべて削除しますか？`)) return;
+        if (!confirm('本当にすべて削除しますか？この操作は取り消せません。')) return;
+        try {
+            const ids = [...new Set(calendarEventsList.map(e => e.id).filter(Boolean))];
+            const payload = ids.map(id => ({ id, action: 'delete' }));
+            const res = await fetch(CALENDAR_GAS_API_URL, { method: 'POST', body: JSON.stringify(payload) });
+            const r = await res.json();
+            if (r.success) { showNotification(`${r.createdCount}件削除しました`); setCalendarEventsList([]); }
+            else { alert('全削除失敗: ' + r.message); }
+        } catch (e) { alert('全削除エラー: ' + e.message); }
+    };
     const saveStaff = async (e) => { e.preventDefault(); if(!staffForm.name){alert("氏名必須");return;} const data={name:staffForm.name, email:staffForm.email, department:staffForm.department, roles:staffForm.roles, chatwork_account_id:staffForm.chatwork_account_id||''}; try{ if(staffForm.id){const{error}=await supabase.from('staffs').update(data).eq('id',staffForm.id);if(error)throw error;showNotification('更新完了');}else{const{error}=await supabase.from('staffs').insert(data);if(error)throw error;showNotification('追加完了');} setStaffForm({id:'',name:'',email:'',department:'',roles:[],chatwork_account_id:''}); }catch(e){alert('保存失敗');} };
     const deleteStaff = async (id) => { if(confirm('削除しますか？')){ const{error}=await supabase.from('staffs').delete().eq('id',id); if(error){alert('削除失敗');return;} showNotification('削除完了'); if(staffForm.id===id)setStaffForm({id:'',name:'',email:'',department:'',roles:[],chatwork_account_id:''}); } };
     const toggleStaffRole = (r) => setStaffForm(p=>({ ...p, roles: p.roles.includes(r)?p.roles.filter(x=>x!==r):[...p.roles,r] }));
@@ -713,7 +748,7 @@ A. ヘッダーのチャットワーク設定アイコンからルームIDと通
                     <div className="flex items-center gap-2">
                         <button onClick={openNewEventModal} className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-full text-sm font-bold hover:bg-gray-50 transition-all shadow-sm"><Icon name="calendar-plus" size={16} className="text-purple-500" /> イベント追加</button>
                         <button onClick={openRequestModal} className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-full text-sm font-bold hover:bg-gray-50 transition-all shadow-sm"><Icon name="camera" size={16} className="text-accent" /> 撮影依頼</button>
-                        <div className="relative"><button onClick={()=>setIsMenuOpen(!isMenuOpen)} className="p-2 text-gray-500 hover:text-primary hover:bg-gray-50 rounded-full transition-colors" title="メニュー"><Icon name="menu" size={22}/></button>{isMenuOpen && (<><div className="fixed inset-0 z-40" onClick={()=>setIsMenuOpen(false)}/><div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 py-2 w-56 z-50 animate-enter">{[{label:'スタッフ管理',icon:'users',action:()=>{setStaffForm({id:'',name:'',email:'',department:'',roles:[],chatwork_account_id:''});setIsStaffModalOpen(true);}},{label:'設備管理',icon:'package',action:()=>{setEquipmentForm({id:'',name:'',email:'',type:'設備'});setIsEquipmentModalOpen(true);}},{label:'チャットワーク設定',icon:'message-square',action:()=>setIsSettingsModalOpen(true)},{label:'支店振分管理',icon:'map-pin',action:()=>setIsBranchModalOpen(true)}].map(item=>(<button key={item.label} onClick={()=>{item.action();setIsMenuOpen(false);}} disabled={item.disabled} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-primary transition-colors disabled:opacity-50"><Icon name={item.icon} size={18}/>{item.label}</button>))}</div></>)}</div>
+                        <div className="relative"><button onClick={()=>setIsMenuOpen(!isMenuOpen)} className="p-2 text-gray-500 hover:text-primary hover:bg-gray-50 rounded-full transition-colors" title="メニュー"><Icon name="menu" size={22}/></button>{isMenuOpen && (<><div className="fixed inset-0 z-40" onClick={()=>setIsMenuOpen(false)}/><div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 py-2 w-56 z-50 animate-enter">{[{label:'スタッフ管理',icon:'users',action:()=>{setStaffForm({id:'',name:'',email:'',department:'',roles:[],chatwork_account_id:''});setIsStaffModalOpen(true);}},{label:'設備管理',icon:'package',action:()=>{setEquipmentForm({id:'',name:'',email:'',type:'設備'});setIsEquipmentModalOpen(true);}},{label:'チャットワーク設定',icon:'message-square',action:()=>setIsSettingsModalOpen(true)},{label:'支店振分管理',icon:'map-pin',action:()=>setIsBranchModalOpen(true)},{label:'カレンダー予定一覧',icon:'calendar',action:()=>{setIsCalendarEventsModalOpen(true);fetchCalendarEvents();}}].map(item=>(<button key={item.label} onClick={()=>{item.action();setIsMenuOpen(false);}} disabled={item.disabled} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-primary transition-colors disabled:opacity-50"><Icon name={item.icon} size={18}/>{item.label}</button>))}</div></>)}</div>
                     </div>
                 </div>
             </header>
@@ -769,9 +804,9 @@ A. ヘッダーのチャットワーク設定アイコンからルームIDと通
                                                         <tr key={`evt-${evt.id}`} className="hover:bg-teal-50 transition-colors border-b-2 border-gray-300 bg-teal-50/30">
                                                             <td className="px-2 py-3 align-top">{(() => { const evtBranch = getAreaBranchDynamic(evt.address, evt.category); return (<div className="flex flex-col gap-1 items-start"><span className="px-1.5 py-0.5 rounded text-xs font-bold bg-teal-100 text-teal-700 border border-teal-200">イベント</span>{((evt.shootingTypes && evt.shootingTypes.length > 0) || evt.shootingRangeFrom || (evt.youtubeDates && evt.youtubeDates.filter(Boolean).length > 0) || evt.youtubeDate || (evt.photoDates && evt.photoDates.filter(Boolean).length > 0) || evt.photoDate || (evt.exteriorPhotoDates && evt.exteriorPhotoDates.filter(Boolean).length > 0) || evt.exteriorPhotoDate || (evt.instaLiveDates && evt.instaLiveDates.filter(Boolean).length > 0) || evt.instaLiveDate || (evt.instaRegularDates && evt.instaRegularDates.filter(Boolean).length > 0) || evt.instaRegularDate || (evt.instaPromoDates && evt.instaPromoDates.filter(Boolean).length > 0) || evt.instaPromoDate || (evt.otherDates && evt.otherDates.filter(Boolean).length > 0) || evt.otherDate) && <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-yellow-100 text-yellow-700 border border-yellow-200">撮影</span>}<span className="px-1.5 py-0.5 rounded text-xs font-bold bg-gray-100 text-gray-600 border border-gray-200">{evt.category}</span>{evtBranch && <span className={`px-1.5 py-0.5 rounded text-xs font-bold border ${evtBranch.class}`}>{evtBranch.name}</span>}</div>); })()}</td>
                                                             <td className="px-2 py-3 align-top">
-                                                                {(() => { const hasCustomer = evt.customerName && evt.customerName !== '顧客なし'; const hasName = evt.name && evt.name !== '案件なし'; if (hasCustomer) return <><div className="font-bold text-sm text-gray-900 mb-0.5">{evt.customerName}<span className="text-xs font-normal ml-1 text-gray-600">様</span></div><div className="text-xs text-gray-500 font-medium mb-1">{hasName ? evt.name : ''}</div></>; return <div className="font-bold text-sm text-gray-900 mb-0.5">{evt.eventName || <span className="text-gray-400 font-normal">イベント名未設定</span>}</div>; })()}
+                                                                {(() => { const hasCustomer = evt.customerName && evt.customerName !== '顧客なし'; const hasName = evt.name && evt.name !== '案件なし'; if (hasCustomer) return <><div className="font-bold text-sm text-gray-900 mb-0.5">{evt.customerName}<span className="text-xs font-normal ml-1 text-gray-600">様</span></div><div className="text-sm text-gray-500 mb-1">{hasName ? evt.name : ''}</div></>; return <div className="font-bold text-sm text-gray-900 mb-0.5">{evt.eventName || <span className="text-gray-400 font-normal">イベント名未設定</span>}</div>; })()}
                                                                 {evt.address && <div className="text-sm text-gray-500 flex items-center gap-1 mb-2"><Icon name="map-pin" size={14}/> {evt.address}</div>}
-                                                                <div className="flex flex-wrap gap-2 text-sm text-gray-400 font-medium">{evt.salesRep && <span>営:{formatRepName(evt.salesRep)}</span>}{evt.icRep && <span>IC:{formatRepName(evt.icRep)}</span>}</div>
+                                                                <div className="flex flex-wrap gap-2 text-sm text-gray-500">{evt.salesRep && <span>営:{formatRepName(evt.salesRep)}</span>}{evt.icRep && <span>IC:{formatRepName(evt.icRep)}</span>}</div>
                                                             </td>
                                                             <td className="px-2 py-3 align-top">
                                                                 <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm items-start">
@@ -820,9 +855,9 @@ A. ヘッダーのチャットワーク設定アイコンからルームIDと通
                                                         <td className="px-2 py-3 align-top"><div className="flex flex-col gap-1 items-start">{hasShooting && <span className="px-1.5 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200">撮影</span>}<span className="px-1.5 py-0.5 rounded text-xs font-bold bg-gray-100 text-gray-600 border border-gray-200">{prop.category}</span>{branch && <span className={`px-1.5 py-0.5 rounded text-xs font-bold border ${branch.class}`}>{branch.name}</span>}</div></td>
                                                         <td className="px-2 py-3 align-top">
                                                             <div className="font-bold text-sm text-gray-900 mb-0.5">{prop.customerName ? <>{prop.customerName}<span className="text-xs font-normal ml-1 text-gray-600">様</span></> : <span className="text-gray-400 font-normal">顧客名未設定</span>}</div>
-                                                            <div className="text-xs text-gray-500 font-medium mb-1">{prop.name}</div>
+                                                            <div className="text-sm text-gray-500 mb-1">{prop.name}</div>
                                                             <div className="text-sm text-gray-500 flex items-center gap-1 mb-2"><Icon name="map-pin" size={14}/> {prop.address}</div>
-                                                            <div className="flex flex-wrap gap-2 text-sm text-gray-400 font-medium">{prop.salesRep && <span>営:{formatRepName(prop.salesRep)}</span>}{prop.icRep && <span>IC:{formatRepName(prop.icRep)}</span>}</div>
+                                                            <div className="flex flex-wrap gap-2 text-sm text-gray-500">{prop.salesRep && <span>営:{formatRepName(prop.salesRep)}</span>}{prop.icRep && <span>IC:{formatRepName(prop.icRep)}</span>}</div>
                                                         </td>
                                                         <td className="px-2 py-3 align-top">
                                                             <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm items-start">
@@ -1021,6 +1056,55 @@ A. ヘッダーのチャットワーク設定アイコンからルームIDと通
                                 </div>
                                     );})
                             })()}
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isCalendarEventsModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+                    <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[85vh] overflow-y-auto shadow-2xl">
+                        <div className="sticky top-0 bg-white border-b p-4 flex items-center justify-between rounded-t-2xl z-10">
+                            <h2 className="text-lg font-bold flex items-center gap-2">
+                                <Icon name="calendar" size={20}/> カレンダー予定一覧
+                                {!calendarEventsLoading && calendarEventsList.length > 0 && <span className="text-sm font-normal text-gray-400">({calendarEventsList.length}件)</span>}
+                            </h2>
+                            <div className="flex items-center gap-2">
+                                {calendarEventsList.length > 0 && <button onClick={deleteAllCalendarEvents} className="px-3 py-1.5 rounded-lg text-xs font-bold border bg-white text-red-500 border-red-200 hover:bg-red-50 flex items-center gap-1">
+                                    <Icon name="trash-2" size={14}/> 全削除
+                                </button>}
+                                <button onClick={fetchCalendarEvents} disabled={calendarEventsLoading} className="px-3 py-1.5 rounded-lg text-xs font-bold border bg-white text-gray-500 border-gray-200 hover:bg-gray-50 flex items-center gap-1">
+                                    <Icon name="refresh-cw" size={14}/> 更新
+                                </button>
+                                <button onClick={() => setIsCalendarEventsModalOpen(false)}><Icon name="x" size={22}/></button>
+                            </div>
+                        </div>
+                        <div className="p-4">
+                            {calendarEventsLoading && <div className="text-center py-12 text-gray-400">読み込み中...</div>}
+                            {calendarEventsError && <div className="text-center py-12 text-red-500">{calendarEventsError}</div>}
+                            {!calendarEventsLoading && !calendarEventsError && calendarEventsList.length === 0 && <div className="text-center py-12 text-gray-400">登録済みの予定はありません</div>}
+                            {!calendarEventsLoading && !calendarEventsError && calendarEventsList.length > 0 && (
+                                <table className="w-full text-left text-sm">
+                                    <thead><tr className="border-b text-gray-500 text-xs">
+                                        <th className="px-3 py-2">日時</th>
+                                        <th className="px-3 py-2">タイトル</th>
+                                        <th className="px-3 py-2">場所</th>
+                                        <th className="px-3 py-2">ID</th>
+                                        <th className="px-3 py-2 w-10"></th>
+                                    </tr></thead>
+                                    <tbody className="divide-y divide-gray-100">
+                                        {calendarEventsList.map((evt, i) => (
+                                            <tr key={i} className="hover:bg-gray-50 group">
+                                                <td className="px-3 py-2 whitespace-nowrap">{formatDateTime(evt.start)}</td>
+                                                <td className="px-3 py-2 font-medium">{evt.title}</td>
+                                                <td className="px-3 py-2 text-gray-500 text-xs max-w-[200px] truncate">{evt.location}</td>
+                                                <td className="px-3 py-2 text-gray-400 text-xs font-mono">{evt.id}</td>
+                                                <td className="px-3 py-2"><button onClick={() => deleteCalendarEvent(evt)} className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition-opacity" title="削除"><Icon name="trash-2" size={15}/></button></td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            )}
                         </div>
                     </div>
                 </div>

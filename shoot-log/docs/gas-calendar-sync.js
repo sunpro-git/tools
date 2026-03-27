@@ -3,10 +3,49 @@
  * アプリ側で指定された内容に従ってイベントを作成・更新・削除します。
  *
  * アクション:
+ *   GET      — [設営管理] タグ付きイベントの一覧を返却
  *   通常     — title/startTime 必須。既存イベントがあれば更新、なければ新規作成
  *   delete   — id のみ必須。description 内の ID が完全一致するイベントを削除
  *   deleteAll— id のみ必須。description 内の ID が前方一致するイベントを全削除（見学会 _oh_ 含む）
  */
+
+/**
+ * GET: シューログ経由で登録されたカレンダーイベント一覧を返却
+ */
+function doGet() {
+  const response = { success: false, events: [], message: '' };
+  try {
+    const calendar = CalendarApp.getDefaultCalendar();
+    const now = new Date();
+    const searchStart = new Date(now);
+    searchStart.setMonth(searchStart.getMonth() - 6);
+    const searchEnd = new Date(now);
+    searchEnd.setMonth(searchEnd.getMonth() + 6);
+    const allEvents = calendar.getEvents(searchStart, searchEnd);
+    const systemTag = '[設営管理]';
+
+    for (const event of allEvents) {
+      const desc = event.getDescription();
+      if (!desc || !desc.includes(systemTag)) continue;
+      const idMatch = desc.match(/ID:\s*(.+)$/m);
+      response.events.push({
+        title: event.getTitle(),
+        start: event.getStartTime().toISOString(),
+        end: event.getEndTime().toISOString(),
+        location: event.getLocation(),
+        id: idMatch ? idMatch[1].trim() : '',
+        calendarEventId: event.getId()
+      });
+    }
+    response.events.sort((a, b) => new Date(a.start) - new Date(b.start));
+    response.success = true;
+    response.message = response.events.length + '件のイベントを取得しました';
+  } catch (err) {
+    response.message = 'エラー: ' + err.toString();
+  }
+  return ContentService.createTextOutput(JSON.stringify(response)).setMimeType(ContentService.MimeType.JSON);
+}
+
 function doPost(e) {
   const response = { success: false, message: '', createdCount: 0, errors: [], debugInfo: [] };
 
