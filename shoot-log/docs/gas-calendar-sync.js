@@ -129,16 +129,11 @@ function doPost(e) {
         const potentialEvents = calendar.getEvents(searchStart, searchEnd);
         for (const event of potentialEvents) {
           const eventDesc = event.getDescription();
-          // IDと、イベントタイプ(設営/撤収など)が一致するものを探す
+          // IDが完全一致するイベントを探す
           if (eventDesc && eventDesc.includes(recordIdInfo)) {
-             // タイトルの種別（【設営】など）が一致するか確認
-             const eventTitle = event.getTitle();
-             const typeTag = title.match(/^【.*?】/);
-             if (typeTag && eventTitle.startsWith(typeTag[0])) {
                targetEvent = event;
                isUpdate = true;
                break;
-             }
           }
         }
       }
