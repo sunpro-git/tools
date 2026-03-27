@@ -523,7 +523,8 @@ body {
   background: #fdf8ef;
 }
 
-.count-btn.active {
+.count-btn.active,
+.count-btn.selected {
   background: #5c3317;
   color: #fff;
   border-color: #5c3317;

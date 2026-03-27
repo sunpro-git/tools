@@ -1499,8 +1499,8 @@ function App() {
         <div className="field">
           <label><span className="badge-optional">任意</span>折り返しの連絡</label>
           <div className="count-buttons">
-            <button type="button" className={`count-btn${form.wantsReply === true ? ' selected' : ''}`} onClick={() => setForm((prev) => ({ ...prev, wantsReply: true }))}>希望する</button>
             <button type="button" className={`count-btn${form.wantsReply === false ? ' selected' : ''}`} onClick={() => setForm((prev) => ({ ...prev, wantsReply: false }))}>希望しない</button>
+            <button type="button" className={`count-btn${form.wantsReply === true ? ' selected' : ''}`} onClick={() => setForm((prev) => ({ ...prev, wantsReply: true }))}>希望する</button>
           </div>
         </div>
 
