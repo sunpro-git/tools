@@ -1,0 +1,6 @@
+node_modules/
+dist/
+data/
+.env
+*.db
+service-account-key.json

@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "Bash(timeout 10 npx tsx server/index.ts)",
+      "Bash(curl -s -X POST http://localhost:3001/api/index)",
+      "Bash(curl -s http://localhost:3001/api/index/status)",
+      "Bash(npx tsx -e \":*)",
+      "Bash(netstat -ano)"
+    ]
+  }
+}
