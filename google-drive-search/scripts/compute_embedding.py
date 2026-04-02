@@ -6,6 +6,9 @@ import json
 import torch
 import numpy as np
 from PIL import Image
+
+# パノラマ等の巨大画像の警告を抑止
+Image.MAX_IMAGE_PIXELS = None
 from transformers import CLIPProcessor, CLIPModel
 
 def main():

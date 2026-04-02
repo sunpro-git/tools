@@ -11,9 +11,16 @@ let ready = false;
 let readyPromise: Promise<void> | null = null;
 let responseResolve: ((value: any) => void) | null = null;
 
-/**
- * Python CLIPプロセスを起動（シングルトン）
- */
+// キュー: 並列呼び出しを直列化
+const queue: Array<{
+  tmpPath: string;
+  resolve: (value: any) => void;
+  reject: (err: any) => void;
+}> = [];
+let processing = false;
+
+const TIMEOUT_MS = 60000; // 60秒タイムアウト
+
 async function ensurePython(): Promise<void> {
   if (ready) return;
   if (readyPromise) return readyPromise;
@@ -45,25 +52,25 @@ async function ensurePython(): Promise<void> {
       pythonProcess = null;
       rl = null;
       readyPromise = null;
+      // 待機中のリクエストを全てエラーにする
+      if (responseResolve) {
+        responseResolve({ error: "Python process exited" });
+        responseResolve = null;
+      }
     });
 
     rl = createInterface({ input: pythonProcess.stdout! });
 
-    // 最初の "READY" を待つ
-    rl.once("line", (line) => {
-      if (line.trim() === "READY") {
-        ready = true;
-        console.log("Python CLIPプロセス準備完了");
-        resolve();
-      }
-    });
-
-    // 2行目以降はembeddingレスポンス
     let firstLine = true;
     rl.on("line", (line) => {
       if (firstLine) {
         firstLine = false;
-        return; // READY行はスキップ
+        if (line.trim() === "READY") {
+          ready = true;
+          console.log("Python CLIPプロセス準備完了");
+          resolve();
+        }
+        return;
       }
       if (responseResolve) {
         try {
@@ -81,38 +88,61 @@ async function ensurePython(): Promise<void> {
 }
 
 /**
+ * キューから1件ずつ処理
+ */
+async function processQueue() {
+  if (processing) return;
+  processing = true;
+
+  while (queue.length > 0) {
+    const item = queue.shift()!;
+    try {
+      const result = await new Promise<any>((resolve) => {
+        // タイムアウト設定
+        const timer = setTimeout(() => {
+          resolve({ error: "timeout" });
+        }, TIMEOUT_MS);
+
+        responseResolve = (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        };
+        pythonProcess!.stdin!.write(item.tmpPath + "\n");
+      });
+
+      if (result.error) {
+        item.reject(new Error(result.error));
+      } else {
+        item.resolve(result.embedding);
+      }
+    } catch (err) {
+      item.reject(err);
+    } finally {
+      try {
+        fs.unlinkSync(item.tmpPath);
+      } catch {}
+    }
+  }
+
+  processing = false;
+}
+
+/**
  * 画像バッファからCLIP embeddingを生成
  */
 export async function computeEmbedding(buffer: Buffer): Promise<number[]> {
   await ensurePython();
 
-  // 一時ファイルに保存（Pythonに渡すため）
   const tmpPath = path.join(
     os.tmpdir(),
     `clip_${Date.now()}_${Math.random().toString(36).slice(2)}.jpg`
   );
 
-  try {
-    // JPEGに変換して保存
-    const jpg = await sharp(buffer).jpeg({ quality: 90 }).toBuffer();
-    fs.writeFileSync(tmpPath, jpg);
+  const jpg = await sharp(buffer).jpeg({ quality: 90 }).toBuffer();
+  fs.writeFileSync(tmpPath, jpg);
 
-    // Pythonに画像パスを送信してレスポンスを待つ
-    const result = await new Promise<any>((resolve) => {
-      responseResolve = resolve;
-      pythonProcess!.stdin!.write(tmpPath + "\n");
-    });
-
-    if (result.error) {
-      throw new Error(result.error);
-    }
-
-    return result.embedding;
-  } finally {
-    try {
-      fs.unlinkSync(tmpPath);
-    } catch {
-      // cleanup best effort
-    }
-  }
+  return new Promise<number[]>((resolve, reject) => {
+    queue.push({ tmpPath, resolve, reject });
+    processQueue();
+  });
 }

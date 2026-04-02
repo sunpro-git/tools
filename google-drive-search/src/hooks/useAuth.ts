@@ -2,13 +2,10 @@ import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import type { Session, User } from "@supabase/supabase-js";
 
-const ALLOWED_DOMAIN = import.meta.env.VITE_ALLOWED_DOMAIN || "sunpro36.co.jp";
-
 interface AuthState {
   session: Session | null;
   user: User | null;
   isLoading: boolean;
-  isDomainAllowed: boolean;
 }
 
 export function useAuth(): AuthState & {
@@ -35,16 +32,12 @@ export function useAuth(): AuthState & {
   }, []);
 
   const user = session?.user ?? null;
-  const email = user?.email ?? "";
-  const isDomainAllowed = email.endsWith(`@${ALLOWED_DOMAIN}`);
 
   const signInWithGoogle = async () => {
     await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        queryParams: {
-          hd: ALLOWED_DOMAIN,
-        },
+        redirectTo: window.location.origin + "/google-drive-search/",
       },
     });
   };
@@ -57,7 +50,6 @@ export function useAuth(): AuthState & {
     session,
     user,
     isLoading,
-    isDomainAllowed,
     signInWithGoogle,
     signOut,
   };

@@ -13,7 +13,7 @@ import { computeMd5, computePhash } from "../server/services/hasher.js";
 import { computeEmbedding } from "../server/services/embedder.js";
 import sharp from "sharp";
 
-const CONCURRENCY = 3; // 並列処理数
+const CONCURRENCY = 1; // 直列処理（Supabase接続プール枯渇防止）
 
 const supabase = createClient(
   process.env.SUPABASE_URL!,
@@ -32,6 +32,7 @@ const IMAGE_MIME_TYPES = [
 async function main() {
   const args = process.argv.slice(2);
   const forceReindex = args.includes("--force");
+  const fillMissing = args.includes("--fill"); // サムネ/embedding空のみ再処理
   const addIndex = args.indexOf("--add");
   const onlyIndex = args.indexOf("--only");
 
@@ -70,6 +71,7 @@ async function main() {
   }
 
   console.log(`\n対象ドライブ: ${sources.map((s: any) => s.name).join(", ")}`);
+  console.log(`モード: ${forceReindex ? "全件再処理" : fillMissing ? "欠損データ補完" : "新規のみ"}`);
   console.log(`並列処理数: ${CONCURRENCY}\n`);
 
   await supabase
@@ -90,7 +92,7 @@ async function main() {
 
     for (const source of sources) {
       console.log(`${source.name} を処理中...`);
-      const result = await processDrive(source.drive_id, forceReindex, totalProcessed);
+      const result = await processDrive(source.drive_id, forceReindex, fillMissing, totalProcessed);
       totalProcessed += result.processed;
       totalSkipped += result.skipped;
       totalErrors += result.errors;
@@ -123,6 +125,25 @@ async function main() {
 }
 
 /**
+ * リトライ付き実行
+ */
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries: number = 3,
+  delayMs: number = 2000
+): Promise<T> {
+  for (let i = 0; i < maxRetries; i++) {
+    try {
+      return await fn();
+    } catch (err: any) {
+      if (i === maxRetries - 1) throw err;
+      await new Promise((r) => setTimeout(r, delayMs * (i + 1)));
+    }
+  }
+  throw new Error("unreachable");
+}
+
+/**
  * 1件のファイルを処理（ダウンロード→ハッシュ→embedding→サムネイル→DB保存）
  */
 async function processFile(
@@ -131,6 +152,13 @@ async function processFile(
 ): Promise<{ ok: boolean; error?: string }> {
   try {
     const buffer = await downloadFile(file.id!);
+
+    // 画像として読み込めるか検証
+    try {
+      await sharp(buffer).metadata();
+    } catch {
+      return { ok: false, error: "unsupported image format" };
+    }
 
     // ハッシュ、embedding、サムネイルを並列実行
     const [md5, phash, embeddingResult, thumbnailResult] = await Promise.all([
@@ -143,25 +171,40 @@ async function processFile(
       generateThumbnail(buffer, file.id!),
     ]);
 
-    const { error } = await supabase.from("image_index").upsert(
-      {
-        drive_file_id: file.id!,
-        name: file.name!,
-        mime_type: file.mimeType!,
-        md5_hash: md5,
-        phash,
-        embedding: embeddingResult ? JSON.stringify(embeddingResult) : null,
-        thumbnail_url: thumbnailResult,
-        web_view_link: file.webViewLink ?? null,
-        file_size: file.size ? parseInt(file.size) : null,
-        folder_path: "",
-        source_drive_id: driveId,
-        indexed_at: new Date().toISOString(),
-      },
-      { onConflict: "drive_file_id" }
-    );
+    // DB保存（メタデータ — 軽量、リトライ付き）
+    await withRetry(async () => {
+      const { error } = await supabase.from("image_index").upsert(
+        {
+          drive_file_id: file.id!,
+          name: file.name!,
+          mime_type: file.mimeType!,
+          md5_hash: md5,
+          phash,
+          thumbnail_url: thumbnailResult,
+          web_view_link: file.webViewLink ?? null,
+          file_size: file.size ? parseInt(file.size) : null,
+          folder_path: "",
+          source_drive_id: driveId,
+          indexed_at: new Date().toISOString(),
+        },
+        { onConflict: "drive_file_id" }
+      );
+      if (error) throw new Error(error.message);
+    });
 
-    if (error) return { ok: false, error: error.message };
+    // embedding保存（別途update — 大きいデータなので分離）
+    if (embeddingResult) {
+      await withRetry(async () => {
+        const { error } = await supabase
+          .from("image_index")
+          .update({ embedding: JSON.stringify(embeddingResult) })
+          .eq("drive_file_id", file.id!);
+        if (error) throw new Error(error.message);
+      });
+    }
+
+    // DB負荷軽減
+    await new Promise((r) => setTimeout(r, 500));
     return { ok: true };
   } catch (err: any) {
     return { ok: false, error: err.message };
@@ -181,9 +224,12 @@ async function generateThumbnail(
       .jpeg({ quality: 70 })
       .toBuffer();
     const thumbPath = `${fileId}.jpg`;
-    await supabase.storage
-      .from("thumbnails")
-      .upload(thumbPath, thumb, { contentType: "image/jpeg", upsert: true });
+    await withRetry(() =>
+      supabase.storage
+        .from("thumbnails")
+        .upload(thumbPath, thumb, { contentType: "image/jpeg", upsert: true })
+        .then(({ error }) => { if (error) throw error; })
+    );
     const { data } = supabase.storage
       .from("thumbnails")
       .getPublicUrl(thumbPath);
@@ -218,6 +264,7 @@ async function runParallel<T>(
 async function processDrive(
   driveId: string,
   forceReindex: boolean,
+  fillMissing: boolean,
   globalOffset: number
 ): Promise<{ processed: number; skipped: number; errors: number }> {
   const drive = getDriveClient();
@@ -243,19 +290,24 @@ async function processDrive(
 
     const files = res.data.files || [];
 
-    // 既存チェックでフィルタリング（forceでなければ）
+    // 既存チェックでフィルタリング
     let filesToProcess = files;
     if (!forceReindex) {
       const filtered = [];
       for (const file of files) {
         const { data: existing } = await supabase
           .from("image_index")
-          .select("id")
+          .select("id, thumbnail_url, embedding")
           .eq("drive_file_id", file.id!)
           .limit(1);
         if (existing && existing.length > 0) {
-          skipped++;
-          processed++;
+          if (fillMissing && (!existing[0].thumbnail_url || !existing[0].embedding)) {
+            // サムネイルかembeddingが欠損 → 再処理
+            filtered.push(file);
+          } else {
+            skipped++;
+            processed++;
+          }
         } else {
           filtered.push(file);
         }

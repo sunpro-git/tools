@@ -1,4 +1,4 @@
-import { ImageIcon, LogIn, ShieldAlert } from "lucide-react";
+import { ShieldAlert } from "lucide-react";
 
 interface Props {
   onLogin: () => void;
@@ -12,9 +12,7 @@ export default function LoginPage({ onLogin, error }: Props) {
         <div className="bg-[var(--color-surface)] rounded-2xl border border-[var(--color-border)] p-8 text-center space-y-6">
           {/* アイコン */}
           <div className="flex justify-center">
-            <div className="w-16 h-16 rounded-2xl bg-[var(--color-accent)]/10 flex items-center justify-center">
-              <ImageIcon size={32} className="text-[var(--color-accent)]" />
-            </div>
+            <img src={import.meta.env.BASE_URL + "favicon.svg"} alt="" className="w-16 h-16" />
           </div>
 
           {/* タイトル */}
@@ -60,7 +58,7 @@ export default function LoginPage({ onLogin, error }: Props) {
           </button>
 
           <p className="text-xs text-slate-400">
-            社内アカウントでのみ利用できます
+            Googleアカウントでログインしてください
           </p>
         </div>
       </div>

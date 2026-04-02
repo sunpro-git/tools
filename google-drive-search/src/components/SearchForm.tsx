@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef } from "react";
-import { Upload, Search } from "lucide-react";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { Upload, Search, X } from "lucide-react";
 
 type SearchMode = "exact" | "similar" | "both";
 
@@ -25,6 +25,30 @@ export default function SearchForm({
     const url = URL.createObjectURL(f);
     setPreview(url);
   }, []);
+
+  const clearFile = useCallback(() => {
+    if (preview) URL.revokeObjectURL(preview);
+    setFile(null);
+    setPreview(null);
+    if (inputRef.current) inputRef.current.value = "";
+  }, [preview]);
+
+  // クリップボード貼り付け（Ctrl+V）
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      for (const item of items) {
+        if (item.type.startsWith("image/")) {
+          const f = item.getAsFile();
+          if (f) handleFile(f);
+          break;
+        }
+      }
+    };
+    document.addEventListener("paste", handlePaste);
+    return () => document.removeEventListener("paste", handlePaste);
+  }, [handleFile]);
 
   const handleDrop = useCallback(
     (e: React.DragEvent) => {
@@ -69,7 +93,17 @@ export default function SearchForm({
         />
 
         {preview ? (
-          <div className="flex flex-col items-center gap-3">
+          <div className="relative flex flex-col items-center gap-3">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                clearFile();
+              }}
+              className="absolute top-0 right-0 p-1 rounded-full bg-slate-200 hover:bg-slate-300 text-slate-500 hover:text-slate-700 transition-colors"
+            >
+              <X size={16} />
+            </button>
             <img
               src={preview}
               alt="プレビュー"
@@ -81,7 +115,7 @@ export default function SearchForm({
           <div className="flex flex-col items-center gap-2 text-slate-500">
             <Upload size={40} className="opacity-50" />
             <p>画像をドラッグ&ドロップ</p>
-            <p className="text-sm">またはクリックして選択</p>
+            <p className="text-sm">クリックして選択 / Ctrl+Vでクリップボードの画像を貼り付け</p>
           </div>
         )}
       </div>
