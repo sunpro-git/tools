@@ -922,7 +922,7 @@ export default function FollowUpPage() {
         <div className="flex items-center gap-4 px-4 py-2.5 border-b border-slate-100">
           <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
             <span className="inline-flex items-center justify-center gap-1 w-auto px-2 h-10 rounded-lg bg-gray-500 text-white font-bold text-lg">
-              <UserSearch className="w-5 h-5" />B1
+              <UserSearch className="w-5 h-5" />A4
             </span>
             個人商談集計
           </h1>
@@ -1040,7 +1040,7 @@ export default function FollowUpPage() {
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
-              <span className="inline-flex items-center justify-center h-10 rounded-lg bg-gray-500 text-white font-bold text-sm px-3">B1 - <span className="text-xl">1</span></span>
+              <span className="inline-flex items-center justify-center h-10 rounded-lg bg-gray-500 text-white font-bold text-sm px-3">A4 - <span className="text-xl">1</span></span>
               担当者別の商談数
             </h2>
             <div className="flex items-center gap-3 text-xs">
@@ -1055,9 +1055,9 @@ export default function FollowUpPage() {
                 <tr className="bg-slate-50">
                   <th className="px-2 py-1.5 border border-slate-200 text-left font-semibold text-slate-700 whitespace-nowrap sticky left-0 bg-slate-50 z-10">部門</th>
                   <th className="px-3 py-1.5 border border-slate-200 text-left font-semibold text-slate-700 whitespace-nowrap">担当者</th>
-                  {b1Data.months.slice(0, 6).map(ym => <th key={ym} className="px-1 py-1.5 border border-slate-200 text-center font-semibold text-slate-700 whitespace-nowrap">{parseInt(ym.slice(5))}月</th>)}
+                  {b1Data.months.slice(0, 6).map(ym => <th key={ym} className="px-1 py-1.5 border border-slate-200 text-center font-semibold text-slate-700 whitespace-nowrap">{parseInt(ym.slice(0, 4))}年{parseInt(ym.slice(5))}月</th>)}
                   <th className="px-1 py-1.5 border border-slate-300 text-center font-bold text-slate-700 whitespace-nowrap bg-blue-50">上期</th>
-                  {b1Data.months.slice(6, 12).map(ym => <th key={ym} className="px-1 py-1.5 border border-slate-200 text-center font-semibold text-slate-700 whitespace-nowrap">{parseInt(ym.slice(5))}月</th>)}
+                  {b1Data.months.slice(6, 12).map(ym => <th key={ym} className="px-1 py-1.5 border border-slate-200 text-center font-semibold text-slate-700 whitespace-nowrap">{parseInt(ym.slice(0, 4))}年{parseInt(ym.slice(5))}月</th>)}
                   <th className="px-1 py-1.5 border border-slate-300 text-center font-bold text-slate-700 whitespace-nowrap bg-green-50">下期</th>
                   <th className="px-1 py-1.5 border border-slate-300 text-center font-bold text-slate-700 whitespace-nowrap bg-amber-50">年間</th>
                 </tr>
@@ -1219,7 +1219,7 @@ export default function FollowUpPage() {
           <div className="bg-white rounded-xl border border-slate-200 p-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
-                <span className="inline-flex items-center justify-center h-10 rounded-lg bg-gray-500 text-white font-bold text-sm px-3">B1 - <span className="text-xl">2</span></span>
+                <span className="inline-flex items-center justify-center h-10 rounded-lg bg-gray-500 text-white font-bold text-sm px-3">A4 - <span className="text-xl">2</span></span>
                 来場→アポ転換フロー
               </h2>
               <div className="flex items-center gap-4 text-xs">
@@ -1290,7 +1290,7 @@ export default function FollowUpPage() {
           <div className="bg-white rounded-xl border border-slate-200 p-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
-                <span className="inline-flex items-center justify-center h-10 rounded-lg bg-gray-500 text-white font-bold text-sm px-3">B1 - <span className="text-xl">3</span></span>
+                <span className="inline-flex items-center justify-center h-10 rounded-lg bg-gray-500 text-white font-bold text-sm px-3">A4 - <span className="text-xl">3</span></span>
                 来場区分別アポイント率
               </h2>
               <div className="flex items-center gap-3">

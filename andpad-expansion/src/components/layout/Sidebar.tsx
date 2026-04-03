@@ -15,13 +15,13 @@ const navCategories = [
       { to: '/inquiry', badge: 'A1', label: '新規反響' },
       { to: '/event-inquiry', badge: 'A2', label: 'イベント' },
       { to: '/model-house', badge: 'A3', label: 'モデルハウス' },
+      { to: '/follow-up', badge: 'A4', label: '個人商談集計' },
     ],
   },
   {
     badge: 'B', label: '追客', icon: UserSearch,
     items: [
-      { to: '/follow-up', badge: 'B1', label: '個人商談集計' },
-      { to: '/follow-up-b2', badge: 'B2', label: '追客管理' },
+      { to: '/follow-up-b2', badge: 'B1', label: '追客管理' },
     ],
   },
   {

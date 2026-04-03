@@ -4,6 +4,7 @@ import { Loader2, Plus, ClipboardEdit, X, Trash2, ImagePlus, Pencil, ExternalLin
 import { useBusinessType } from '../../hooks/useBusinessType'
 import { BUSINESS_TYPES } from '../../hooks/useDepartments'
 import type { Event, EventVisitor } from '../../types/database'
+import StaffSelector from '../common/StaffSelector'
 
 interface EventWithVisitors extends Event {
   visitors: EventVisitor[]
@@ -109,6 +110,84 @@ export default function EventInquiryPage() {
   const filteredEvents = useMemo(() => events.filter((e) => e.division?.includes(businessType)), [events, businessType])
   const totalVisitors = useMemo(() => filteredEvents.reduce((s, e) => s + e.visitorCount, 0), [filteredEvents])
   const totalAppointments = useMemo(() => filteredEvents.reduce((s, e) => s + e.appointmentCount, 0), [filteredEvents])
+
+  // A2-2: イベント来場者一覧
+  interface VisitRecord { id: string; visit_date: string; model_house_type: string | null; customer_name: string; customer_type: string | null; reservation: string | null; staff1: string | null; has_appointment: string | null; appointment_content: string | null; notes: string | null; customer_andpad_id: string | null; business_type: string }
+  const [visitRecords, setVisitRecords] = useState<VisitRecord[]>([])
+  const [visitLoading, setVisitLoading] = useState(false)
+  const [showVisitAddModal, setShowVisitAddModal] = useState(false)
+  const [editVisitRecord, setEditVisitRecord] = useState<VisitRecord | null>(null)
+  const [visitForm, setVisitForm] = useState({ model_house_type: '', visit_date: new Date().toISOString().slice(0, 10), customer_name: '', reservation: '', customer_type: '', staff1: '', has_appointment: '', appointment_content: '', notes: '' })
+  const [editVisitForm, setEditVisitForm] = useState<Record<string, string | null>>({})
+  const [visitSaving, setVisitSaving] = useState(false)
+  const [visitFilter, setVisitFilter] = useState('')
+
+  const eventNameOptions = useMemo(() => filteredEvents.map(e => e.name), [filteredEvents])
+
+  const fetchVisitRecords = useCallback(async () => {
+    setVisitLoading(true)
+    if (eventNameOptions.length === 0) { setVisitRecords([]); setVisitLoading(false); return }
+    const { data } = await supabase.from('model_house_visits').select('id,visit_date,model_house_type,customer_name,customer_type,reservation,staff1,has_appointment,appointment_content,notes,customer_andpad_id,business_type')
+      .in('model_house_type', eventNameOptions).order('visit_date', { ascending: false }).limit(500)
+    if (data) setVisitRecords(data)
+    setVisitLoading(false)
+  }, [eventNameOptions])
+
+  useEffect(() => { fetchVisitRecords() }, [fetchVisitRecords])
+
+  const filteredVisitRecords = useMemo(() => visitFilter ? visitRecords.filter(v => v.model_house_type === visitFilter) : visitRecords, [visitRecords, visitFilter])
+
+  const allVisitStaff = useMemo(() => {
+    const set = new Set<string>()
+    for (const v of visitRecords) { if (v.staff1?.trim()) set.add(v.staff1.trim()) }
+    return [...set].sort((a, b) => a.localeCompare(b, 'ja'))
+  }, [visitRecords])
+
+  const handleVisitAdd = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!visitForm.customer_name.trim()) return
+    setVisitSaving(true)
+    const row: Record<string, unknown> = { ...visitForm, business_type: businessType }
+    for (const [k, v] of Object.entries(row)) { if (typeof v === 'string' && v.trim() === '') row[k] = null }
+    await supabase.from('model_house_visits').insert(row)
+    setShowVisitAddModal(false)
+    setVisitSaving(false)
+    fetchVisitRecords()
+  }
+
+  const handleVisitEditSave = async () => {
+    if (!editVisitRecord) return
+    setVisitSaving(true)
+    const clean: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(editVisitForm)) { clean[k] = typeof v === 'string' && v.trim() === '' ? null : v }
+    await supabase.from('model_house_visits').update(clean).eq('id', editVisitRecord.id)
+    setEditVisitRecord(null)
+    setVisitSaving(false)
+    fetchVisitRecords()
+  }
+
+  const handleVisitDelete = async (id: string) => {
+    if (!confirm('この記録を削除しますか？')) return
+    await supabase.from('model_house_visits').delete().eq('id', id)
+    fetchVisitRecords()
+  }
+
+  const openVisitEditModal = (v: VisitRecord) => {
+    setEditVisitRecord(v)
+    setEditVisitForm({ model_house_type: v.model_house_type || '', visit_date: v.visit_date || '', customer_name: v.customer_name || '', reservation: v.reservation || '', customer_type: v.customer_type || '', staff1: v.staff1 || '', has_appointment: v.has_appointment || '', appointment_content: v.appointment_content || '', notes: v.notes || '' })
+  }
+
+  const VISIT_COLUMNS = [
+    { key: 'model_house_type', label: 'イベント名', width: '12%' },
+    { key: 'visit_date', label: '来場日', width: '7%' },
+    { key: 'customer_name', label: 'お客様氏名', width: '8%' },
+    { key: 'reservation', label: '予約', width: '5%' },
+    { key: 'customer_type', label: '来場区分', width: '6%' },
+    { key: 'staff1', label: '対応者', width: '6%' },
+    { key: 'has_appointment', label: '次アポ', width: '4%' },
+    { key: 'appointment_content', label: '次アポ内容', width: '10%' },
+    { key: 'notes', label: '備考', width: '15%' },
+  ]
 
   const formatDates = (dates: string[]) => {
     if (!dates || dates.length === 0) return '-'
@@ -353,6 +432,212 @@ export default function EventInquiryPage() {
           </div>
         )}
       </div>
+
+      {/* A2-2: イベント来場者一覧 */}
+      <div className="bg-white rounded-xl border border-slate-200 mt-4 p-4">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+            <span className="inline-flex items-center justify-center h-10 rounded-lg bg-gray-500 text-white font-bold text-sm px-3">A2 - <span className="text-xl">2</span></span>
+            イベント来場者一覧
+          </h2>
+          <button onClick={() => { setVisitForm({ model_house_type: eventNameOptions[0] || '', visit_date: new Date().toISOString().slice(0, 10), customer_name: '', reservation: '', customer_type: '', staff1: '', has_appointment: '', appointment_content: '', notes: '' }); setShowVisitAddModal(true) }} className="flex items-center gap-1 px-3 py-1.5 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
+            <Plus className="w-4 h-4" />新規追加
+          </button>
+        </div>
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          <button onClick={() => setVisitFilter('')} className={`px-2.5 py-1 text-xs rounded-lg border transition-colors ${!visitFilter ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>全て</button>
+          {eventNameOptions.map(name => (
+            <button key={name} onClick={() => setVisitFilter(name)} className={`px-2.5 py-1 text-xs rounded-lg border transition-colors ${visitFilter === name ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>{name}</button>
+          ))}
+        </div>
+        {visitLoading ? (
+          <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs border-collapse table-fixed" style={{ fontVariantNumeric: 'tabular-nums' }}>
+              <thead>
+                <tr className="bg-slate-50">
+                  {VISIT_COLUMNS.map(col => (
+                    <th key={col.key} className="px-2 py-1.5 border border-slate-200 text-left font-semibold text-slate-600 whitespace-nowrap" style={{ width: col.width }}>{col.label}</th>
+                  ))}
+                  <th className="px-2 py-1.5 border border-slate-200 text-center font-semibold text-slate-600" style={{ width: '3%' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredVisitRecords.length === 0 ? (
+                  <tr><td colSpan={VISIT_COLUMNS.length + 1} className="text-center py-8 text-slate-400 border border-slate-200">データがありません</td></tr>
+                ) : filteredVisitRecords.map(v => (
+                  <tr key={v.id} className="hover:bg-slate-50 cursor-pointer" onDoubleClick={() => openVisitEditModal(v)}>
+                    <td className="px-2 py-1 border border-slate-200 text-xs text-slate-700 truncate">{v.model_house_type || '-'}</td>
+                    <td className="px-2 py-1 border border-slate-200 text-xs text-slate-700">{v.visit_date?.replace(/-/g, '/') || '-'}</td>
+                    <td className="px-2 py-1 border border-slate-200 text-xs text-slate-700 truncate">{v.customer_name || '-'}</td>
+                    <td className="px-2 py-1 border border-slate-200 text-xs text-slate-700">{v.reservation || '-'}</td>
+                    <td className="px-2 py-1 border border-slate-200 text-xs text-slate-700">{v.customer_type || '-'}</td>
+                    <td className="px-2 py-1 border border-slate-200 text-xs text-slate-700">{v.staff1 || '-'}</td>
+                    <td className="px-2 py-1 border border-slate-200 text-xs text-slate-700">{v.has_appointment || '-'}</td>
+                    <td className="px-2 py-1 border border-slate-200 text-xs text-slate-700 truncate">{v.appointment_content || '-'}</td>
+                    <td className="px-2 py-1 border border-slate-200 text-xs text-slate-700 truncate">{v.notes || '-'}</td>
+                    <td className="px-1 py-1 border border-slate-200 text-center">
+                      <button type="button" onClick={() => openVisitEditModal(v)} className="text-slate-400 hover:text-blue-600 cursor-pointer" title="編集"><Pencil className="w-3.5 h-3.5 inline" /></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* A2-2 新規追加モーダル */}
+      {showVisitAddModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowVisitAddModal(false)}>
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200">
+              <h3 className="text-base font-bold text-slate-900">来場者を追加</h3>
+              <button onClick={() => setShowVisitAddModal(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+            </div>
+            <form onSubmit={handleVisitAdd} className="p-6 space-y-5 overflow-auto flex-1">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">イベント</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {eventNameOptions.map(name => (
+                    <button key={name} type="button" onClick={() => setVisitForm(f => ({ ...f, model_house_type: name }))} className={`px-2.5 py-1.5 text-xs rounded-lg border transition-colors ${visitForm.model_house_type === name ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>{name}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-end gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">来場日</label>
+                  <input type="date" value={visitForm.visit_date} onChange={(e) => setVisitForm(f => ({ ...f, visit_date: e.target.value }))} className="w-48 px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">予約</label>
+                  <div className="flex gap-1.5">
+                    {['予約あり', '予約なし'].map(o => (
+                      <button key={o} type="button" onClick={() => setVisitForm(f => ({ ...f, reservation: f.reservation === o ? '' : o }))} className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${visitForm.reservation === o ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>{o}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">お客様氏名 <span className="text-red-500">*</span></label>
+                <input type="text" value={visitForm.customer_name} onChange={(e) => setVisitForm(f => ({ ...f, customer_name: e.target.value }))} placeholder="例: 山田 太郎" className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+              </div>
+              <StaffSelector category={visitForm.model_house_type} value={visitForm.staff1} onChange={(name) => setVisitForm(f => ({ ...f, staff1: name }))} allStaffNames={allVisitStaff} />
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">来場区分</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {['新築新規', '新築再来', 'リフォーム新規', 'リフォーム再来', '計画なし'].map(o => (
+                    <button key={o} type="button" onClick={() => setVisitForm(f => ({ ...f, customer_type: f.customer_type === o ? '' : o }))} className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${visitForm.customer_type === o ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>{o}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">次アポ</label>
+                <div className="flex gap-1.5">
+                  {['有', '無'].map(o => (
+                    <button key={o} type="button" onClick={() => setVisitForm(f => ({ ...f, has_appointment: f.has_appointment === o ? '' : o }))} className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${visitForm.has_appointment === o ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>{o}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">次アポ内容</label>
+                  <input type="text" value={visitForm.appointment_content} onChange={(e) => setVisitForm(f => ({ ...f, appointment_content: e.target.value }))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">備考</label>
+                  <input type="text" value={visitForm.notes} onChange={(e) => setVisitForm(f => ({ ...f, notes: e.target.value }))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                </div>
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setShowVisitAddModal(false)} className="px-4 py-2 text-sm text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200">キャンセル</button>
+                <button type="submit" disabled={visitSaving || !visitForm.customer_name.trim()} className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1">
+                  {visitSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}追加
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* A2-2 編集モーダル */}
+      {editVisitRecord && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setEditVisitRecord(null)}>
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200">
+              <h3 className="text-base font-bold text-slate-900">来場記録を編集</h3>
+              <button onClick={() => setEditVisitRecord(null)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-5 overflow-auto flex-1">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">イベント</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {eventNameOptions.map(name => (
+                    <button key={name} type="button" onClick={() => setEditVisitForm(f => ({ ...f, model_house_type: name }))} className={`px-2.5 py-1.5 text-xs rounded-lg border transition-colors ${editVisitForm.model_house_type === name ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>{name}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex items-end gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">来場日</label>
+                  <input type="date" value={editVisitForm.visit_date || ''} onChange={(e) => setEditVisitForm(f => ({ ...f, visit_date: e.target.value }))} className="w-48 px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">予約</label>
+                  <div className="flex gap-1.5">
+                    {['予約あり', '予約なし'].map(o => (
+                      <button key={o} type="button" onClick={() => setEditVisitForm(f => ({ ...f, reservation: f.reservation === o ? '' : o }))} className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${editVisitForm.reservation === o ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>{o}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">お客様氏名</label>
+                <input type="text" value={editVisitForm.customer_name || ''} onChange={(e) => setEditVisitForm(f => ({ ...f, customer_name: e.target.value }))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+              </div>
+              <StaffSelector category={editVisitForm.model_house_type || ''} value={editVisitForm.staff1 || ''} onChange={(name) => setEditVisitForm(f => ({ ...f, staff1: name }))} allStaffNames={allVisitStaff} />
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">来場区分</label>
+                <div className="flex flex-wrap gap-1.5">
+                  {['新築新規', '新築再来', 'リフォーム新規', 'リフォーム再来', '計画なし'].map(o => (
+                    <button key={o} type="button" onClick={() => setEditVisitForm(f => ({ ...f, customer_type: f.customer_type === o ? '' : o }))} className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${editVisitForm.customer_type === o ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>{o}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">次アポ</label>
+                <div className="flex gap-1.5">
+                  {['有', '無'].map(o => (
+                    <button key={o} type="button" onClick={() => setEditVisitForm(f => ({ ...f, has_appointment: f.has_appointment === o ? '' : o }))} className={`px-3 py-1.5 text-xs rounded-lg border transition-colors ${editVisitForm.has_appointment === o ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>{o}</button>
+                  ))}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">次アポ内容</label>
+                  <input type="text" value={editVisitForm.appointment_content || ''} onChange={(e) => setEditVisitForm(f => ({ ...f, appointment_content: e.target.value }))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1.5">備考</label>
+                  <input type="text" value={editVisitForm.notes || ''} onChange={(e) => setEditVisitForm(f => ({ ...f, notes: e.target.value }))} className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm" />
+                </div>
+              </div>
+              <div className="flex items-center justify-between pt-2">
+                <button type="button" onClick={() => { if (editVisitRecord && confirm('この記録を削除しますか？')) { handleVisitDelete(editVisitRecord.id); setEditVisitRecord(null) } }} className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg flex items-center gap-1">
+                  <Trash2 className="w-4 h-4" />削除
+                </button>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => setEditVisitRecord(null)} className="px-4 py-2 text-sm text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200">キャンセル</button>
+                  <button type="button" onClick={handleVisitEditSave} disabled={visitSaving} className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1">
+                    {visitSaving && <Loader2 className="w-4 h-4 animate-spin" />}保存
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* イベント登録モーダル */}
       {showRegister && (

@@ -137,6 +137,8 @@ interface DealRow {
   inquiry_date: string | null
   order_date: string | null
   order_amount: number | null
+  contract_amount_ex_tax: number | null
+  estimate_amount_ex_tax: number | null
   store_name: string | null
   staff_name: string | null
   andpad_id: string | null
@@ -293,7 +295,7 @@ export default function InquiryPage() {
     const periodToDate = `${periodTo}-${String(lastDay).padStart(2, '0')}`
     let query = supabase
       .from('deals')
-      .select('customer_name,name,deal_category,response_category,response_category_detail,inquiry_date,order_date,order_amount,store_name,staff_name,andpad_id,customer_andpad_id')
+      .select('customer_name,name,deal_category,response_category,response_category_detail,inquiry_date,order_date,order_amount,contract_amount_ex_tax,estimate_amount_ex_tax,store_name,staff_name,andpad_id,customer_andpad_id')
       .not('inquiry_date', 'is', null)
       .gte('inquiry_date', `${periodFrom}-01`)
       .lte('inquiry_date', periodToDate)
@@ -365,7 +367,10 @@ export default function InquiryPage() {
         }
         for (const row of rows) {
           if (!row.order_date && row.customer_andpad_id && contractMap[row.customer_andpad_id]) {
-            row.contracted_deals = contractMap[row.customer_andpad_id]
+            // 反響日以前の契約はカウントしない
+            row.contracted_deals = row.inquiry_date
+              ? contractMap[row.customer_andpad_id].filter(c => c.order_date >= row.inquiry_date!)
+              : contractMap[row.customer_andpad_id]
           }
         }
       }
@@ -1412,6 +1417,7 @@ export default function InquiryPage() {
                       <th className="text-left py-2 px-3 border-b border-slate-200 font-semibold text-slate-700 whitespace-nowrap">住所</th>
                       <th className="text-left py-2 px-3 border-b border-slate-200 font-semibold text-slate-700 whitespace-nowrap">案件種別</th>
                       <th className="text-center py-2 px-3 border-b border-slate-200 font-semibold text-slate-700 whitespace-nowrap">反響日</th>
+                      <th className="text-right py-2 px-3 border-b border-slate-200 font-semibold text-emerald-600 whitespace-nowrap">契約見込額</th>
                       <th className="text-center py-2 px-3 border-b border-slate-200 font-semibold whitespace-nowrap" style={{ color: '#c53d43' }}>契約日</th>
                       <th className="text-right py-2 px-3 border-b border-slate-200 font-semibold whitespace-nowrap" style={{ color: '#c53d43' }}>契約額</th>
                       <th className="text-left py-2 px-3 border-b border-slate-200 font-semibold text-slate-700 whitespace-nowrap">店舗</th>
@@ -1421,7 +1427,7 @@ export default function InquiryPage() {
                   </thead>
                   <tbody>
                     {detailDeals.length === 0 ? (
-                      <tr><td colSpan={11} className="py-8 text-center text-slate-400">データなし</td></tr>
+                      <tr><td colSpan={12} className="py-8 text-center text-slate-400">データなし</td></tr>
                     ) : detailDeals.map((d, i) => {
                       const hasContract = d.order_date != null
                       const andpadUrl = d.andpad_id ? `https://andpad.jp/manager/my/orders/${d.andpad_id}` : null
@@ -1440,6 +1446,12 @@ export default function InquiryPage() {
                           <td className="py-1.5 px-3 text-slate-500 text-xs max-w-[200px] truncate" title={d.customer_address || ''}>{d.customer_address || '-'}</td>
                           <td className="py-1.5 px-3 text-slate-600 whitespace-nowrap">{d.deal_category || '-'}</td>
                           <td className="py-1.5 px-3 text-center text-slate-600 whitespace-nowrap">{d.inquiry_date || '-'}</td>
+                          <td className="py-1.5 px-3 text-right whitespace-nowrap text-xs">
+                            {(() => {
+                              const amt = d.contract_amount_ex_tax || d.estimate_amount_ex_tax
+                              return amt ? <span className="text-emerald-600 font-medium">¥{amt.toLocaleString()}</span> : <span className="text-slate-300">-</span>
+                            })()}
+                          </td>
                           <td className="py-1.5 px-3 text-center whitespace-nowrap">
                             {hasContract
                               ? <span className="font-medium" style={{ color: '#c53d43' }}>{d.order_date}</span>

@@ -1,12 +1,15 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../../lib/supabase'
-import { RefreshCw, UserSearch, User } from 'lucide-react'
+import { RefreshCw, UserSearch, User, Pencil, X, Loader2, Plus, ExternalLink } from 'lucide-react'
 import { useBusinessType } from '../../hooks/useBusinessType'
 import { BUSINESS_TYPES, useDepartments } from '../../hooks/useDepartments'
 import { useFiscalYear } from '../../hooks/useFiscalYear'
 import { sankey as d3Sankey, sankeyLinkHorizontal } from 'd3-sankey'
+import StaffSelector from '../common/StaffSelector'
 
 type VisitRow = { staff1: string | null; visit_date: string; has_appointment: string | null; customer_type: string | null; model_house_type: string | null; customer_name: string | null; appointment_content: string | null }
+
+const cleanStaff = (name: unknown) => typeof name === 'string' ? name.replace(/^\d+:\s*/, '').replace(/\s+/g, '') : '-'
 
 export default function FollowUpB2Page() {
   const { businessType, setBusinessType } = useBusinessType()
@@ -17,7 +20,182 @@ export default function FollowUpB2Page() {
   const [visitData, setVisitData] = useState<VisitRow[]>([])
   const [refreshing, setRefreshing] = useState(false)
   const [b1Detail, setB1Detail] = useState<{ title: string; visits: VisitRow[] } | null>(null)
-  const [selectedB1_3Staff, setSelectedB1_3Staff] = useState<string>('')
+
+  // B1-2: 追客案件一覧
+  type DealRecord = Record<string, string | number | null>
+  const [deals, setDeals] = useState<DealRecord[]>([])
+  const [dealsLoading, setDealsLoading] = useState(false)
+  const [editDeal, setEditDeal] = useState<DealRecord | null>(null)
+  const [editDealForm, setEditDealForm] = useState<Record<string, string | null>>({})
+  const [dealSaving, setDealSaving] = useState(false)
+  const [dealStaffFilter, setDealStaffFilter] = useState('')
+  const [showAllColumns, setShowAllColumns] = useState(false)
+
+  const HIDDEN_IN_MAIN = new Set(['custom_migration', 'custom_age', 'referrer', 'custom_employer', 'custom_finance_consult', 'custom_no_plan', 'custom_coop_appoint', 'custom_line_works', 'custom_discovery'])
+
+  const ALL_DEAL_COLUMNS = [
+    { key: 'customer_name', label: '顧客名', width: '6%' },
+    { key: 'staff_name', label: '担当者', width: '5%' },
+    { key: 'closing_probability', label: '見込', width: '3%' },
+    { key: 'custom_age', label: '年齢', width: '3%' },
+    { key: 'custom_income', label: '世帯年収', width: '4%' },
+    { key: 'referrer', label: '紹介・ファミリー', width: '5%' },
+    { key: 'custom_employer', label: 'お勤め先', width: '5%' },
+    { key: 'amount_ab', label: '金額A+B', width: '5%' },
+    { key: 'custom_floor_area', label: '坪数', width: '3%' },
+    { key: 'label_area', label: 'エリア', width: '4%' },
+    { key: 'construction_location', label: '建築地状況', width: '4%' },
+    { key: 'order_date_planned', label: '契約目標月', width: '4%' },
+    { key: 'start_date_planned', label: '着工希望月', width: '4%' },
+    { key: 'custom_meeting_status', label: '最新打合わせ', width: '5%' },
+    { key: 'custom_next_schedule', label: '次回の予定', width: '5%' },
+    { key: 'custom_competitor', label: '競合', width: '3%' },
+    { key: 'custom_migration', label: '移住', width: '3%' },
+    { key: 'custom_finance_consult', label: '資金相談', width: '3%' },
+    { key: 'custom_no_plan', label: '無P', width: '2%' },
+    { key: 'custom_coop_appoint', label: '協ア', width: '2%' },
+    { key: 'custom_line_works', label: 'LINE', width: '2%' },
+    { key: 'deal_category', label: '商品', width: '4%' },
+    { key: 'custom_discovery', label: '発掘', width: '3%' },
+    { key: 'custom_basic_info', label: '基本情報', width: '3%' },
+    { key: 'custom_plan', label: '計画', width: '3%' },
+    { key: 'custom_self_fund_loan', label: '自己資金', width: '3%' },
+    { key: 'custom_decision_maker', label: '決定者', width: '4%' },
+  ]
+
+  const DEAL_COLUMNS = showAllColumns ? ALL_DEAL_COLUMNS : ALL_DEAL_COLUMNS.filter(c => !HIDDEN_IN_MAIN.has(c.key))
+
+  const DEAL_EDIT_FIELDS = [
+    { key: 'custom_migration', label: '移住' },
+    { key: 'closing_probability', label: '見込' },
+    { key: 'custom_floor_area', label: '坪数' },
+    { key: 'label_area', label: 'エリア' },
+    { key: 'construction_location', label: '建築地状況' },
+    { key: 'order_date_planned', label: '契約目標月', type: 'date' },
+    { key: 'start_date_planned', label: '着工希望月', type: 'date' },
+    { key: 'custom_meeting_status', label: '最新打合わせ状況' },
+    { key: 'custom_next_schedule', label: '次回の予定' },
+    { key: 'custom_competitor', label: '競合' },
+    { key: 'custom_finance_consult', label: '資金相談' },
+    { key: 'custom_no_plan', label: '無P' },
+    { key: 'custom_coop_appoint', label: '協ア' },
+    { key: 'custom_line_works', label: 'LINE WORKS' },
+    { key: 'custom_discovery', label: '発掘' },
+    { key: 'custom_basic_info', label: '基本情報' },
+    { key: 'custom_plan', label: '計画' },
+    { key: 'custom_self_fund_loan', label: '自己資金ローン審査' },
+    { key: 'custom_decision_maker', label: '決定者' },
+  ]
+
+  const fetchDeals = useCallback(async () => {
+    setDealsLoading(true)
+    const { data } = await supabase.from('deals')
+      .select('id,andpad_id,customer_name,staff_name,closing_probability,contract_amount_ex_tax,estimate_amount_ex_tax,label_area,construction_location,order_date,order_date_planned,start_date_planned,deal_category,customer_id,custom_migration,custom_floor_area,custom_meeting_status,custom_next_schedule,custom_competitor,custom_finance_consult,custom_no_plan,custom_coop_appoint,custom_line_works,custom_discovery,custom_basic_info,custom_plan,custom_self_fund_loan,custom_decision_maker')
+      .eq('followup_active', true)
+      .order('order_date_planned', { ascending: true })
+      .limit(500)
+    // customer info join
+    if (data && data.length > 0) {
+      const custIds = [...new Set(data.map((d: DealRecord) => d.customer_id).filter(Boolean))]
+      const { data: customers } = custIds.length > 0
+        ? await supabase.from('customers').select('andpad_id,custom_age,custom_income,custom_employer,referrer').in('andpad_id', custIds)
+        : { data: [] }
+      const custMap = new Map((customers || []).map((c: Record<string, unknown>) => [c.andpad_id, c]))
+      const merged = data.map((d: DealRecord) => {
+        const c = custMap.get(d.customer_id) as Record<string, unknown> | undefined
+        const amtA = Number(d.contract_amount_ex_tax) || 0
+        const amtB = Number(d.estimate_amount_ex_tax) || 0
+        return { ...d, custom_age: c?.custom_age || null, custom_income: c?.custom_income || null, custom_employer: c?.custom_employer || null, referrer: c?.referrer || null, amount_ab: amtA + amtB > 0 ? amtA + amtB : null }
+      })
+      setDeals(merged)
+    } else {
+      setDeals([])
+    }
+    setDealsLoading(false)
+  }, [])
+
+  useEffect(() => { fetchDeals() }, [fetchDeals])
+
+  // カテゴリ分け: 追客中 / 今期受注 / 前期以前受注
+  const fiscalFrom = `${globalSnYear - 1}-09-01`
+  const filteredDeals = useMemo(() => {
+    let list = deals
+    if (dealStaffFilter) list = list.filter(d => d.staff_name === dealStaffFilter)
+    const followup: DealRecord[] = []
+    const currentOrdered: DealRecord[] = []
+    const pastOrdered: DealRecord[] = []
+    for (const d of list) {
+      if (!d.order_date) { followup.push(d) }
+      else if (typeof d.order_date === 'string' && d.order_date >= fiscalFrom) { currentOrdered.push(d) }
+      else { pastOrdered.push(d) }
+    }
+    return { all: list, followup, currentOrdered, pastOrdered }
+  }, [deals, dealStaffFilter, fiscalFrom])
+
+  const dealStaffNames = useMemo(() => {
+    const set = new Set<string>()
+    for (const d of deals) { if (typeof d.staff_name === 'string' && d.staff_name.trim()) set.add(d.staff_name.trim()) }
+    return [...set].sort((a, b) => a.localeCompare(b, 'ja'))
+  }, [deals])
+
+  const openDealEditModal = (d: DealRecord) => {
+    setEditDeal(d)
+    const f: Record<string, string | null> = { staff_name: String(d.staff_name || '') }
+    for (const col of DEAL_EDIT_FIELDS) { f[col.key] = String(d[col.key] || '') }
+    setEditDealForm(f)
+  }
+
+  const handleDealEditSave = async () => {
+    if (!editDeal) return
+    setDealSaving(true)
+    const clean: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(editDealForm)) { clean[k] = typeof v === 'string' && v.trim() === '' ? null : v }
+    await supabase.from('deals').update(clean).eq('id', editDeal.id)
+    setEditDeal(null)
+    setDealSaving(false)
+    fetchDeals()
+  }
+
+  // 追客案件追加（物件検索）
+  const [showDealSearch, setShowDealSearch] = useState(false)
+  const [dealSearchQuery, setDealSearchQuery] = useState('')
+  const [dealSearchDateFrom, setDealSearchDateFrom] = useState('')
+  const [dealSearchDateTo, setDealSearchDateTo] = useState('')
+  const [dealSearchDept, setDealSearchDept] = useState('')
+  const [dealSearchResults, setDealSearchResults] = useState<DealRecord[]>([])
+  const [dealSearching, setDealSearching] = useState(false)
+  const [dealSearchDone, setDealSearchDone] = useState(false)
+
+  const searchDeals = async () => {
+    setDealSearching(true)
+    setDealSearchDone(false)
+    let query = supabase.from('deals')
+      .select('id,customer_name,staff_name,name,store_name,inquiry_date,order_date_planned,closing_probability,followup_active,deal_category,label_area')
+      .eq('followup_active', false)
+    if (dealSearchQuery.trim()) {
+      const q = dealSearchQuery.trim()
+      query = query.or(`customer_name.ilike.%${q}%,name.ilike.%${q}%,staff_name.ilike.%${q}%`)
+    }
+    if (dealSearchDateFrom) query = query.gte('inquiry_date', dealSearchDateFrom)
+    if (dealSearchDateTo) query = query.lte('inquiry_date', dealSearchDateTo)
+    if (dealSearchDept) query = query.ilike('label_area', `%${dealSearchDept}%`)
+    const { data } = await query.order('inquiry_date', { ascending: false }).limit(50)
+    setDealSearchResults(data || [])
+    setDealSearching(false)
+    setDealSearchDone(true)
+  }
+
+  // エリア変更時に自動検索
+  useEffect(() => {
+    if (showDealSearch && dealSearchDone) searchDeals()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dealSearchDept])
+
+  const startFollowup = async (dealId: string) => {
+    await supabase.from('deals').update({ followup_active: true }).eq('id', dealId)
+    setDealSearchResults(prev => prev.filter(d => d.id !== dealId))
+    fetchDeals()
+  }
 
   useEffect(() => {
     const fiscal = { from: `${globalSnYear - 1}-09-01`, to: `${globalSnYear}-08-31` }
@@ -112,7 +290,7 @@ export default function FollowUpB2Page() {
         <div className="flex items-center gap-4 px-4 py-2.5 border-b border-slate-100">
           <h1 className="text-lg font-bold text-slate-900 flex items-center gap-2">
             <span className="inline-flex items-center justify-center gap-1 w-auto px-2 h-10 rounded-lg bg-gray-500 text-white font-bold text-lg">
-              <UserSearch className="w-5 h-5" />B2
+              <UserSearch className="w-5 h-5" />B1
             </span>
             追客管理
           </h1>
@@ -208,364 +386,341 @@ export default function FollowUpB2Page() {
         </div>
       </div>
 
-      {/* B2-1: 担当者別の商談数 */}
-      {b1Data.staffList.length > 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 p-4">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
-              <span className="inline-flex items-center justify-center h-10 rounded-lg bg-gray-500 text-white font-bold text-sm px-3">B2 - <span className="text-xl">1</span></span>
-              担当者別の商談数
-            </h2>
-            <div className="flex items-center gap-3 text-xs">
-              <span className="font-semibold text-blue-600">■ 来場数</span>
-              <span className="font-semibold text-emerald-600">■ アポ数</span>
-              <span className="font-semibold text-purple-600">■ アポ率</span>
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs border-collapse" style={{ fontVariantNumeric: 'tabular-nums' }}>
-              <thead>
-                <tr className="bg-slate-50">
-                  <th className="px-2 py-1.5 border border-slate-200 text-left font-semibold text-slate-700 whitespace-nowrap sticky left-0 bg-slate-50 z-10">部門</th>
-                  <th className="px-3 py-1.5 border border-slate-200 text-left font-semibold text-slate-700 whitespace-nowrap">担当者</th>
-                  {b1Data.months.slice(0, 6).map(ym => <th key={ym} className="px-1 py-1.5 border border-slate-200 text-center font-semibold text-slate-700 whitespace-nowrap">{parseInt(ym.slice(5))}月</th>)}
-                  <th className="px-1 py-1.5 border border-slate-300 text-center font-bold text-slate-700 whitespace-nowrap bg-blue-50">上期</th>
-                  {b1Data.months.slice(6, 12).map(ym => <th key={ym} className="px-1 py-1.5 border border-slate-200 text-center font-semibold text-slate-700 whitespace-nowrap">{parseInt(ym.slice(5))}月</th>)}
-                  <th className="px-1 py-1.5 border border-slate-300 text-center font-bold text-slate-700 whitespace-nowrap bg-green-50">下期</th>
-                  <th className="px-1 py-1.5 border border-slate-300 text-center font-bold text-slate-700 whitespace-nowrap bg-amber-50">年間</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(() => {
-                  const filteredList = b1Data.staffList.filter(s => selectedB1Depts.length === 0 || selectedB1Depts.includes(b1Data.getDept(s)))
-                  const pct = (a: number, t: number) => t > 0 ? Math.round((a / t) * 100) : 0
-                  const sumStaffRange = (staffs: string[], yms: string[]) => {
-                    let visits = 0, appos = 0
-                    for (const s of staffs) { const row = b1Data.staffMap.get(s) || {}; for (const ym of yms) { const v = row[ym]; if (v) { visits += v.visits; appos += v.appos } } }
-                    return { visits, appos }
-                  }
-                  const result: React.ReactNode[] = []
-                  for (let si = 0; si < filteredList.length; si++) {
-                    const staff = filteredList[si]
-                    const dept = b1Data.getDept(staff)
-                    const row = b1Data.staffMap.get(staff) || {}
-                    const getVal = (ym: string) => row[ym] || { visits: 0, appos: 0 }
-                    const sumRange = (yms: string[]) => yms.reduce((s, ym) => { const v = getVal(ym); return { visits: s.visits + v.visits, appos: s.appos + v.appos } }, { visits: 0, appos: 0 })
-                    const h1 = sumRange(b1Data.months.slice(0, 6))
-                    const h2 = sumRange(b1Data.months.slice(6, 12))
-                    const year = sumRange(b1Data.months)
-                    const cellClass = (v: { visits: number; appos: number }) => v.visits ? '' : 'text-slate-300'
-                    const getDetails = (yms: string[]) => yms.flatMap(ym => (b1Data.staffDetailMap.get(staff) || {})[ym] || [])
-                    const clickCell = (title: string, yms: string[], appoOnly?: boolean) => {
-                      const list = getDetails(yms)
-                      setB1Detail({ title, visits: appoOnly ? list.filter(v => v.has_appointment === '有') : list })
-                    }
-                    const prevDept = si > 0 ? b1Data.getDept(filteredList[si - 1]) : null
-                    const isNewDept = dept !== prevDept
-                    const deptStaffs = filteredList.filter(s => b1Data.getDept(s) === dept)
-                    const nextDept = si < filteredList.length - 1 ? b1Data.getDept(filteredList[si + 1]) : null
-                    const isLastInDept = dept !== nextDept
-
-                    result.push(
-                      <React.Fragment key={staff}>
-                        <tr className={`bg-blue-50/30 ${isNewDept && si > 0 ? 'border-t-4 border-slate-500' : si > 0 ? 'border-t border-slate-200' : ''}`}>
-                          {isNewDept && <td rowSpan={deptStaffs.length * 3} className="px-2 py-1 border border-slate-200 text-slate-600 whitespace-nowrap align-middle text-xs sticky left-0 bg-white z-10">{dept}</td>}
-                          <td rowSpan={3} className="px-3 py-1 border border-slate-200 font-medium text-slate-800 whitespace-nowrap align-middle">{staff}</td>
-                          {b1Data.months.slice(0, 6).map(ym => { const v = getVal(ym); return <td key={ym} className={`px-1 py-0.5 border border-slate-200 text-right text-xs font-semibold text-blue-600 ${cellClass(v)} ${v.visits ? 'cursor-pointer hover:bg-blue-50' : ''}`} onClick={() => v.visits && clickCell(`${staff} ${parseInt(ym.slice(5))}月 来場`, [ym])}>{v.visits || '-'}</td> })}
-                          <td className={`px-1 py-0.5 border border-slate-300 text-right font-bold text-xs text-blue-600 bg-blue-50 ${h1.visits ? 'cursor-pointer hover:bg-blue-100' : ''}`} onClick={() => h1.visits && clickCell(`${staff} 上期 来場`, b1Data.months.slice(0, 6))}>{h1.visits || '-'}</td>
-                          {b1Data.months.slice(6, 12).map(ym => { const v = getVal(ym); return <td key={ym} className={`px-1 py-0.5 border border-slate-200 text-right text-xs font-semibold text-blue-600 ${cellClass(v)} ${v.visits ? 'cursor-pointer hover:bg-blue-50' : ''}`} onClick={() => v.visits && clickCell(`${staff} ${parseInt(ym.slice(5))}月 来場`, [ym])}>{v.visits || '-'}</td> })}
-                          <td className={`px-1 py-0.5 border border-slate-300 text-right font-bold text-xs text-blue-600 bg-green-50 ${h2.visits ? 'cursor-pointer hover:bg-green-100' : ''}`} onClick={() => h2.visits && clickCell(`${staff} 下期 来場`, b1Data.months.slice(6, 12))}>{h2.visits || '-'}</td>
-                          <td className={`px-1 py-0.5 border border-slate-300 text-right font-bold text-xs text-blue-600 bg-amber-50 ${year.visits ? 'cursor-pointer hover:bg-amber-100' : ''}`} onClick={() => year.visits && clickCell(`${staff} 年間 来場`, b1Data.months)}>{year.visits || '-'}</td>
-                        </tr>
-                        <tr className="bg-emerald-50/30">
-                          {b1Data.months.slice(0, 6).map(ym => { const v = getVal(ym); return <td key={ym} className={`px-1 py-0.5 border border-slate-200 text-right text-xs font-semibold text-emerald-600 ${v.appos ? 'cursor-pointer hover:bg-emerald-50' : 'text-slate-300'}`} onClick={() => v.appos && clickCell(`${staff} ${parseInt(ym.slice(5))}月 アポ`, [ym], true)}>{v.appos || '-'}</td> })}
-                          <td className={`px-1 py-0.5 border border-slate-300 text-right font-bold text-xs text-emerald-600 bg-blue-50 ${h1.appos ? 'cursor-pointer hover:bg-blue-100' : ''}`} onClick={() => h1.appos && clickCell(`${staff} 上期 アポ`, b1Data.months.slice(0, 6), true)}>{h1.appos || '-'}</td>
-                          {b1Data.months.slice(6, 12).map(ym => { const v = getVal(ym); return <td key={ym} className={`px-1 py-0.5 border border-slate-200 text-right text-xs font-semibold text-emerald-600 ${v.appos ? 'cursor-pointer hover:bg-emerald-50' : 'text-slate-300'}`} onClick={() => v.appos && clickCell(`${staff} ${parseInt(ym.slice(5))}月 アポ`, [ym], true)}>{v.appos || '-'}</td> })}
-                          <td className={`px-1 py-0.5 border border-slate-300 text-right font-bold text-xs text-emerald-600 bg-green-50 ${h2.appos ? 'cursor-pointer hover:bg-green-100' : ''}`} onClick={() => h2.appos && clickCell(`${staff} 下期 アポ`, b1Data.months.slice(6, 12), true)}>{h2.appos || '-'}</td>
-                          <td className={`px-1 py-0.5 border border-slate-300 text-right font-bold text-xs text-emerald-600 bg-amber-50 ${year.appos ? 'cursor-pointer hover:bg-amber-100' : ''}`} onClick={() => year.appos && clickCell(`${staff} 年間 アポ`, b1Data.months, true)}>{year.appos || '-'}</td>
-                        </tr>
-                        <tr className="bg-purple-50/30">
-                          {b1Data.months.slice(0, 6).map(ym => { const v = getVal(ym); const p = pct(v.appos, v.visits); return <td key={ym} className={`px-1 py-0.5 border border-slate-200 text-right text-xs font-semibold text-purple-600 ${v.visits ? '' : 'text-slate-300'}`}>{v.visits ? `${p}%` : '-'}</td> })}
-                          <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-xs text-purple-600 bg-blue-50">{h1.visits ? `${pct(h1.appos, h1.visits)}%` : '-'}</td>
-                          {b1Data.months.slice(6, 12).map(ym => { const v = getVal(ym); const p = pct(v.appos, v.visits); return <td key={ym} className={`px-1 py-0.5 border border-slate-200 text-right text-xs font-semibold text-purple-600 ${v.visits ? '' : 'text-slate-300'}`}>{v.visits ? `${p}%` : '-'}</td> })}
-                          <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-xs text-purple-600 bg-green-50">{h2.visits ? `${pct(h2.appos, h2.visits)}%` : '-'}</td>
-                          <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-xs text-purple-600 bg-amber-50">{year.visits ? `${pct(year.appos, year.visits)}%` : '-'}</td>
-                        </tr>
-                      </React.Fragment>
-                    )
-
-                    // 部門小計行
-                    if (isLastInDept && deptStaffs.length > 1) {
-                      const dh1 = sumStaffRange(deptStaffs, b1Data.months.slice(0, 6))
-                      const dh2 = sumStaffRange(deptStaffs, b1Data.months.slice(6, 12))
-                      const dy = sumStaffRange(deptStaffs, b1Data.months)
-                      result.push(
-                        <React.Fragment key={`${dept}-subtotal`}>
-                          <tr className="border-t-2 border-slate-400" style={{ backgroundColor: '#f1f5f9' }}>
-                            <td colSpan={2} className="px-3 py-0.5 border border-slate-300 font-bold text-slate-700 text-xs text-right">{dept}計</td>
-                            {b1Data.months.slice(0, 6).map(ym => { const v = sumStaffRange(deptStaffs, [ym]); return <td key={ym} className="px-1 py-0.5 border border-slate-300 text-right text-xs font-bold text-blue-700">{v.visits || '-'}</td> })}
-                            <td className="px-1 py-0.5 border border-slate-300 text-right text-xs font-bold text-blue-700 bg-blue-100">{dh1.visits || '-'}</td>
-                            {b1Data.months.slice(6, 12).map(ym => { const v = sumStaffRange(deptStaffs, [ym]); return <td key={ym} className="px-1 py-0.5 border border-slate-300 text-right text-xs font-bold text-blue-700">{v.visits || '-'}</td> })}
-                            <td className="px-1 py-0.5 border border-slate-300 text-right text-xs font-bold text-blue-700 bg-green-100">{dh2.visits || '-'}</td>
-                            <td className="px-1 py-0.5 border border-slate-300 text-right text-xs font-bold text-blue-700 bg-amber-100">{dy.visits || '-'}</td>
-                          </tr>
-                          <tr style={{ backgroundColor: '#f1f5f9' }}>
-                            <td colSpan={2} className="px-3 py-0.5 border border-slate-300 text-xs text-right text-slate-400">アポ</td>
-                            {b1Data.months.slice(0, 6).map(ym => { const v = sumStaffRange(deptStaffs, [ym]); return <td key={ym} className="px-1 py-0.5 border border-slate-300 text-right text-xs font-bold text-emerald-700">{v.appos || '-'}</td> })}
-                            <td className="px-1 py-0.5 border border-slate-300 text-right text-xs font-bold text-emerald-700 bg-blue-100">{dh1.appos || '-'}</td>
-                            {b1Data.months.slice(6, 12).map(ym => { const v = sumStaffRange(deptStaffs, [ym]); return <td key={ym} className="px-1 py-0.5 border border-slate-300 text-right text-xs font-bold text-emerald-700">{v.appos || '-'}</td> })}
-                            <td className="px-1 py-0.5 border border-slate-300 text-right text-xs font-bold text-emerald-700 bg-green-100">{dh2.appos || '-'}</td>
-                            <td className="px-1 py-0.5 border border-slate-300 text-right text-xs font-bold text-emerald-700 bg-amber-100">{dy.appos || '-'}</td>
-                          </tr>
-                          <tr style={{ backgroundColor: '#f1f5f9' }}>
-                            <td colSpan={2} className="px-3 py-0.5 border border-slate-300 text-xs text-right text-slate-400">率</td>
-                            {b1Data.months.slice(0, 6).map(ym => { const v = sumStaffRange(deptStaffs, [ym]); return <td key={ym} className="px-1 py-0.5 border border-slate-300 text-right text-xs font-bold text-purple-700">{v.visits ? `${pct(v.appos, v.visits)}%` : '-'}</td> })}
-                            <td className="px-1 py-0.5 border border-slate-300 text-right text-xs font-bold text-purple-700 bg-blue-100">{dh1.visits ? `${pct(dh1.appos, dh1.visits)}%` : '-'}</td>
-                            {b1Data.months.slice(6, 12).map(ym => { const v = sumStaffRange(deptStaffs, [ym]); return <td key={ym} className="px-1 py-0.5 border border-slate-300 text-right text-xs font-bold text-purple-700">{v.visits ? `${pct(v.appos, v.visits)}%` : '-'}</td> })}
-                            <td className="px-1 py-0.5 border border-slate-300 text-right text-xs font-bold text-purple-700 bg-green-100">{dh2.visits ? `${pct(dh2.appos, dh2.visits)}%` : '-'}</td>
-                            <td className="px-1 py-0.5 border border-slate-300 text-right text-xs font-bold text-purple-700 bg-amber-100">{dy.visits ? `${pct(dy.appos, dy.visits)}%` : '-'}</td>
-                          </tr>
-                        </React.Fragment>
-                      )
-                    }
-                  }
-                  return result
-                })()}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
-
-      {/* B2-2: サンキーダイアグラム */}
-      {visitData.length > 0 && (() => {
-        const filtered = visitData.filter(v => {
-          const staff = v.staff1?.trim() || '未設定'
-          const dept = b1Data.getDept(staff)
-          return selectedB1Depts.length === 0 || selectedB1Depts.includes(dept)
-        })
-        const total = filtered.length
-        if (total === 0) return null
-
-        const typeLabels = ['新築新規', '新築再来', 'リフォーム新規', 'リフォーム再来', '計画なし']
-        const typeColors: Record<string, string> = { '新築新規': '#3b82f6', '新築再来': '#93c5fd', 'リフォーム新規': '#f59e0b', 'リフォーム再来': '#fcd34d', '計画なし': '#94a3b8' }
-
-        type SNode = { id: string; label: string; color: string }
-        type SLink = { source: string; target: string; value: number; color: string }
-        const nodes: SNode[] = []
-        const links: SLink[] = []
-
-        for (const t of typeLabels) {
-          const count = filtered.filter(v => (v.customer_type || '計画なし') === t).length
-          if (count > 0) nodes.push({ id: t, label: t, color: typeColors[t] })
+      {/* B1-1: 担当者別受注集計 */}
+      {deals.length > 0 && (() => {
+        // 期間の月リスト（9月〜8月）
+        const months: string[] = []
+        for (let i = 0; i < 12; i++) { const m = ((8 + i) % 12) + 1; const y = m >= 9 ? globalSnYear - 1 : globalSnYear; months.push(`${y}-${String(m).padStart(2, '0')}`) }
+        // 担当者別×月別の受注件数・受注額
+        type StaffMonth = { count: number; amount: number }
+        const staffMap = new Map<string, Record<string, StaffMonth>>()
+        for (const d of deals) {
+          const staff = cleanStaff(d.staff_name)
+          const dt = typeof d.order_date === 'string' && d.order_date ? d.order_date : null
+          if (!dt) continue
+          const ym = dt.slice(0, 7)
+          if (!months.includes(ym)) continue
+          if (!staffMap.has(staff)) staffMap.set(staff, {})
+          const row = staffMap.get(staff)!
+          if (!row[ym]) row[ym] = { count: 0, amount: 0 }
+          row[ym].count++
+          row[ym].amount += Number(d.contract_amount_ex_tax) || Number(d.estimate_amount_ex_tax) || 0
         }
-        nodes.push({ id: 'アポ取得', label: 'アポ取得', color: '#10b981' })
-        nodes.push({ id: 'アポ未取得', label: 'アポ未取得', color: '#ef4444' })
-
-        for (const t of typeLabels) {
-          const items = filtered.filter(v => (v.customer_type || '計画なし') === t)
-          const appo = items.filter(v => v.has_appointment === '有').length
-          const noAppo = items.length - appo
-          if (appo > 0) links.push({ source: t, target: 'アポ取得', value: appo, color: '#10b981' })
-          if (noAppo > 0) links.push({ source: t, target: 'アポ未取得', value: noAppo, color: '#fca5a5' })
-        }
-
-        const W = 700, H = 320, pad = 24
-        const nodeIds = nodes.map(n => n.id)
-        const sankeyGen = d3Sankey<SNode, SLink>()
-          .nodeId((d: SNode) => d.id)
-          .nodeWidth(20)
-          .nodePadding(12)
-          .extent([[pad, pad], [W - pad, H - pad]])
-
-        const sNodes = nodes.map(n => ({ ...n }))
-        const sLinks = links.filter(l => nodeIds.includes(l.source) && nodeIds.includes(l.target)).map(l => ({ ...l }))
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const graph = sankeyGen({ nodes: sNodes as any[], links: sLinks as any[] })
-        const linkPath = sankeyLinkHorizontal()
-
-        const totalAppo = filtered.filter(v => v.has_appointment === '有').length
-
+        const staffList = [...staffMap.keys()].sort((a, b) => a.localeCompare(b, 'ja'))
+        if (staffList.length === 0) return null
+        const getVal = (staff: string, ym: string) => (staffMap.get(staff) || {})[ym] || { count: 0, amount: 0 }
+        const sumRange = (staff: string, yms: string[]) => yms.reduce((s, ym) => { const v = getVal(staff, ym); return { count: s.count + v.count, amount: s.amount + v.amount } }, { count: 0, amount: 0 })
+        const allSum = (yms: string[]) => staffList.reduce((s, st) => { const v = sumRange(st, yms); return { count: s.count + v.count, amount: s.amount + v.amount } }, { count: 0, amount: 0 })
+        const fmtAmt = (v: number) => v > 0 ? `${Math.round(v / 10000).toLocaleString()}万` : '-'
         return (
           <div className="bg-white rounded-xl border border-slate-200 p-4">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
-                <span className="inline-flex items-center justify-center h-10 rounded-lg bg-gray-500 text-white font-bold text-sm px-3">B2 - <span className="text-xl">2</span></span>
-                来場→アポ転換フロー
+                <span className="inline-flex items-center justify-center h-10 rounded-lg bg-gray-500 text-white font-bold text-sm px-3">B1 - <span className="text-xl">1</span></span>
+                担当者別受注集計
               </h2>
-              <div className="flex items-center gap-4 text-xs">
-                <span className="text-slate-400">期間内 {total}件</span>
-                <span className="text-emerald-600 font-bold">アポ取得 {totalAppo}件（{Math.round((totalAppo / total) * 100)}%）</span>
-              </div>
-            </div>
-            <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ maxHeight: 360 }}>
-              {(graph.links || []).map((link, i) => {
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                const d = linkPath(link as any)
-                const orig = sLinks[i]
-                return (
-                  <path key={i} d={d || ''} fill="none" stroke={orig?.color || '#ccc'} strokeWidth={Math.max((link as { width?: number }).width || 1, 2)} opacity={0.4} />
-                )
-              })}
-              {(graph.nodes || []).map((node, i) => {
-                const n = node as { x0?: number; x1?: number; y0?: number; y1?: number; id?: string }
-                const x0 = n.x0 || 0, x1 = n.x1 || 0, y0 = n.y0 || 0, y1 = n.y1 || 0
-                const orig = nodes.find(nn => nn.id === n.id)
-                const nodeTotal = links.filter(l => l.source === n.id).reduce((s, l) => s + l.value, 0)
-                  || links.filter(l => l.target === n.id).reduce((s, l) => s + l.value, 0)
-                const isRight = n.id === 'アポ取得' || n.id === 'アポ未取得'
-                return (
-                  <g key={i}>
-                    <rect x={x0} y={y0} width={x1 - x0} height={y1 - y0} rx={3} fill={orig?.color || '#ccc'} />
-                    <text x={isRight ? x1 + 6 : x0 - 6} y={(y0 + y1) / 2} dy="0.35em" textAnchor={isRight ? 'start' : 'end'} className="text-xs font-semibold" fill="#334155" style={{ fontSize: 11 }}>
-                      {orig?.label} ({nodeTotal})
-                    </text>
-                  </g>
-                )
-              })}
-            </svg>
-          </div>
-        )
-      })()}
-
-      {/* B2-3: 担当者別 来場区分別アポイント率 */}
-      {visitData.length > 0 && (() => {
-        const filteredStaffs = b1Data.staffList.filter(s => selectedB1Depts.length === 0 || selectedB1Depts.includes(b1Data.getDept(s)))
-        if (filteredStaffs.length === 0) return null
-        const staff = selectedB1_3Staff && filteredStaffs.includes(selectedB1_3Staff) ? selectedB1_3Staff : (filteredStaffs.find(s => s.replace(/\s+/g, '') === '鈴木颯太郎') || filteredStaffs[0])
-        const staffVisits = visitData.filter(v => (v.staff1?.trim() || '未設定') === staff)
-        const typeLabels = ['新築新規', '新築再来', 'リフォーム新規', 'リフォーム再来', '計画なし'] as const
-        const typeColors: Record<string, { bg: string; text: string }> = {
-          '新築新規': { bg: 'bg-blue-50/50', text: 'text-blue-700' },
-          '新築再来': { bg: 'bg-sky-50/50', text: 'text-sky-600' },
-          'リフォーム新規': { bg: 'bg-amber-50/50', text: 'text-amber-700' },
-          'リフォーム再来': { bg: 'bg-yellow-50/50', text: 'text-yellow-600' },
-          '計画なし': { bg: 'bg-slate-50/50', text: 'text-slate-500' },
-        }
-        const pct = (a: number, t: number) => t > 0 ? Math.round((a / t) * 100) : 0
-        const getTypeMonth = (type: string, ym: string) => {
-          const items = staffVisits.filter(v => (v.customer_type || '計画なし') === type && v.visit_date?.slice(0, 7) === ym)
-          return { visits: items.length, appos: items.filter(v => v.has_appointment === '有').length }
-        }
-        const getTypeRange = (type: string, yms: string[]) => {
-          const items = staffVisits.filter(v => (v.customer_type || '計画なし') === type && yms.includes(v.visit_date?.slice(0, 7) || ''))
-          return { visits: items.length, appos: items.filter(v => v.has_appointment === '有').length }
-        }
-        const totalRange = (yms: string[]) => {
-          const items = staffVisits.filter(v => yms.includes(v.visit_date?.slice(0, 7) || ''))
-          return { visits: items.length, appos: items.filter(v => v.has_appointment === '有').length }
-        }
-        return (
-          <div className="bg-white rounded-xl border border-slate-200 p-4">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
-                <span className="inline-flex items-center justify-center h-10 rounded-lg bg-gray-500 text-white font-bold text-sm px-3">B2 - <span className="text-xl">3</span></span>
-                来場区分別アポイント率
-              </h2>
-              <div className="flex items-center gap-3">
-                <select
-                  className="text-xs border border-slate-300 rounded-lg px-2 py-1.5 bg-white text-slate-700 focus:outline-none focus:ring-1 focus:ring-blue-400"
-                  value={staff}
-                  onChange={e => setSelectedB1_3Staff(e.target.value)}
-                >
-                  {filteredStaffs.map(s => <option key={s} value={s}>{s}</option>)}
-                </select>
+              <div className="flex items-center gap-3 text-xs">
+                <span className="font-semibold text-blue-600">■ 受注件数</span>
+                <span className="font-semibold text-emerald-600">■ 受注額</span>
               </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-xs border-collapse" style={{ fontVariantNumeric: 'tabular-nums' }}>
                 <thead>
                   <tr className="bg-slate-50">
-                    <th className="px-2 py-1.5 border border-slate-200 text-left font-semibold text-slate-700 whitespace-nowrap sticky left-0 bg-slate-50 z-10">来場区分</th>
-                    <th className="px-2 py-1.5 border border-slate-200 text-center font-semibold text-slate-700 whitespace-nowrap w-10"></th>
-                    {b1Data.months.slice(0, 6).map(ym => <th key={ym} className="px-1 py-1.5 border border-slate-200 text-center font-semibold text-slate-700 whitespace-nowrap">{parseInt(ym.slice(5))}月</th>)}
+                    <th className="px-3 py-1.5 border border-slate-200 text-left font-semibold text-slate-700 whitespace-nowrap sticky left-0 bg-slate-50 z-10">担当者</th>
+                    {months.slice(0, 6).map(ym => <th key={ym} className="px-1 py-1.5 border border-slate-200 text-center font-semibold text-slate-700 whitespace-nowrap">{parseInt(ym.slice(0, 4))}年{parseInt(ym.slice(5))}月</th>)}
                     <th className="px-1 py-1.5 border border-slate-300 text-center font-bold text-slate-700 whitespace-nowrap bg-blue-50">上期</th>
-                    {b1Data.months.slice(6, 12).map(ym => <th key={ym} className="px-1 py-1.5 border border-slate-200 text-center font-semibold text-slate-700 whitespace-nowrap">{parseInt(ym.slice(5))}月</th>)}
+                    {months.slice(6, 12).map(ym => <th key={ym} className="px-1 py-1.5 border border-slate-200 text-center font-semibold text-slate-700 whitespace-nowrap">{parseInt(ym.slice(0, 4))}年{parseInt(ym.slice(5))}月</th>)}
                     <th className="px-1 py-1.5 border border-slate-300 text-center font-bold text-slate-700 whitespace-nowrap bg-green-50">下期</th>
                     <th className="px-1 py-1.5 border border-slate-300 text-center font-bold text-slate-700 whitespace-nowrap bg-amber-50">年間</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {typeLabels.map((type, ti) => {
-                    const h1 = getTypeRange(type, b1Data.months.slice(0, 6))
-                    const h2 = getTypeRange(type, b1Data.months.slice(6, 12))
-                    const year = getTypeRange(type, b1Data.months)
-                    const tc = typeColors[type]
-                    const clickDetail = (title: string, yms: string[], appoOnly?: boolean) => {
-                      const items = staffVisits.filter(v => (v.customer_type || '計画なし') === type && yms.includes(v.visit_date?.slice(0, 7) || ''))
-                      setB1Detail({ title, visits: appoOnly ? items.filter(v => v.has_appointment === '有') : items })
-                    }
+                  {staffList.map(staff => {
+                    const h1 = sumRange(staff, months.slice(0, 6))
+                    const h2 = sumRange(staff, months.slice(6, 12))
+                    const year = sumRange(staff, months)
                     return (
-                      <React.Fragment key={type}>
-                        <tr className={`${tc.bg} ${ti > 0 ? 'border-t border-slate-200' : ''}`}>
-                          <td rowSpan={3} className={`px-2 py-1 border border-slate-200 font-semibold whitespace-nowrap align-middle sticky left-0 bg-white z-10 ${tc.text}`}>{type}</td>
-                          <td className="px-1 py-0.5 border border-slate-200 text-center text-blue-600 font-semibold whitespace-nowrap">来場</td>
-                          {b1Data.months.slice(0, 6).map(ym => { const v = getTypeMonth(type, ym); return <td key={ym} className={`px-1 py-0.5 border border-slate-200 text-right font-semibold text-blue-600 ${v.visits ? 'cursor-pointer hover:bg-blue-50' : 'text-slate-300'}`} onClick={() => v.visits && clickDetail(`${staff} ${type} ${parseInt(ym.slice(5))}月 来場`, [ym])}>{v.visits || '-'}</td> })}
-                          <td className={`px-1 py-0.5 border border-slate-300 text-right font-bold text-blue-600 bg-blue-50 ${h1.visits ? 'cursor-pointer hover:bg-blue-100' : ''}`} onClick={() => h1.visits && clickDetail(`${staff} ${type} 上期 来場`, b1Data.months.slice(0, 6))}>{h1.visits || '-'}</td>
-                          {b1Data.months.slice(6, 12).map(ym => { const v = getTypeMonth(type, ym); return <td key={ym} className={`px-1 py-0.5 border border-slate-200 text-right font-semibold text-blue-600 ${v.visits ? 'cursor-pointer hover:bg-blue-50' : 'text-slate-300'}`} onClick={() => v.visits && clickDetail(`${staff} ${type} ${parseInt(ym.slice(5))}月 来場`, [ym])}>{v.visits || '-'}</td> })}
-                          <td className={`px-1 py-0.5 border border-slate-300 text-right font-bold text-blue-600 bg-green-50 ${h2.visits ? 'cursor-pointer hover:bg-green-100' : ''}`} onClick={() => h2.visits && clickDetail(`${staff} ${type} 下期 来場`, b1Data.months.slice(6, 12))}>{h2.visits || '-'}</td>
-                          <td className={`px-1 py-0.5 border border-slate-300 text-right font-bold text-blue-600 bg-amber-50 ${year.visits ? 'cursor-pointer hover:bg-amber-100' : ''}`} onClick={() => year.visits && clickDetail(`${staff} ${type} 年間 来場`, b1Data.months)}>{year.visits || '-'}</td>
+                      <React.Fragment key={staff}>
+                        <tr className="bg-blue-50/30">
+                          <td rowSpan={2} className="px-3 py-1 border border-slate-200 font-medium text-slate-800 whitespace-nowrap align-middle sticky left-0 bg-white z-10">{staff}</td>
+                          {months.slice(0, 6).map(ym => { const v = getVal(staff, ym); return <td key={ym} className={`px-1 py-0.5 border border-slate-200 text-right font-semibold text-blue-600 ${v.count ? '' : 'text-slate-300'}`}>{v.count || '-'}</td> })}
+                          <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-blue-600 bg-blue-50">{h1.count || '-'}</td>
+                          {months.slice(6, 12).map(ym => { const v = getVal(staff, ym); return <td key={ym} className={`px-1 py-0.5 border border-slate-200 text-right font-semibold text-blue-600 ${v.count ? '' : 'text-slate-300'}`}>{v.count || '-'}</td> })}
+                          <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-blue-600 bg-green-50">{h2.count || '-'}</td>
+                          <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-blue-600 bg-amber-50">{year.count || '-'}</td>
                         </tr>
-                        <tr className={tc.bg}>
-                          <td className="px-1 py-0.5 border border-slate-200 text-center text-emerald-600 font-semibold whitespace-nowrap">アポ</td>
-                          {b1Data.months.slice(0, 6).map(ym => { const v = getTypeMonth(type, ym); return <td key={ym} className={`px-1 py-0.5 border border-slate-200 text-right font-semibold text-emerald-600 ${v.appos ? 'cursor-pointer hover:bg-emerald-50' : 'text-slate-300'}`} onClick={() => v.appos && clickDetail(`${staff} ${type} ${parseInt(ym.slice(5))}月 アポ`, [ym], true)}>{v.appos || '-'}</td> })}
-                          <td className={`px-1 py-0.5 border border-slate-300 text-right font-bold text-emerald-600 bg-blue-50 ${h1.appos ? 'cursor-pointer hover:bg-blue-100' : ''}`} onClick={() => h1.appos && clickDetail(`${staff} ${type} 上期 アポ`, b1Data.months.slice(0, 6), true)}>{h1.appos || '-'}</td>
-                          {b1Data.months.slice(6, 12).map(ym => { const v = getTypeMonth(type, ym); return <td key={ym} className={`px-1 py-0.5 border border-slate-200 text-right font-semibold text-emerald-600 ${v.appos ? 'cursor-pointer hover:bg-emerald-50' : 'text-slate-300'}`} onClick={() => v.appos && clickDetail(`${staff} ${type} ${parseInt(ym.slice(5))}月 アポ`, [ym], true)}>{v.appos || '-'}</td> })}
-                          <td className={`px-1 py-0.5 border border-slate-300 text-right font-bold text-emerald-600 bg-green-50 ${h2.appos ? 'cursor-pointer hover:bg-green-100' : ''}`} onClick={() => h2.appos && clickDetail(`${staff} ${type} 下期 アポ`, b1Data.months.slice(6, 12), true)}>{h2.appos || '-'}</td>
-                          <td className={`px-1 py-0.5 border border-slate-300 text-right font-bold text-emerald-600 bg-amber-50 ${year.appos ? 'cursor-pointer hover:bg-amber-100' : ''}`} onClick={() => year.appos && clickDetail(`${staff} ${type} 年間 アポ`, b1Data.months, true)}>{year.appos || '-'}</td>
-                        </tr>
-                        <tr className={tc.bg}>
-                          <td className="px-1 py-0.5 border border-slate-200 text-center text-purple-600 font-semibold whitespace-nowrap">率</td>
-                          {b1Data.months.slice(0, 6).map(ym => { const v = getTypeMonth(type, ym); return <td key={ym} className={`px-1 py-0.5 border border-slate-200 text-right font-semibold text-purple-600 ${v.visits ? '' : 'text-slate-300'}`}>{v.visits ? `${pct(v.appos, v.visits)}%` : '-'}</td> })}
-                          <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-purple-600 bg-blue-50">{h1.visits ? `${pct(h1.appos, h1.visits)}%` : '-'}</td>
-                          {b1Data.months.slice(6, 12).map(ym => { const v = getTypeMonth(type, ym); return <td key={ym} className={`px-1 py-0.5 border border-slate-200 text-right font-semibold text-purple-600 ${v.visits ? '' : 'text-slate-300'}`}>{v.visits ? `${pct(v.appos, v.visits)}%` : '-'}</td> })}
-                          <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-purple-600 bg-green-50">{h2.visits ? `${pct(h2.appos, h2.visits)}%` : '-'}</td>
-                          <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-purple-600 bg-amber-50">{year.visits ? `${pct(year.appos, year.visits)}%` : '-'}</td>
+                        <tr className="bg-emerald-50/30">
+                          {months.slice(0, 6).map(ym => { const v = getVal(staff, ym); return <td key={ym} className={`px-1 py-0.5 border border-slate-200 text-right font-semibold text-emerald-600 ${v.amount ? '' : 'text-slate-300'}`}>{fmtAmt(v.amount)}</td> })}
+                          <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-emerald-600 bg-blue-50">{fmtAmt(h1.amount)}</td>
+                          {months.slice(6, 12).map(ym => { const v = getVal(staff, ym); return <td key={ym} className={`px-1 py-0.5 border border-slate-200 text-right font-semibold text-emerald-600 ${v.amount ? '' : 'text-slate-300'}`}>{fmtAmt(v.amount)}</td> })}
+                          <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-emerald-600 bg-green-50">{fmtAmt(h2.amount)}</td>
+                          <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-emerald-600 bg-amber-50">{fmtAmt(year.amount)}</td>
                         </tr>
                       </React.Fragment>
                     )
                   })}
                   {/* 合計行 */}
-                  {(() => {
-                    const h1 = totalRange(b1Data.months.slice(0, 6))
-                    const h2 = totalRange(b1Data.months.slice(6, 12))
-                    const year = totalRange(b1Data.months)
-                    return (
-                      <React.Fragment>
-                        <tr className="border-t-2 border-slate-400" style={{ backgroundColor: '#f1f5f9' }}>
-                          <td rowSpan={3} className="px-2 py-1 border border-slate-300 font-bold text-slate-700 whitespace-nowrap align-middle sticky left-0 z-10" style={{ backgroundColor: '#f1f5f9' }}>合計</td>
-                          <td className="px-1 py-0.5 border border-slate-300 text-center text-blue-700 font-bold whitespace-nowrap">来場</td>
-                          {b1Data.months.slice(0, 6).map(ym => { const v = totalRange([ym]); return <td key={ym} className="px-1 py-0.5 border border-slate-300 text-right font-bold text-blue-700">{v.visits || '-'}</td> })}
-                          <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-blue-700 bg-blue-100">{h1.visits || '-'}</td>
-                          {b1Data.months.slice(6, 12).map(ym => { const v = totalRange([ym]); return <td key={ym} className="px-1 py-0.5 border border-slate-300 text-right font-bold text-blue-700">{v.visits || '-'}</td> })}
-                          <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-blue-700 bg-green-100">{h2.visits || '-'}</td>
-                          <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-blue-700 bg-amber-100">{year.visits || '-'}</td>
-                        </tr>
-                        <tr style={{ backgroundColor: '#f1f5f9' }}>
-                          <td className="px-1 py-0.5 border border-slate-300 text-center text-emerald-700 font-bold whitespace-nowrap">アポ</td>
-                          {b1Data.months.slice(0, 6).map(ym => { const v = totalRange([ym]); return <td key={ym} className="px-1 py-0.5 border border-slate-300 text-right font-bold text-emerald-700">{v.appos || '-'}</td> })}
-                          <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-emerald-700 bg-blue-100">{h1.appos || '-'}</td>
-                          {b1Data.months.slice(6, 12).map(ym => { const v = totalRange([ym]); return <td key={ym} className="px-1 py-0.5 border border-slate-300 text-right font-bold text-emerald-700">{v.appos || '-'}</td> })}
-                          <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-emerald-700 bg-green-100">{h2.appos || '-'}</td>
-                          <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-emerald-700 bg-amber-100">{year.appos || '-'}</td>
-                        </tr>
-                        <tr style={{ backgroundColor: '#f1f5f9' }}>
-                          <td className="px-1 py-0.5 border border-slate-300 text-center text-purple-700 font-bold whitespace-nowrap">率</td>
-                          {b1Data.months.slice(0, 6).map(ym => { const v = totalRange([ym]); return <td key={ym} className="px-1 py-0.5 border border-slate-300 text-right font-bold text-purple-700">{v.visits ? `${pct(v.appos, v.visits)}%` : '-'}</td> })}
-                          <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-purple-700 bg-blue-100">{h1.visits ? `${pct(h1.appos, h1.visits)}%` : '-'}</td>
-                          {b1Data.months.slice(6, 12).map(ym => { const v = totalRange([ym]); return <td key={ym} className="px-1 py-0.5 border border-slate-300 text-right font-bold text-purple-700">{v.visits ? `${pct(v.appos, v.visits)}%` : '-'}</td> })}
-                          <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-purple-700 bg-green-100">{h2.visits ? `${pct(h2.appos, h2.visits)}%` : '-'}</td>
-                          <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-purple-700 bg-amber-100">{year.visits ? `${pct(year.appos, year.visits)}%` : '-'}</td>
-                        </tr>
-                      </React.Fragment>
-                    )
-                  })()}
+                  <tr className="border-t-2 border-slate-400" style={{ backgroundColor: '#f1f5f9' }}>
+                    <td className="px-3 py-0.5 border border-slate-300 font-bold text-slate-700 sticky left-0 z-10" style={{ backgroundColor: '#f1f5f9' }}>合計</td>
+                    {months.slice(0, 6).map(ym => { const v = allSum([ym]); return <td key={ym} className="px-1 py-0.5 border border-slate-300 text-right font-bold text-blue-700">{v.count || '-'}</td> })}
+                    <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-blue-700 bg-blue-100">{allSum(months.slice(0, 6)).count || '-'}</td>
+                    {months.slice(6, 12).map(ym => { const v = allSum([ym]); return <td key={ym} className="px-1 py-0.5 border border-slate-300 text-right font-bold text-blue-700">{v.count || '-'}</td> })}
+                    <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-blue-700 bg-green-100">{allSum(months.slice(6, 12)).count || '-'}</td>
+                    <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-blue-700 bg-amber-100">{allSum(months).count || '-'}</td>
+                  </tr>
+                  <tr style={{ backgroundColor: '#f1f5f9' }}>
+                    <td className="px-3 py-0.5 border border-slate-300 text-slate-400 text-right sticky left-0 z-10" style={{ backgroundColor: '#f1f5f9' }}>金額</td>
+                    {months.slice(0, 6).map(ym => { const v = allSum([ym]); return <td key={ym} className="px-1 py-0.5 border border-slate-300 text-right font-bold text-emerald-700">{fmtAmt(v.amount)}</td> })}
+                    <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-emerald-700 bg-blue-100">{fmtAmt(allSum(months.slice(0, 6)).amount)}</td>
+                    {months.slice(6, 12).map(ym => { const v = allSum([ym]); return <td key={ym} className="px-1 py-0.5 border border-slate-300 text-right font-bold text-emerald-700">{v.amount ? fmtAmt(v.amount) : '-'}</td> })}
+                    <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-emerald-700 bg-green-100">{fmtAmt(allSum(months.slice(6, 12)).amount)}</td>
+                    <td className="px-1 py-0.5 border border-slate-300 text-right font-bold text-emerald-700 bg-amber-100">{fmtAmt(allSum(months).amount)}</td>
+                  </tr>
                 </tbody>
               </table>
             </div>
           </div>
         )
       })()}
+
+      {/* B1-2: 追客案件一覧 */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-base font-semibold text-slate-900 flex items-center gap-2">
+            <span className="inline-flex items-center justify-center h-10 rounded-lg bg-gray-500 text-white font-bold text-sm px-3">B1 - <span className="text-xl">2</span></span>
+            追客案件一覧
+            <span className="text-xs text-slate-400 font-normal ml-1">{filteredDeals.all.length}件</span>
+          </h2>
+          <div className="flex items-center gap-2">
+            <div className="flex text-xs">
+              <button onClick={() => setShowAllColumns(false)} className={`px-2.5 py-1 rounded-l-lg border transition-colors ${!showAllColumns ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>主要項目</button>
+              <button onClick={() => setShowAllColumns(true)} className={`px-2.5 py-1 rounded-r-lg border-t border-r border-b transition-colors ${showAllColumns ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>全項目</button>
+            </div>
+          <button onClick={() => {
+            const today = new Date()
+            const from = new Date(today); from.setDate(from.getDate() - 30)
+            setDealSearchQuery(''); setDealSearchDept(''); setDealSearchDone(false)
+            setDealSearchDateFrom(from.toISOString().slice(0, 10))
+            setDealSearchDateTo(today.toISOString().slice(0, 10))
+            setDealSearchResults([]); setShowDealSearch(true)
+            // 初期検索を実行
+            setTimeout(() => { const btn = document.getElementById('deal-search-btn'); btn?.click() }, 100)
+          }} className="flex items-center gap-1 px-3 py-1.5 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors">
+            <Plus className="w-4 h-4" />追客案件追加
+          </button>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-1.5 mb-4">
+          <button onClick={() => setDealStaffFilter('')} className={`px-2.5 py-1 text-xs rounded-lg border transition-colors ${!dealStaffFilter ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>全担当者</button>
+          {dealStaffNames.map(s => (
+            <button key={s} onClick={() => setDealStaffFilter(s)} className={`px-2.5 py-1 text-xs rounded-lg border transition-colors ${dealStaffFilter === s ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>{cleanStaff(s)}</button>
+          ))}
+        </div>
+        {dealsLoading ? (
+          <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="text-xs border-collapse" style={{ fontVariantNumeric: 'tabular-nums', minWidth: showAllColumns ? '1800px' : undefined, width: '100%' }}>
+              <thead>
+                <tr className="bg-slate-50">
+                  {DEAL_COLUMNS.map(col => (
+                    <th key={col.key} className="px-1 py-1.5 border border-slate-200 text-left font-semibold text-slate-600 whitespace-nowrap" style={{ width: col.width }}>{col.label}</th>
+                  ))}
+                  <th className="px-1 py-1.5 border border-slate-200 text-center" style={{ width: '2%' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredDeals.all.length === 0 ? (
+                  <tr><td colSpan={DEAL_COLUMNS.length + 1} className="text-center py-8 text-slate-400 border border-slate-200">データがありません</td></tr>
+                ) : (() => {
+                  const fmt = (v: unknown) => v == null ? '-' : String(v)
+                  const fmtDate = (v: unknown) => typeof v === 'string' && v ? v.slice(0, 7).replace('-', '/') : '-'
+                  const fmtAmt = (v: unknown) => typeof v === 'number' && v ? `${Math.round(v / 10000)}万` : '-'
+                  const renderRow = (d: DealRecord) => {
+                    const cellVal = (key: string) => {
+                      if (key === 'customer_name') return (
+                        <span className="flex items-center gap-1">
+                          <span className="truncate">{fmt(d.customer_name)}</span>
+                          {d.andpad_id && <a href={`https://andpad.jp/manager/my/orders/${d.andpad_id}`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-blue-500 hover:text-blue-700 flex-shrink-0"><ExternalLink className="w-3 h-3" /></a>}
+                        </span>
+                      )
+                      if (key === 'closing_probability') return d.order_date ? <span className="text-emerald-600 font-bold">受注済</span> : fmt(d.closing_probability)
+                      if (key === 'staff_name') return cleanStaff(d.staff_name)
+                      if (key === 'amount_ab') return fmtAmt(d.amount_ab)
+                      if (key === 'order_date_planned' || key === 'start_date_planned') return fmtDate(d[key])
+                      return fmt(d[key])
+                    }
+                    return (
+                      <tr key={String(d.id)} className="hover:bg-slate-50 cursor-pointer" onDoubleClick={() => openDealEditModal(d)}>
+                        {DEAL_COLUMNS.map(col => (
+                          <td key={col.key} className="px-1 py-1 border border-slate-200 truncate">{cellVal(col.key)}</td>
+                        ))}
+                        <td className="px-1 py-1 border border-slate-200 text-center">
+                          <button type="button" onClick={() => openDealEditModal(d)} className="text-slate-400 hover:text-blue-600 cursor-pointer"><Pencil className="w-3.5 h-3.5 inline" /></button>
+                        </td>
+                      </tr>
+                    )
+                  }
+                  const subtotalRow = (label: string, items: DealRecord[], color: string) => {
+                    const totalAmt = items.reduce((s, d) => s + (Number(d.amount_ab) || 0), 0)
+                    return (
+                      <tr className="border-t border-b border-slate-300" style={{ backgroundColor: '#f1f5f9' }}>
+                        <td colSpan={DEAL_COLUMNS.length + 1} className="px-3 py-1.5 font-bold text-xs">
+                          <span className={color}>{label}</span>
+                          <span className="text-slate-500 font-normal ml-3">{items.length}件</span>
+                          {totalAmt > 0 && <span className="text-emerald-600 ml-3">{fmtAmt(totalAmt)}</span>}
+                        </td>
+                      </tr>
+                    )
+                  }
+                  const groups = [
+                    { label: '追客中', items: filteredDeals.followup, color: 'text-blue-700' },
+                    { label: `${globalSnYear}sn 受注済`, items: filteredDeals.currentOrdered, color: 'text-emerald-700' },
+                    { label: '前期以前 受注済', items: filteredDeals.pastOrdered, color: 'text-slate-600' },
+                  ]
+                  return groups.flatMap(g => g.items.length > 0 ? [
+                    <React.Fragment key={`header-${g.label}`}>{subtotalRow(g.label, g.items, g.color)}</React.Fragment>,
+                    ...g.items.map(d => renderRow(d)),
+                  ] : [])
+                })()}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* B1-2 編集モーダル */}
+      {editDeal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setEditDeal(null)}>
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200">
+              <h3 className="text-base font-bold text-slate-900">{editDeal.customer_name} - 追客情報編集</h3>
+              <button onClick={() => setEditDeal(null)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="p-6 space-y-4 overflow-auto flex-1">
+              <StaffSelector category="追客" value={editDealForm.staff_name || ''} onChange={(name) => setEditDealForm(prev => ({ ...prev, staff_name: name }))} allStaffNames={dealStaffNames} />
+              <div className="grid grid-cols-3 gap-3">
+                {DEAL_EDIT_FIELDS.map(f => (
+                  <div key={f.key}>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">{f.label}</label>
+                    <input type={f.type || 'text'} value={editDealForm[f.key] || ''} onChange={(e) => setEditDealForm(prev => ({ ...prev, [f.key]: e.target.value }))} className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg text-sm" />
+                  </div>
+                ))}
+              </div>
+              <div className="flex items-center justify-between pt-2">
+                <button type="button" onClick={async () => { if (editDeal && confirm('この案件を追客リストから削除しますか？')) { await supabase.from('deals').update({ followup_active: false }).eq('id', editDeal.id); setEditDeal(null); fetchDeals() } }} className="px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg flex items-center gap-1">
+                  <X className="w-4 h-4" />追客案件から削除
+                </button>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => setEditDeal(null)} className="px-4 py-2 text-sm text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200">キャンセル</button>
+                  <button type="button" onClick={handleDealEditSave} disabled={dealSaving} className="px-4 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1">
+                    {dealSaving && <Loader2 className="w-4 h-4 animate-spin" />}保存
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 追客案件検索モーダル */}
+      {showDealSearch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={() => setShowDealSearch(false)}>
+          <div className="bg-white rounded-xl shadow-2xl border border-slate-200 w-full max-w-4xl mx-4 max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-3 border-b border-slate-200">
+              <h3 className="text-base font-bold text-slate-900">追客案件を追加</h3>
+              <button onClick={() => setShowDealSearch(false)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="bg-slate-50 rounded-lg p-4 space-y-3 flex-shrink-0">
+              <div className="flex gap-3 items-end">
+                <div className="flex-1">
+                  <label className="block text-xs font-medium text-slate-600 mb-1">キーワード</label>
+                  <input
+                    type="text"
+                    value={dealSearchQuery}
+                    onChange={(e) => setDealSearchQuery(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') searchDeals() }}
+                    placeholder="顧客名・案件名・担当者名"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm bg-white"
+                    autoFocus
+                  />
+                </div>
+                <button id="deal-search-btn" type="button" onClick={searchDeals} disabled={dealSearching} className="px-5 py-2 text-sm font-semibold text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1">
+                  {dealSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : '検索'}
+                </button>
+              </div>
+              <div className="flex gap-4 items-end flex-wrap">
+                <div>
+                  <label className="block text-xs font-medium text-slate-600 mb-1">エリア</label>
+                  <div className="flex gap-1.5">
+                    <button type="button" onClick={() => setDealSearchDept('')} className={`px-2.5 py-1.5 text-xs rounded-lg border transition-colors ${!dealSearchDept ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>全て</button>
+                    {['中信', '北信', '東信', '南信'].map(s => (
+                      <button key={s} type="button" onClick={() => setDealSearchDept(dealSearchDept === s ? '' : s)} className={`px-2.5 py-1.5 text-xs rounded-lg border transition-colors ${dealSearchDept === s ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-600 border-slate-300 hover:bg-slate-50'}`}>{s}</button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex gap-2 items-end">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-600 mb-1">反響日</label>
+                    <div className="flex gap-1.5 items-center">
+                      <input type="date" value={dealSearchDateFrom} onChange={(e) => setDealSearchDateFrom(e.target.value)} className="px-2 py-1.5 border border-slate-300 rounded-lg text-xs bg-white" />
+                      <span className="text-slate-400 text-xs">〜</span>
+                      <input type="date" value={dealSearchDateTo} onChange={(e) => setDealSearchDateTo(e.target.value)} className="px-2 py-1.5 border border-slate-300 rounded-lg text-xs bg-white" />
+                      {(dealSearchDateFrom || dealSearchDateTo) && (
+                        <button type="button" onClick={() => { setDealSearchDateFrom(''); setDealSearchDateTo('') }} className="text-xs text-slate-500 hover:text-red-500">クリア</button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="px-6 pb-6 overflow-auto flex-1">
+              {dealSearchResults.length > 0 && (
+                <div>
+                  <p className="text-xs text-slate-500 mb-2">{dealSearchResults.length}件の案件が見つかりました</p>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-xs border-collapse">
+                      <thead>
+                        <tr className="bg-slate-50">
+                          <th className="px-2 py-1.5 border border-slate-200 text-left font-semibold text-slate-700">顧客名</th>
+                          <th className="px-2 py-1.5 border border-slate-200 text-left font-semibold text-slate-700">案件名</th>
+                          <th className="px-2 py-1.5 border border-slate-200 text-left font-semibold text-slate-700">担当者</th>
+                          <th className="px-2 py-1.5 border border-slate-200 text-left font-semibold text-slate-700">店舗</th>
+                          <th className="px-2 py-1.5 border border-slate-200 text-left font-semibold text-slate-700">反響日</th>
+                          <th className="px-2 py-1.5 border border-slate-200 text-left font-semibold text-slate-700">区分</th>
+                          <th className="px-2 py-1.5 border border-slate-200 text-left font-semibold text-slate-700">エリア</th>
+                          <th className="px-2 py-1.5 border border-slate-200 text-center font-semibold text-slate-700 w-20"></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {dealSearchResults.map(d => (
+                          <tr key={String(d.id)} className="hover:bg-slate-50">
+                            <td className="px-2 py-1.5 border border-slate-200">{String(d.customer_name || '-')}</td>
+                            <td className="px-2 py-1.5 border border-slate-200 max-w-[300px]" style={{ whiteSpace: 'normal', wordBreak: 'break-all' }}>{String(d.name || '-')}</td>
+                            <td className="px-2 py-1.5 border border-slate-200">{cleanStaff(d.staff_name)}</td>
+                            <td className="px-2 py-1.5 border border-slate-200">{String(d.store_name || '-')}</td>
+                            <td className="px-2 py-1.5 border border-slate-200">{typeof d.inquiry_date === 'string' ? d.inquiry_date.replace(/-/g, '/') : '-'}</td>
+                            <td className="px-2 py-1.5 border border-slate-200">{String(d.deal_category || '-')}</td>
+                            <td className="px-2 py-1.5 border border-slate-200">{String(d.label_area || '-')}</td>
+                            <td className="px-2 py-1.5 border border-slate-200 text-center">
+                              <button type="button" onClick={() => startFollowup(String(d.id))} className="px-2.5 py-1 text-xs font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700">追客開始</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+              {dealSearchResults.length === 0 && dealSearchDone && !dealSearching && (
+                <p className="text-sm text-slate-400 text-center py-4">該当する案件が見つかりません</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 詳細モーダル */}
       {b1Detail && (
