@@ -32,7 +32,8 @@ export const formatDateTime = (dt) => {
     const mm = String(month).padStart(2, '0'); const dd = String(day).padStart(2, '0');
     if (!hasTime) return (<span>{year}/{mm}/{dd}<span className={`text-[11px] ml-0.5 ${c}`}>({w})</span></span>);
     const timeParts = typeof dt === 'string' ? dt.split('T')[1] : '';
-    const time = timeParts ? timeParts.substring(0, 5) : '00:00';
+    const time = timeParts ? timeParts.substring(0, 5) : '';
+    if (!time || time === '00:00') return (<span>{year}/{mm}/{dd}<span className={`text-[11px] ml-0.5 ${c}`}>({w})</span></span>);
     return (<span>{year}/{mm}/{dd}<span className={`text-[11px] ml-0.5 ${c}`}>({w})</span> <span className="text-[11px]">{time}</span></span>);
 };
 export const toYMD = (date) => `${date.getFullYear()}-${(date.getMonth()+1).toString().padStart(2,'0')}-${date.getDate().toString().padStart(2,'0')}`;
