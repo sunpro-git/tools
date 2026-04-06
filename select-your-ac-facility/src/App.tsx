@@ -139,7 +139,6 @@ function App() {
             <ComparisonSlide
               onQuiz={() => goTo('quiz', 0)}
               onBack={() => { setDirection('back'); setStep(3); }}
-              onTop={handleTop}
             />
           )}
 

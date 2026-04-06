@@ -41,7 +41,7 @@ export function SimulationSlide({ entries, onRemove, onQuiz, onBack, onTop }: Si
     return merged;
   }, [entries, years]);
 
-  const getColor = (entry: SimEntry, idx: number) => {
+  const getColor = (entry: SimEntry) => {
     const sameSystem = entries.filter(e => e.systemId === entry.systemId);
     const subIdx = sameSystem.indexOf(entry);
     return SYSTEM_COLORS[entry.systemId][subIdx] ?? systems[entry.systemId].color;
@@ -101,9 +101,10 @@ export function SimulationSlide({ entries, onRemove, onQuiz, onBack, onTop }: Si
                     width={55}
                   />
                   <Tooltip
-                    formatter={(value: number, name: string) => {
-                      const entry = entries.find(e => e.id === name);
-                      return [`${value}万円`, entry?.label ?? name];
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                    formatter={(value: any, name: any) => {
+                      const entry = entries.find(e => e.id === String(name));
+                      return [`${value}万円`, entry?.label ?? String(name)] as [string, string];
                     }}
                     labelFormatter={(label) => `${label}年目`}
                     contentStyle={{ borderRadius: '8px', fontSize: '13px', border: '1px solid rgba(42,33,24,0.15)' }}
@@ -115,12 +116,12 @@ export function SimulationSlide({ entries, onRemove, onQuiz, onBack, onTop }: Si
                     }}
                     wrapperStyle={{ fontSize: '13px' }}
                   />
-                  {entries.map((entry, i) => (
+                  {entries.map((entry) => (
                     <Line
                       key={entry.id}
                       type="monotone"
                       dataKey={entry.id}
-                      stroke={getColor(entry, i)}
+                      stroke={getColor(entry)}
                       strokeWidth={2.5}
                       strokeDasharray={getStrokeDash(entry)}
                       dot={false}

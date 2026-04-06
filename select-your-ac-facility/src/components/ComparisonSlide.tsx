@@ -3,12 +3,11 @@ import { systems, type SystemId } from '../data/systems';
 interface ComparisonSlideProps {
   onQuiz: () => void;
   onBack: () => void;
-  onTop: () => void;
 }
 
 const order: SystemId[] = ['myroom', 'smart', 'zenkan'];
 
-export function ComparisonSlide({ onQuiz, onBack, onTop }: ComparisonSlideProps) {
+export function ComparisonSlide({ onQuiz, onBack }: ComparisonSlideProps) {
   return (
     <div className="h-full flex flex-col px-[12vw] py-[12vh]">
       {/* Content - centered */}
