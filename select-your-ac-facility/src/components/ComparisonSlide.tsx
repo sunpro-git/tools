@@ -28,11 +28,11 @@ export function ComparisonSlide({ onQuiz, onBack }: ComparisonSlideProps) {
                 </div>
                 <div className="text-left mb-1.5">
                   <div className="text-[13px] font-black mb-0.5" style={{ color: 'var(--color-accent-green)' }}>輝くとき</div>
-                  <p className="text-[13px] leading-snug" style={{ color: 'var(--color-text-sub)' }}>{s.bestFor}</p>
+                  <p className="text-[13px] leading-snug" style={{ color: 'var(--color-text-sub)' }}>{s.bestFor.join('、')}</p>
                 </div>
                 <div className="text-left">
                   <div className="text-[13px] font-black mb-0.5" style={{ color: '#c45040' }}>代償</div>
-                  <p className="text-[13px] leading-snug" style={{ color: 'var(--color-text-sub)' }}>{s.worstFor}</p>
+                  <p className="text-[13px] leading-snug" style={{ color: 'var(--color-text-sub)' }}>{s.worstFor.join('、')}</p>
                 </div>
               </div>
             );

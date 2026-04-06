@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { systems, type SystemId } from '../data/systems';
 import { ImageModal } from './ImageModal';
-import { calcCosts, defaultConfigs, type SimConfig, type SimEntry } from '../data/simulation';
+import { calcCosts, defaultConfigs, type SimConfig, type SimEntry, type SmartConfig } from '../data/simulation';
 import { SimEntryBar } from './SimEntryBar';
 
 interface SystemInfoSlideProps {
@@ -33,26 +33,25 @@ function CostIcon({ type }: { type: 'price' | 'electricity' | 'maintenance' }) {
   );
 }
 
-function CountSelector({ label, value, onChange, color, max = 2 }: { label: string; value: number; onChange: (v: number) => void; color: string; max?: number }) {
+function CountSelector({ label, value, onChange, max = 2 }: { label: string; value: number; onChange: (v: number) => void; color?: string; max?: number }) {
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex items-center gap-1.5">
       <span className="text-[13px]" style={{ color: 'var(--color-text-sub)' }}>{label}</span>
-      <div className="flex gap-1">
+      <select
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="text-[13px] font-bold px-2 py-1 rounded-lg cursor-pointer"
+        style={{
+          background: 'rgba(255,255,255,0.7)',
+          border: '1px solid var(--color-card-border)',
+          color: 'var(--color-text)',
+          outline: 'none',
+        }}
+      >
         {Array.from({ length: max + 1 }, (_, n) => (
-          <button
-            key={n}
-            onClick={() => onChange(n)}
-            className="w-6 h-6 rounded text-[13px] font-bold cursor-pointer transition-all"
-            style={{
-              background: value === n ? color : 'rgba(42,33,24,0.06)',
-              color: value === n ? 'white' : 'var(--color-text-sub)',
-              border: value === n ? 'none' : '1px solid rgba(42,33,24,0.1)',
-            }}
-          >
-            {n}
-          </button>
+          <option key={n} value={n}>{n}台</option>
         ))}
-      </div>
+      </select>
     </div>
   );
 }
@@ -66,43 +65,72 @@ export function SystemInfoSlide({ systemId, onNext, onBack, onAddSimulation, onR
   const [smartCfg, setSmartCfg] = useState(defaultConfigs.smart);
   const [zenkanCfg] = useState(defaultConfigs.zenkan);
 
+  const [hasFloorAc, setHasFloorAc] = useState(true);
   const currentConfig = systemId === 'myroom' ? myroomCfg : systemId === 'smart' ? smartCfg : zenkanCfg;
   const costs = useMemo(() => calcCosts(systemId, currentConfig), [systemId, currentConfig]);
+
+  // Dynamic pros/cons for myroom based on floor AC toggle
+  const displayBestFor = useMemo(() => {
+    if (systemId !== 'myroom') return s.bestFor;
+    if (hasFloorAc) return s.bestFor;
+    return s.bestFor.filter(b => !b.includes('床下エアコン'));
+  }, [systemId, hasFloorAc, s.bestFor]);
+
+  const displayCons = useMemo(() => {
+    if (systemId !== 'myroom') return s.cons;
+    if (hasFloorAc) return [
+      '床下エアコンは<mark class="hl-red">暖房専用</mark>となり、冷房としては利用できない',
+      '床下エアコンのフィルターは<mark class="hl-red">2〜3ケ月おき</mark>の清掃が必要になる',
+      '室内にペットがいる場合、床下エアコンのフィルターは、約<mark class="hl-red">1ケ月おき</mark>の頻繁な清掃が必要になる',
+      ...s.cons,
+    ];
+    return ['<mark class="hl-red">吹き抜け</mark>がある空間は暖房が利きにくい', ...s.cons];
+  }, [systemId, hasFloorAc, s.cons]);
 
   const handleAdd = () => {
     onAddSimulation(systemId, currentConfig);
   };
 
   return (
-    <div className="h-full flex flex-col px-[8vw] py-[10vh]">
-      {/* Title + description */}
-      <div className="text-center mb-3">
-        <h2 className="text-[clamp(1.8rem,4vw,2.8rem)] font-black" style={{ color: s.color }}>{s.name}</h2>
-        <p className="text-sm mt-1" style={{ color: 'var(--color-text-sub)' }}>{s.description}</p>
-      </div>
-
+    <div className="h-full flex flex-col px-[5vw] py-[10vh]">
       {/* Content */}
       <div className="flex-1 flex gap-5 md:gap-8 w-full mx-auto min-h-0">
-        {/* Left - image */}
-        <div
-          className="shrink-0 w-[40%] cursor-pointer relative group rounded-2xl overflow-hidden self-center"
-          style={{ background: 'rgba(255,255,255,0.6)' }}
-          onClick={() => setModalImg(images[systemId])}
-        >
-          <img src={images[systemId]} alt={s.name} className="w-full object-contain p-3" />
-          <div className="absolute top-3 right-3 w-7 h-7 rounded-full flex items-center justify-center opacity-60 group-hover:opacity-100 transition-opacity" style={{ background: 'rgba(42, 33, 24, 0.6)', color: 'white' }}>
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
-              <line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" />
-            </svg>
+        {/* Left - title + image (40%) */}
+        <div className="shrink-0 w-[40%] flex flex-col justify-center self-center">
+          <h2 className="text-[clamp(1.8rem,4vw,2.8rem)] font-black mb-1 flex items-baseline gap-3" style={{ color: s.color }}>
+            {s.name}
+            {systemId === 'smart' && (
+              <span style={{ fontFamily: "'Chillax', sans-serif", fontWeight: 600, fontSize: 'clamp(0.9rem, 2vw, 1.3rem)' }}>AirFlowBeyond</span>
+            )}
+            {systemId === 'zenkan' && (
+              <img src={`${base}images/withair-logo.png`} alt="withair" className="h-[clamp(16px,2vw,22px)]" style={{ filter: 'brightness(0) saturate(100%) invert(56%) sepia(52%) saturate(522%) hue-rotate(101deg) brightness(97%) contrast(92%)' }} />
+            )}
+          </h2>
+          <p className="text-sm mb-8" style={{ color: 'var(--color-text-sub)' }}>{s.description}</p>
+          <div
+            className="cursor-pointer relative group rounded-2xl overflow-hidden"
+            style={{ background: 'rgba(255,255,255,0.6)' }}
+            onClick={() => setModalImg(images[systemId])}
+          >
+            <img src={images[systemId]} alt={s.name} className="w-full object-contain p-3" />
+            <div className="absolute top-3 right-3 w-7 h-7 rounded-full flex items-center justify-center opacity-60 group-hover:opacity-100 transition-opacity" style={{ background: 'rgba(42, 33, 24, 0.6)', color: 'white' }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                <line x1="11" y1="8" x2="11" y2="14" /><line x1="8" y1="11" x2="14" y2="11" />
+              </svg>
+            </div>
           </div>
         </div>
 
         {/* Right - info */}
         <div className="flex-1 min-w-0 overflow-y-auto space-y-2.5 flex flex-col justify-center">
 
-          {/* Config selector + Add button */}
+          {/* Config + Cost block with background */}
+          <div className="rounded-xl p-3 space-y-2.5" style={{ background: s.color + '08', border: `2px solid ${s.color}35` }}>
+
+          {/* Config heading + Add button row */}
           <div className="flex items-start gap-3">
+            {/* Left: heading + selectors */}
             <div className="flex-1">
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg mb-2" style={{ background: s.color + '12' }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ color: s.color }}>
@@ -110,42 +138,57 @@ export function SystemInfoSlide({ systemId, onNext, onBack, onAddSimulation, onR
                 </svg>
                 <h4 className="text-sm font-black">構成台数を選択</h4>
               </div>
-
-              {systemId === 'myroom' && (
-                <div className="grid grid-cols-3">
-                  <div className="space-y-1.5 px-3 py-2" style={{ borderRight: '1px solid var(--color-card-border)' }}>
-                    <CountSelector label="床下エアコン" value={myroomCfg.floor} onChange={v => setMyroomCfg(c => ({ ...c, floor: v }))} color={s.color} />
-                  </div>
-                  <div className="space-y-1.5 px-3 py-2" style={{ borderRight: '1px solid var(--color-card-border)' }}>
-                    <CountSelector label="1F LDK用" value={myroomCfg.ldk1f} onChange={v => setMyroomCfg(c => ({ ...c, ldk1f: v }))} color={s.color} />
-                    <CountSelector label="1F 居室用" value={myroomCfg.room1f} onChange={v => setMyroomCfg(c => ({ ...c, room1f: v }))} color={s.color} max={3} />
-                  </div>
-                  <div className="space-y-1.5 px-3 py-2">
-                    <CountSelector label="2F LDK用" value={myroomCfg.ldk2f} onChange={v => setMyroomCfg(c => ({ ...c, ldk2f: v }))} color={s.color} />
-                    <CountSelector label="2F 居室用" value={myroomCfg.room2f} onChange={v => setMyroomCfg(c => ({ ...c, room2f: v }))} color={s.color} max={3} />
-                  </div>
-                </div>
-              )}
-
-              {systemId === 'smart' && (
-                <div className="px-3 py-2">
-                  <CountSelector label="エアコン台数" value={smartCfg.units} onChange={v => setSmartCfg({ units: v })} color={s.color} max={3} />
-                </div>
-              )}
-
-              {systemId === 'zenkan' && (
-                <div className="px-3 py-2">
-                  <p className="text-[13px]" style={{ color: 'var(--color-text-sub)' }}>専用システム 1式（固定）</p>
-                </div>
-              )}
+              <div className="flex items-center gap-3 flex-wrap pl-3">
+                {systemId === 'myroom' && (
+                  <>
+                    <CountSelector label="床下AC" value={myroomCfg.floor} onChange={v => setMyroomCfg(c => ({ ...c, floor: v }))} />
+                    <CountSelector label="1F LDK" value={myroomCfg.ldk1f} onChange={v => setMyroomCfg(c => ({ ...c, ldk1f: v }))} />
+                    <CountSelector label="1F 居室" value={myroomCfg.room1f} onChange={v => setMyroomCfg(c => ({ ...c, room1f: v }))} max={3} />
+                    <CountSelector label="2F LDK" value={myroomCfg.ldk2f} onChange={v => setMyroomCfg(c => ({ ...c, ldk2f: v }))} />
+                    <CountSelector label="2F 居室" value={myroomCfg.room2f} onChange={v => setMyroomCfg(c => ({ ...c, room2f: v }))} max={3} />
+                  </>
+                )}
+                {systemId === 'smart' && (
+                  <>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[13px]" style={{ color: 'var(--color-text-sub)' }}>1Fエアコン</span>
+                      <select
+                        value={smartCfg.floor1}
+                        onChange={(e) => setSmartCfg(c => ({ ...c, floor1: e.target.value as SmartConfig['floor1'] }))}
+                        className="text-[13px] font-bold px-2 py-1 rounded-lg cursor-pointer"
+                        style={{ background: 'rgba(255,255,255,0.7)', border: '1px solid var(--color-card-border)', color: 'var(--color-text)', outline: 'none' }}
+                      >
+                        <option value="none">分配しない</option>
+                        <option value="floor">床下に分配</option>
+                        <option value="floor+2">床下 + 2箇所に分配</option>
+                      </select>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[13px]" style={{ color: 'var(--color-text-sub)' }}>2Fエアコン</span>
+                      <select
+                        value={smartCfg.floor2}
+                        onChange={(e) => setSmartCfg(c => ({ ...c, floor2: e.target.value as SmartConfig['floor2'] }))}
+                        className="text-[13px] font-bold px-2 py-1 rounded-lg cursor-pointer"
+                        style={{ background: 'rgba(255,255,255,0.7)', border: '1px solid var(--color-card-border)', color: 'var(--color-text)', outline: 'none' }}
+                      >
+                        <option value="none">分配しない</option>
+                        <option value="2rooms">2箇所に分配</option>
+                      </select>
+                    </div>
+                  </>
+                )}
+                {systemId === 'zenkan' && (
+                  <span className="text-[13px]" style={{ color: 'var(--color-text-sub)' }}>専用システム 1式（固定）</span>
+                )}
+              </div>
             </div>
 
-            {/* Add to simulation button */}
-            <div className="shrink-0 self-center flex flex-col items-center gap-1.5">
+            {/* Right: Add button */}
+            <div className="shrink-0 self-center flex flex-col items-center gap-1">
               <button
                 onClick={handleAdd}
                 disabled={!canAdd}
-                className="px-4 py-3 rounded-xl text-[13px] font-bold cursor-pointer transition-all"
+                className="px-4 py-2.5 rounded-lg text-[13px] font-bold cursor-pointer transition-all text-center leading-tight"
                 style={{
                   background: canAdd ? s.color : 'rgba(42,33,24,0.15)',
                   color: 'white',
@@ -153,7 +196,10 @@ export function SystemInfoSlide({ systemId, onNext, onBack, onAddSimulation, onR
                   opacity: canAdd ? 1 : 0.5,
                 }}
               >
-                シミュレーションに追加
+                <span className="flex items-center justify-center gap-1">
+                  <span className="text-lg leading-none">+</span>
+                  <span>シミュレーション<br />に追加</span>
+                </span>
               </button>
               {thisSystemEntries.length > 0 && (
                 <span className="text-[13px] font-bold" style={{ color: 'var(--color-accent-green)' }}>
@@ -188,41 +234,70 @@ export function SystemInfoSlide({ systemId, onNext, onBack, onAddSimulation, onR
             </div>
           </div>
 
-          {/* Best/Worst */}
+          </div>
+          {/* end Config + Cost block */}
+
+          {/* Pros (including bestFor) / Cons (including worstFor) */}
           <div className="grid grid-cols-2 gap-2">
             <div className="card p-3">
-              <h4 className="text-sm font-black mb-1.5" style={{ color: 'var(--color-accent-green)' }}>こんなご家族にオススメ</h4>
-              <p className="text-[13px] leading-relaxed" style={{ color: 'var(--color-text-sub)' }}>{s.bestFor}</p>
+              <h4 className="text-sm font-black pb-2 mb-3" style={{ color: 'var(--color-accent-green)', borderBottom: '2px solid var(--color-accent-green)' }}>{s.name}のメリット</h4>
+              <ul className="space-y-2.5">
+                {displayBestFor.map((b, i) => (
+                  <li key={i} className="text-[13px] flex items-start gap-1.5 leading-snug" style={{ color: 'var(--color-text-sub)' }}>
+                    <span style={{ color: 'var(--color-accent-green)' }}>★</span><span dangerouslySetInnerHTML={{ __html: b }} />
+                  </li>
+                ))}
+                {s.pros.map((p, i) => (
+                  <li key={`p${i}`} className="text-[13px] flex items-start gap-1.5 leading-snug" style={{ color: 'var(--color-text-sub)' }}>
+                    <span style={{ color: 'var(--color-accent-green)' }}>★</span><span dangerouslySetInnerHTML={{ __html: p }} />
+                  </li>
+                ))}
+              </ul>
             </div>
             <div className="card p-3">
-              <h4 className="text-sm font-black mb-1.5" style={{ color: '#c45040' }}>オススメできません</h4>
-              <p className="text-[13px] leading-relaxed" style={{ color: 'var(--color-text-sub)' }}>{s.worstFor}</p>
+              <h4 className="text-sm font-black pb-2 mb-3" style={{ color: '#c45040', borderBottom: '2px solid #c45040' }}>{s.name}のデメリット・注意点</h4>
+              <ul className="space-y-2.5">
+                {s.worstFor.map((w, i) => (
+                  <li key={i} className="text-[13px] flex items-start gap-1.5 leading-snug" style={{ color: 'var(--color-text-sub)' }}>
+                    <span className="font-black" style={{ color: '#c45040' }}>✖</span><span dangerouslySetInnerHTML={{ __html: w }} />
+                  </li>
+                ))}
+                {displayCons.map((c, i) => (
+                  <li key={`c${i}`} className="text-[13px] flex items-start gap-1.5 leading-snug" style={{ color: 'var(--color-text-sub)' }}>
+                    <span className="font-black" style={{ color: '#c45040' }}>✖</span><span dangerouslySetInnerHTML={{ __html: c }} />
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
 
-          {/* Pros/Cons */}
-          <div className="grid grid-cols-2 gap-2">
-            <div className="card p-3">
-              <h4 className="text-sm font-black mb-1.5" style={{ color: 'var(--color-accent-green)' }}>強み</h4>
-              <ul className="space-y-1">
-                {s.pros.map((p, i) => (
-                  <li key={i} className="text-[13px] flex items-start gap-1.5 leading-snug" style={{ color: 'var(--color-text-sub)' }}>
-                    <span style={{ color: 'var(--color-accent-green)' }}>+</span><span>{p}</span>
-                  </li>
-                ))}
-              </ul>
+          {/* Floor AC toggle (myroom only) */}
+          {systemId === 'myroom' && (
+            <div className="flex gap-2 pl-3">
+              <button
+                onClick={() => setHasFloorAc(true)}
+                className="px-4 py-1.5 rounded-lg text-[13px] font-bold cursor-pointer transition-all"
+                style={{
+                  background: hasFloorAc ? s.color : 'rgba(42,33,24,0.06)',
+                  color: hasFloorAc ? 'white' : 'var(--color-text-sub)',
+                  border: hasFloorAc ? 'none' : '1px solid var(--color-card-border)',
+                }}
+              >
+                床下エアコン採用あり
+              </button>
+              <button
+                onClick={() => setHasFloorAc(false)}
+                className="px-4 py-1.5 rounded-lg text-[13px] font-bold cursor-pointer transition-all"
+                style={{
+                  background: !hasFloorAc ? s.color : 'rgba(42,33,24,0.06)',
+                  color: !hasFloorAc ? 'white' : 'var(--color-text-sub)',
+                  border: !hasFloorAc ? 'none' : '1px solid var(--color-card-border)',
+                }}
+              >
+                床下エアコン採用なし
+              </button>
             </div>
-            <div className="card p-3">
-              <h4 className="text-sm font-black mb-1.5" style={{ color: '#c45040' }}>弱み</h4>
-              <ul className="space-y-1">
-                {s.cons.map((c, i) => (
-                  <li key={i} className="text-[13px] flex items-start gap-1.5 leading-snug" style={{ color: 'var(--color-text-sub)' }}>
-                    <span style={{ color: '#c45040' }}>−</span><span>{c}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
+          )}
         </div>
       </div>
 

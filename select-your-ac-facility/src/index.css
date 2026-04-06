@@ -128,6 +128,30 @@ html, body, #root {
   transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Highlight animation */
+@keyframes highlight-in {
+  0% { background-size: 0% 100%; }
+  100% { background-size: 100% 100%; }
+}
+
+mark {
+  background: none;
+  background-repeat: no-repeat;
+  background-position: left center;
+  background-size: 100% 100%;
+  animation: highlight-in 0.8s 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  color: inherit;
+  padding: 0.1em 0.2em;
+  border-radius: 3px;
+  font-weight: 700;
+}
+mark.hl-green {
+  background-image: linear-gradient(to right, #d4f5e2, #d4f5e2);
+}
+mark.hl-red {
+  background-image: linear-gradient(to right, #fde0dc, #fde0dc);
+}
+
 /* Progress dots */
 .progress-dot {
   width: 12px; height: 12px; border-radius: 50%;

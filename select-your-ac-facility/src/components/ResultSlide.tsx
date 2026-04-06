@@ -63,7 +63,7 @@ export function ResultSlide({ answers, onRestart }: ResultSlideProps) {
 
         <div className="card p-3 mb-2" style={{ background: '#c4504008', borderColor: '#c4504020' }}>
           <h4 className="text-[13px] font-black mb-1" style={{ color: '#c45040' }}>この方式を選ぶなら知っておくべきこと</h4>
-          <p className="text-[13px] leading-relaxed" style={{ color: 'var(--color-text-sub)' }}>{system.worstFor}</p>
+          <p className="text-[13px] leading-relaxed" style={{ color: 'var(--color-text-sub)' }}>{system.worstFor.join('、')}</p>
         </div>
 
         <div className="card p-3">

@@ -11,6 +11,8 @@ export interface MyroomConfig {
 
 export interface SmartConfig {
   units: number;
+  floor1: 'none' | 'floor' | 'floor+2';   // 1階: 分配しない / 床下に分配 / 床下+2箇所
+  floor2: 'none' | '2rooms';               // 2階: 分配しない / 2箇所に分配
 }
 
 export interface ZenkanConfig {
@@ -60,7 +62,7 @@ const REPLACEMENT_CYCLE: Record<SystemId, number> = {
 
 export const defaultConfigs: SimConfig = {
   myroom: { floor: 0, ldk1f: 1, room1f: 0, ldk2f: 0, room2f: 2 },
-  smart: { units: 2 },
+  smart: { units: 2, floor1: 'floor+2', floor2: '2rooms' },
   zenkan: { system: 1 },
 };
 
@@ -145,7 +147,7 @@ function configDetail(systemId: SystemId, config: SimConfig[SystemId]): string {
   if (systemId === 'myroom') {
     const c = config as MyroomConfig;
     const parts: string[] = [];
-    if (c.floor > 0) parts.push(`床下×${c.floor}`);
+    if (c.floor > 0) parts.push(`床下AC×${c.floor}`);
     if (c.ldk1f > 0) parts.push(`1F LDK×${c.ldk1f}`);
     if (c.room1f > 0) parts.push(`1F居室×${c.room1f}`);
     if (c.ldk2f > 0) parts.push(`2F LDK×${c.ldk2f}`);
@@ -154,7 +156,9 @@ function configDetail(systemId: SystemId, config: SimConfig[SystemId]): string {
   }
   if (systemId === 'smart') {
     const c = config as SmartConfig;
-    return `${c.units}台+ダクト`;
+    const f1 = c.floor1 === 'none' ? '1F分配なし' : c.floor1 === 'floor' ? '1F床下' : '1F床下+2箇所';
+    const f2 = c.floor2 === 'none' ? '2F分配なし' : '2F 2箇所';
+    return `${f1} / ${f2}`;
   }
   return '1式';
 }
