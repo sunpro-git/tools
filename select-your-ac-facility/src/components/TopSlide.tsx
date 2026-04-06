@@ -7,9 +7,9 @@ interface TopSlideProps {
 }
 
 const acTypes = [
-  { img: '/images/individual.webp', name: '個別空調', catch: '各部屋に寒冷地用エアコンを配置。\n人気の「床下エアコン暖房」も採用可能です。', color: 'var(--color-accent-blue)' },
-  { img: '/images/distributed.webp', name: '分配空調', catch: 'エアコンの温風冷風を各部屋へ分配。\n温風は床下にも送られ、足下から暖かくくらせます。', color: 'var(--color-accent-orange)' },
-  { img: '/images/whole-house.webp', name: '全館空調', catch: 'エアコン１台で住まい全体を冷暖房。\n部屋ごとの室温もコントロールできます。', color: 'var(--color-accent-green)' },
+  { img: `${import.meta.env.BASE_URL}images/individual.webp`, name: '個別空調', catch: '各部屋に寒冷地用エアコンを配置。\n人気の「床下エアコン暖房」も採用可能です。', color: 'var(--color-accent-blue)' },
+  { img: `${import.meta.env.BASE_URL}images/distributed.webp`, name: '分配空調', catch: 'エアコンの温風冷風を各部屋へ分配。\n温風は床下にも送られ、足下から暖かくくらせます。', color: 'var(--color-accent-orange)' },
+  { img: `${import.meta.env.BASE_URL}images/whole-house.webp`, name: '全館空調', catch: 'エアコン１台で住まい全体を冷暖房。\n部屋ごとの室温もコントロールできます。', color: 'var(--color-accent-green)' },
 ];
 
 export function TopSlide({ onInfo, onQuiz }: TopSlideProps) {
@@ -77,7 +77,7 @@ export function TopSlide({ onInfo, onQuiz }: TopSlideProps) {
                 )}
                 {item.name === '全館空調' && (
                   <>
-                    <img src="/images/withair-logo.png" alt="withair" className="h-[clamp(10px,1.3vw,14px)]" style={{ filter: 'brightness(0) saturate(100%) invert(56%) sepia(52%) saturate(522%) hue-rotate(101deg) brightness(97%) contrast(92%)' }} />
+                    <img src={`${import.meta.env.BASE_URL}images/withair-logo.png`} alt="withair" className="h-[clamp(10px,1.3vw,14px)]" style={{ filter: 'brightness(0) saturate(100%) invert(56%) sepia(52%) saturate(522%) hue-rotate(101deg) brightness(97%) contrast(92%)' }} />
                     <span className="text-[13px] md:text-[11px] leading-none mt-1" style={{ color: 'var(--color-text-sub)' }}>
                       ウィズエアー
                     </span>

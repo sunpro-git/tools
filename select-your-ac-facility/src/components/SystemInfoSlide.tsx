@@ -13,10 +13,11 @@ interface SystemInfoSlideProps {
   simEntries: SimEntry[];
 }
 
+const base = import.meta.env.BASE_URL;
 const images: Record<SystemId, string> = {
-  myroom: '/images/individual.webp',
-  smart: '/images/distributed.webp',
-  zenkan: '/images/whole-house.webp',
+  myroom: `${base}images/individual.webp`,
+  smart: `${base}images/distributed.webp`,
+  zenkan: `${base}images/whole-house.webp`,
 };
 
 function CostIcon({ type }: { type: 'price' | 'electricity' | 'maintenance' }) {
