@@ -16,14 +16,17 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const storage = getStorage(app);
 
-export const GENRES = ['新築', 'リフォーム', '不動産', 'ソリューション', '共通'];
+export const GENRES = ['新築', 'リフォーム', '不動産', 'ソリューション', 'リゾート', '工事部', '共通', 'ノベルティ'];
 
 export const GENRE_COLORS = {
-  '新築':         { bg: 'bg-blue-100',    text: 'text-blue-700',    border: 'border-blue-300',    dot: 'bg-blue-500' },
-  'リフォーム':    { bg: 'bg-emerald-100', text: 'text-emerald-700', border: 'border-emerald-300', dot: 'bg-emerald-500' },
-  '不動産':       { bg: 'bg-amber-100',   text: 'text-amber-700',   border: 'border-amber-300',   dot: 'bg-amber-500' },
-  'ソリューション': { bg: 'bg-red-100',  text: 'text-red-700',  border: 'border-red-300',  dot: 'bg-red-500' },
-  '共通':         { bg: 'bg-gray-100',    text: 'text-gray-700',    border: 'border-gray-300',    dot: 'bg-gray-500' },
+  '新築':         { bg: 'bg-blue-200',     text: 'text-blue-800',     border: 'border-blue-400',     dot: 'bg-blue-600' },
+  'リフォーム':    { bg: 'bg-emerald-200',  text: 'text-emerald-800',  border: 'border-emerald-400',  dot: 'bg-emerald-600' },
+  '不動産':       { bg: 'bg-yellow-200',   text: 'text-yellow-800',   border: 'border-yellow-400',   dot: 'bg-yellow-500' },
+  'ソリューション': { bg: 'bg-red-200',    text: 'text-red-800',      border: 'border-red-400',      dot: 'bg-red-600' },
+  'リゾート':     { bg: 'bg-sky-200',      text: 'text-sky-800',      border: 'border-sky-400',      dot: 'bg-sky-500' },
+  '工事部':       { bg: 'bg-orange-200',   text: 'text-orange-800',   border: 'border-orange-400',   dot: 'bg-orange-500' },
+  '共通':         { bg: 'bg-slate-200',    text: 'text-slate-800',    border: 'border-slate-400',    dot: 'bg-slate-500' },
+  'ノベルティ':    { bg: 'bg-fuchsia-200',  text: 'text-fuchsia-800',  border: 'border-fuchsia-400',  dot: 'bg-fuchsia-500' },
 };
 
 export const GROUPS = ['パンフレット', 'チラシ', 'ファイル', '封筒', '紙類', 'カタログ', 'その他'];

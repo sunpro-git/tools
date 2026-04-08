@@ -5,6 +5,94 @@ import { db, storage, GENRES, GENRE_COLORS, GROUPS } from './config';
 import { collection, getDocs, addDoc, updateDoc, deleteDoc, doc, setDoc, getDoc, onSnapshot, query, orderBy } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { makeDemoImage } from './demoImage';
+import * as pdfjsLib from 'pdfjs-dist';
+import pdfjsWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
+
+// ─── PDF見積り解析 ───
+const extractFromPdf = async (file) => {
+  const arrayBuffer = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  let fullText = '';
+  for (let i = 1; i <= pdf.numPages; i++) {
+    const page = await pdf.getPage(i);
+    const content = await page.getTextContent();
+    fullText += content.items.map(item => item.str).join(' ') + '\n';
+  }
+
+  const result = {};
+
+  // 日付抽出: yyyy/mm/dd, yyyy-mm-dd, yyyy年mm月dd日, 令和X年
+  const datePatterns = [
+    /(\d{4})[\/\-年](\d{1,2})[\/\-月](\d{1,2})/,
+    /令和\s*(\d+)\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})/,
+  ];
+  for (const pat of datePatterns) {
+    const m = fullText.match(pat);
+    if (m) {
+      if (pat.source.includes('令和')) {
+        const y = 2018 + Number(m[1]);
+        result.reprint_date = `${y}-${String(m[2]).padStart(2, '0')}-${String(m[3]).padStart(2, '0')}`;
+      } else {
+        result.reprint_date = `${m[1]}-${String(m[2]).padStart(2, '0')}-${String(m[3]).padStart(2, '0')}`;
+      }
+      break;
+    }
+  }
+
+  // 金額抽出: 合計, 見積金額, 税込, 小計 の近くの金額
+  const costPatterns = [
+    /(?:合計|見積[り金]額|税込[み合計額]*|総額|御見積金額)[^\d]{0,10}[¥￥]?\s*([\d,]+)/,
+    /[¥￥]\s*([\d,]+)/,
+  ];
+  for (const pat of costPatterns) {
+    const m = fullText.match(pat);
+    if (m) {
+      result.cost = m[1].replace(/,/g, '');
+      break;
+    }
+  }
+
+  // 部数抽出: XXX部, 数量 XXX
+  const qtyPatterns = [
+    /([\d,]+)\s*部/,
+    /(?:数量|部数|印刷部数)[^\d]{0,10}([\d,]+)/,
+  ];
+  for (const pat of qtyPatterns) {
+    const m = fullText.match(pat);
+    if (m) {
+      result.quantity = m[1].replace(/,/g, '');
+      break;
+    }
+  }
+
+  // 紙の種類抽出
+  const paperKeywords = ['コート紙', 'マットコート紙', '上質紙', 'アート紙', 'ケント紙', 'クラフト紙', '再生紙', '特殊紙'];
+  for (const kw of paperKeywords) {
+    if (fullText.includes(kw)) {
+      result.paper_type = kw;
+      break;
+    }
+  }
+
+  // サイズ抽出
+  const sizeKeywords = ['A3', 'A4', 'A5', 'A6', 'B4', 'B5', 'B6'];
+  for (const kw of sizeKeywords) {
+    if (fullText.includes(kw)) {
+      result.size = kw;
+      break;
+    }
+  }
+
+  // 印刷会社（会社名）: 見積書冒頭の「御見積書」前後、または「株式会社」を含む行
+  const companyMatch = fullText.match(/((?:株式会社|有限会社)[^\s\n]{1,20})/);
+  if (companyMatch) {
+    result.supplier = companyMatch[1];
+  }
+
+  return result;
+};
 
 // ─── ユーティリティ ───
 const formatDate = (d) => d ? new Date(d).toLocaleDateString('ja-JP') : '—';
@@ -30,21 +118,19 @@ const alertLevel = (stock, lastQty) => {
 };
 
 const EMPTY_ITEM = {
-  name: '', genre: '新築', group: 'パンフレット', stock: '', next_reprint_date: '',
+  name: '', genre: '新築', group: 'パンフレット', active: true, stock: '', next_reprint_date: '',
   last_reprint_qty: '', last_reprint_cost: '', last_reprint_date: '',
   data_url: '', delivery_to: '', notes: '', image_url: '',
   size: '', paper_type: '', supplier: '',
 };
 const SIZES = ['A3', 'A4', 'A5', 'A6', 'B4', 'B5', 'B6', '長3封筒', '角2封筒', '名刺サイズ', 'ハガキ', 'その他'];
 const PAPER_TYPES = ['コート紙', 'マットコート紙', '上質紙', 'アート紙', 'ケント紙', 'クラフト紙', '再生紙', '特殊紙', 'その他'];
-const EMPTY_REPRINT = { reprint_date: '', cost: '', quantity: '', file_url: '', file_name: '', notes: '', delivery_to: '', supplier: '' };
-const EMPTY_REQUEST = { quantity: '', department: '', locations: [], urgency: 'normal', notes: '', requester_name: '' };
-const URGENCY_LABELS = { urgent: '至急', normal: '通常', low: '急ぎなし' };
-const URGENCY_COLORS = { urgent: 'bg-red-100 text-red-700', normal: 'bg-blue-100 text-blue-700', low: 'bg-slate-100 text-slate-600' };
-const REQUEST_STATUS_LABELS = { pending: '申請中', approved: '承認済', ordered: '発注済', delivered: '納品済', rejected: '却下' };
-const REQUEST_STATUS_COLORS = { pending: 'bg-amber-100 text-amber-700', approved: 'bg-blue-100 text-blue-700', ordered: 'bg-indigo-100 text-indigo-700', delivered: 'bg-emerald-100 text-emerald-700', rejected: 'bg-red-100 text-red-700' };
+const EMPTY_REPRINT = { reprint_date: '', cost: '', quantity: '', file_url: '', file_name: '', notes: '', delivery_to: '', supplier: '', designer: '' };
 const LOCATIONS = ['本社', '吉田スタジオ', '長野支店', '松本支店', '上田支店(グランミュゼ)', '伊那支店(グラン・メティス)', 'グラン・ニュクス', 'グラン・シフ', '紬', '飯田支店'];
 const GROUP_ICONS = { 'パンフレット': '📖', 'カタログ': '📚', 'チラシ': '📄', '封筒': '✉️', 'ファイル': '📁', '紙類': '📃' };
+const SETUP_STATUS = { pending: '未着手', quoting: '見積中', ordered: '発注済', delivered: '納品済' };
+const SETUP_STATUS_COLORS = { pending: 'bg-slate-100 text-slate-600', quoting: 'bg-amber-100 text-amber-700', ordered: 'bg-blue-100 text-blue-700', delivered: 'bg-emerald-100 text-emerald-700' };
+const EMPTY_SETUP_ITEM = { status: 'pending', quantity: '', supplier: '', designer: '', cost: '', delivery_date: '', notes: '', completed: false };
 
 export default function App() {
   // ─── 認証 ───
@@ -75,16 +161,16 @@ export default function App() {
   const [reprintForm, setReprintForm] = useState(EMPTY_REPRINT);
   const [reprintTargetItemId, setReprintTargetItemId] = useState(null);
   const [toast, setToast] = useState('');
-  const [chatworkForm, setChatworkForm] = useState({ chatwork_room_id: '', chatwork_api_token: '', chatwork_notify_days_before: '7', chatwork_notify_enabled: 'true' });
   const [newPassword, setNewPassword] = useState('');
+  const [showNewOpenModal, setShowNewOpenModal] = useState(false);
+  const [newOpenItemIds, setNewOpenItemIds] = useState([]);
+  const [newOpenFilterGenre, setNewOpenFilterGenre] = useState('');
+  const [newOpenEditMode, setNewOpenEditMode] = useState(false);
+  const [showStoreSetupModal, setShowStoreSetupModal] = useState(false);
+  const [storeSetupData, setStoreSetupData] = useState({ id: null, storeName: '', openDate: '', items: [] });
+  const [storeSetups, setStoreSetups] = useState([]);
   const imageInputRef = useRef(null);
 
-  // ─── 増刷リクエスト ───
-  const [requests, setRequests] = useState([]);
-  const [showRequestModal, setShowRequestModal] = useState(false);
-  const [showRequestListModal, setShowRequestListModal] = useState(false);
-  const [requestForm, setRequestForm] = useState(EMPTY_REQUEST);
-  const [requestTargetItem, setRequestTargetItem] = useState(null);
   const [detailItem, setDetailItem] = useState(null);
   const [selectedSummaryGenre, setSelectedSummaryGenre] = useState('');
   const [showManual, setShowManual] = useState(false);
@@ -137,12 +223,9 @@ export default function App() {
       const obj = {};
       snap.forEach(d => { obj[d.id] = d.data().value; });
       setSettings(obj);
-      setChatworkForm({
-        chatwork_room_id: obj.chatwork_room_id || '',
-        chatwork_api_token: obj.chatwork_api_token || '',
-        chatwork_notify_days_before: obj.chatwork_notify_days_before || '7',
-        chatwork_notify_enabled: obj.chatwork_notify_enabled || 'true',
-      });
+      if (Array.isArray(obj.new_open_items)) {
+        setNewOpenItemIds(obj.new_open_items);
+      }
     } catch (_) {}
   };
 
@@ -165,7 +248,13 @@ export default function App() {
         setReprints(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       }
     );
-    return () => { unsubItems(); unsubReprints(); };
+    const unsubSetups = onSnapshot(
+      query(collection(db, 'catalog_store_setups'), orderBy('created_at', 'desc')),
+      (snap) => {
+        setStoreSetups(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      }
+    );
+    return () => { unsubItems(); unsubReprints(); unsubSetups(); };
   }, [authed]);
 
   // ─── フィルタ ───
@@ -297,6 +386,7 @@ export default function App() {
     setEditingItemId(item.id);
     setItemForm({
       name: item.name, genre: item.genre, group: item.group || 'パンフレット',
+      active: item.active !== false,
       stock: item.stock ?? '', next_reprint_date: item.next_reprint_date || '',
       last_reprint_qty: item.last_reprint_qty ?? '', last_reprint_cost: item.last_reprint_cost ?? '',
       last_reprint_date: item.last_reprint_date || '',
@@ -357,13 +447,13 @@ export default function App() {
   const openEditReprint = (reprint) => {
     setReprintTargetItemId(reprint.catalog_item_id);
     setEditingReprintId(reprint.id);
-    setReprintForm({ reprint_date: reprint.reprint_date || '', cost: reprint.cost || '', quantity: reprint.quantity || '', file_url: reprint.file_url || '', file_name: reprint.file_name || '', notes: reprint.notes || '' });
+    setReprintForm({ reprint_date: reprint.reprint_date || '', cost: reprint.cost || '', quantity: reprint.quantity || '', file_url: reprint.file_url || '', file_name: reprint.file_name || '', notes: reprint.notes || '', designer: reprint.designer || '' });
     setShowReprintModal(true);
   };
   const saveReprint = async (e) => {
     e.preventDefault();
     if (!reprintForm.reprint_date) return;
-    const payload = { catalog_item_id: reprintTargetItemId, reprint_date: reprintForm.reprint_date, cost: Number(reprintForm.cost) || 0, quantity: Number(reprintForm.quantity) || 0, file_url: reprintForm.file_url, file_name: reprintForm.file_name, notes: reprintForm.notes };
+    const payload = { catalog_item_id: reprintTargetItemId, reprint_date: reprintForm.reprint_date, cost: Number(reprintForm.cost) || 0, quantity: Number(reprintForm.quantity) || 0, file_url: reprintForm.file_url, file_name: reprintForm.file_name, notes: reprintForm.notes, designer: reprintForm.designer || '' };
     try {
       if (editingReprintId) {
         await updateDoc(doc(db, 'catalog_reprints', editingReprintId), payload);
@@ -385,116 +475,81 @@ export default function App() {
   const saveSettings = async (e) => {
     e.preventDefault();
     try {
-      for (const [key, value] of Object.entries(chatworkForm)) {
-        await setDoc(doc(db, 'catalog_settings', key), { value, updated_at: new Date().toISOString() });
-      }
       if (newPassword.trim()) {
         await setDoc(doc(db, 'catalog_settings', 'app_password'), { value: newPassword.trim(), updated_at: new Date().toISOString() });
         setNewPassword('');
       }
     } catch (_) {}
-    showToast('設定を保存しました');
+    showToast('パスワードを変更しました');
     setShowSettings(false);
-    loadSettings();
   };
 
-  // ─── Chatwork通知 ───
-  const sendChatworkNotify = async (item) => {
-    const roomId = settings.chatwork_room_id;
-    const apiToken = settings.chatwork_api_token;
-    if (!roomId || !apiToken) { alert('設定画面でチャットワークのAPIトークンとルームIDを設定してください'); return; }
-    const message = `[info][title]カタログ増刷リマインド[/title]商品名: ${item.name}\n事業部: ${item.genre}\nグループ: ${item.group || '—'}\n在庫数: ${item.stock ?? '—'}\n次回増刷予定日: ${formatDate(item.next_reprint_date)}\n前回増刷金額: ${formatCost(item.last_reprint_cost)}\n備考: ${item.notes || 'なし'}[/info]`;
+  const saveNewOpenItems = async () => {
     try {
-      const res = await fetch(`https://api.chatwork.com/v2/rooms/${roomId}/messages`, {
-        method: 'POST',
-        headers: { 'X-ChatWorkToken': apiToken, 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `body=${encodeURIComponent(message)}`,
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      showToast('チャットワークに通知しました');
-    } catch (err) {
-      alert('通知送信に失敗しました: ' + err.message);
+      await setDoc(doc(db, 'catalog_settings', 'new_open_items'), { value: newOpenItemIds, updated_at: new Date().toISOString() });
+      showToast('新規オープンリストを保存しました');
+    } catch (_) {
+      showToast('保存に失敗しました');
     }
   };
 
-  // ─── 増刷リクエスト ───
-  const openRequestModal = (item) => {
-    setRequestTargetItem(item);
-    setRequestForm({ ...EMPTY_REQUEST, department: item.genre, quantity: String(item.last_reprint_qty || '') });
-    setShowRequestModal(true);
+  // ─── 店舗準備 ───
+  const openNewStoreSetup = () => {
+    const setupItems = newOpenItemIds.map(id => {
+      const latestReprint = reprints.find(r => r.catalog_item_id === id);
+      return {
+        item_id: id,
+        ...EMPTY_SETUP_ITEM,
+        supplier: latestReprint?.supplier || '',
+        designer: latestReprint?.designer || '',
+      };
+    });
+    setStoreSetupData({ id: null, storeName: '', openDate: '', items: setupItems });
+    setShowNewOpenModal(false);
+    setShowStoreSetupModal(true);
   };
 
-  const submitRequest = async (e) => {
-    e.preventDefault();
-    if (!requestForm.quantity || !requestTargetItem) return;
-    const newReq = {
-      id: crypto.randomUUID(),
-      catalog_item_id: requestTargetItem.id,
-      item_name: requestTargetItem.name,
-      item_genre: requestTargetItem.genre,
-      item_group: requestTargetItem.group,
-      quantity: Number(requestForm.quantity),
-      department: requestForm.department,
-      locations: requestForm.locations || [],
-      location: (requestForm.locations || []).join(', '),
-      urgency: requestForm.urgency,
-      notes: requestForm.notes,
-      requester_name: requestForm.requester_name,
-      status: 'pending',
-      requested_at: new Date().toISOString(),
-      requested_by: requestForm.requester_name || '—',
+  const openExistingStoreSetup = (setup) => {
+    setStoreSetupData({ id: setup.id, storeName: setup.store_name, openDate: setup.open_date || '', items: setup.items || [] });
+    setShowNewOpenModal(false);
+    setShowStoreSetupModal(true);
+  };
+
+  const updateSetupItem = (idx, field, value) => {
+    setStoreSetupData(prev => ({
+      ...prev,
+      items: prev.items.map((it, i) => i === idx ? { ...it, [field]: value } : it),
+    }));
+  };
+
+  const saveStoreSetup = async () => {
+    if (!storeSetupData.storeName.trim()) { showToast('店舗名を入力してください'); return; }
+    const payload = {
+      store_name: storeSetupData.storeName,
+      open_date: storeSetupData.openDate,
+      items: storeSetupData.items,
+      updated_at: new Date().toISOString(),
     };
-
-    // ローカルstate保存
-    setRequests(prev => [newReq, ...prev]);
-
-    // Firebase保存
     try {
-      await addDoc(collection(db, 'catalog_requests'), newReq);
-    } catch (_) {}
-
-    // Chatwork通知
-    const roomId = settings.chatwork_room_id;
-    const apiToken = settings.chatwork_api_token;
-    if (roomId) {
-      const message = `[info][title]増刷リクエスト[/title]` +
-        `商品名: ${requestTargetItem.name}\n` +
-        `事業部: ${requestTargetItem.genre}\n` +
-        `グループ: ${requestTargetItem.group || '—'}\n` +
-        `現在の在庫: ${requestTargetItem.stock ?? '—'}\n` +
-        `リクエスト部数: ${Number(requestForm.quantity).toLocaleString()}部\n` +
-        `依頼部署: ${requestForm.department}\n` +
-        `担当者: ${requestForm.requester_name || '未入力'}\n` +
-        `納品先拠点: ${(requestForm.locations || []).length > 0 ? (requestForm.locations || []).join(', ') : '未指定'}\n` +
-        (requestForm.notes ? `備考: ${requestForm.notes}\n` : '') +
-        `申請日時: ${new Date().toLocaleString('ja-JP')}[/info]`;
-
-      try {
-        const res = await fetch(`https://api.chatwork.com/v2/rooms/${roomId}/messages`, {
-          method: 'POST',
-          headers: { 'X-ChatWorkToken': apiToken, 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: `body=${encodeURIComponent(message)}`,
-        });
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        showToast('増刷リクエストを送信し、チャットワークに通知しました');
-      } catch (err) {
-        showToast('増刷リクエストを送信しました（チャットワーク通知は設定を確認してください）');
+      if (storeSetupData.id) {
+        await updateDoc(doc(db, 'catalog_store_setups', storeSetupData.id), payload);
+      } else {
+        payload.created_at = new Date().toISOString();
+        const docRef = await addDoc(collection(db, 'catalog_store_setups'), payload);
+        setStoreSetupData(prev => ({ ...prev, id: docRef.id }));
       }
-    } else {
-      showToast('増刷リクエストを送信しました');
+      showToast('店舗準備データを保存しました');
+      setShowStoreSetupModal(false);
+    } catch (_) {
+      showToast('保存に失敗しました');
     }
-    setShowRequestModal(false);
   };
 
-  const updateRequestStatus = async (id, status) => {
-    setRequests(prev => prev.map(r => r.id === id ? { ...r, status, updated_at: new Date().toISOString() } : r));
-    try {
-      await updateDoc(doc(db, 'catalog_requests', id), { status, updated_at: new Date().toISOString() });
-    } catch (_) {}
-    showToast(`ステータスを「${REQUEST_STATUS_LABELS[status]}」に変更しました`);
+  const deleteStoreSetup = async (id) => {
+    if (!confirm('この店舗準備データを削除しますか？')) return;
+    try { await deleteDoc(doc(db, 'catalog_store_setups', id)); } catch (_) {}
+    showToast('削除しました');
   };
-
-  const pendingRequestCount = requests.filter(r => r.status === 'pending').length;
 
   // ─── ログイン画面 ───
   if (!authed) {
@@ -505,7 +560,7 @@ export default function App() {
             <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center mb-4 shadow-lg">
               <Icon name="book-open" size={28} className="text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-slate-800">カタログ管理</h1>
+            <h1 className="text-2xl font-bold text-slate-800">販促ナビ</h1>
             <p className="text-sm text-slate-400 mt-1">印刷物在庫・増刷管理システム</p>
           </div>
           <input type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="パスワード" className="glass-input w-full rounded-xl px-4 py-3 mb-3" autoFocus />
@@ -530,7 +585,7 @@ export default function App() {
               <div className="w-9 h-9 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-md">
                 <Icon name="book-open" size={18} className="text-white" />
               </div>
-              <h1 className="text-lg font-bold text-slate-800">カタログ管理</h1>
+              <h1 className="text-lg font-bold text-slate-800">販促ナビ</h1>
               <span className="text-xs text-slate-400 bg-slate-100 px-2.5 py-1 rounded-full">{filteredItems.length}件</span>
             </div>
             <div className="flex items-center gap-2">
@@ -540,14 +595,8 @@ export default function App() {
               <button onClick={() => setShowFaq(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-300 transition text-xs font-bold" title="FAQ">
                 <Icon name="help-circle" size={14} /> FAQ
               </button>
-              <button onClick={() => setShowRequestListModal(true)} className="relative flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-300 transition text-xs font-bold" title="増刷リクエスト一覧">
-                <Icon name="inbox" size={14} /> 増刷リクエスト
-                {pendingRequestCount > 0 && (
-                  <span className="bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center min-w-[18px] px-1">{pendingRequestCount}</span>
-                )}
-              </button>
-              <button onClick={() => setShowSettings(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300 transition text-xs font-bold" title="設定">
-                <Icon name="settings" size={14} /> 設定
+              <button onClick={() => setShowNewOpenModal(true)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-300 transition text-xs font-bold" title="新規オープン">
+                <Icon name="store" size={14} /> 新規オープン
               </button>
               <button onClick={openNewItem} className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-2 rounded-xl font-bold text-sm hover:opacity-90 transition flex items-center gap-1.5 shadow-md">
                 <Icon name="plus" size={16} /> 新規登録
@@ -597,22 +646,25 @@ export default function App() {
 
       <main className="max-w-7xl mx-auto px-4 py-6">
         {/* 事業部サマリーカード */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
-          {genreSummary.map(({ genre, count }) => {
-            const c = GENRE_COLORS[genre];
-            return (
-              <div key={genre} className="bg-white rounded-xl px-4 py-3 cursor-pointer hover:shadow-md transition border border-slate-100" onClick={() => setSelectedSummaryGenre(selectedSummaryGenre === genre ? '' : genre)}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className={`w-2.5 h-2.5 rounded-full ${c.dot}`} />
-                    <span className="text-sm font-bold text-slate-700">{genre}</span>
+        {[['新築', 'リフォーム', '不動産', 'ソリューション'], ['リゾート', '工事部', '共通', 'ノベルティ']].map((row, ri) => (
+          <div key={ri} className={`grid gap-3 ${ri === 0 ? 'mb-3 grid-cols-2 md:grid-cols-4' : 'mb-4 grid-cols-2 md:grid-cols-4'}`}>
+            {row.map(genre => {
+              const s = genreSummary.find(g => g.genre === genre) || { genre, count: 0 };
+              const c = GENRE_COLORS[genre];
+              return (
+                <div key={genre} className="bg-white rounded-xl px-4 py-3 cursor-pointer hover:shadow-md transition border border-slate-100" onClick={() => setSelectedSummaryGenre(selectedSummaryGenre === genre ? '' : genre)}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-2.5 h-2.5 rounded-full ${c.dot}`} />
+                      <span className="text-sm font-bold text-slate-700">{genre}</span>
+                    </div>
+                    <span className="flex items-center gap-1"><span className="text-[10px] text-slate-400">アイテム数</span><span className="text-lg font-bold text-slate-800">{s.count}<span className="text-xs text-slate-400 ml-0.5">件</span></span></span>
                   </div>
-                  <span className="flex items-center gap-1"><span className="text-[10px] text-slate-400">アイテム数</span><span className="text-lg font-bold text-slate-800">{count}<span className="text-xs text-slate-400 ml-0.5">件</span></span></span>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        ))}
 
         {/* 期別増刷金額ポップアップ */}
         {selectedSummaryGenre && (
@@ -665,9 +717,9 @@ export default function App() {
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
             {filteredItems.map(item => {
               const gc = GENRE_COLORS[item.genre] || GENRE_COLORS['新築'];
-              const al = alertLevel(item.stock, item.last_reprint_qty);
+              const inactive = item.active === false;
               return (
-                <div key={item.id} className={`bg-white rounded-xl border overflow-hidden shadow-sm hover:shadow-lg transition group cursor-pointer ${gc.border}`} onClick={() => setDetailItem(item)}>
+                <div key={item.id} className={`bg-white rounded-xl border-2 overflow-hidden shadow-sm hover:shadow-lg transition group cursor-pointer ${gc.border} ${inactive ? 'opacity-40 grayscale' : ''}`} onClick={() => setDetailItem(item)}>
                   {/* サムネイル */}
                   <div className="aspect-[3/4] bg-slate-100 relative overflow-hidden">
                     {item.image_url ? (
@@ -680,21 +732,6 @@ export default function App() {
                     )}
                     {/* 事業部バッジ */}
                     <span className={`absolute top-2 left-2 px-2 py-0.5 rounded text-[10px] font-bold ${gc.bg} ${gc.text} shadow-sm`}>{item.genre}</span>
-                    {/* アラートバッジ */}
-                    {al !== 'none' && (
-                      <span className={`absolute top-2 right-2 px-2 py-0.5 rounded-full flex items-center gap-1 shadow-sm text-[9px] font-bold text-white ${al === 'critical' ? 'bg-red-500' : 'bg-amber-500'}`}>
-                        <Icon name="alert-triangle" size={10} className="text-white" />
-                        {al === 'critical' ? '在庫僅少' : '在庫注意'}
-                      </span>
-                    )}
-                    {/* ホバー時のアクションボタン */}
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition flex items-end justify-center opacity-0 group-hover:opacity-100 pb-3">
-                      <div className="flex gap-1" onClick={e => e.stopPropagation()}>
-                        <button onClick={() => openEditItem(item)} className="w-8 h-8 rounded-lg bg-white/90 hover:bg-white flex items-center justify-center text-amber-600 shadow transition" title="編集"><Icon name="square-pen" size={14} /></button>
-                        <button onClick={() => openRequestModal(item)} className="w-8 h-8 rounded-lg bg-white/90 hover:bg-white flex items-center justify-center text-emerald-600 shadow transition" title="増刷リクエスト"><Icon name="shopping-cart" size={14} /></button>
-                        <button onClick={() => deleteItem(item.id)} className="w-8 h-8 rounded-lg bg-white/90 hover:bg-white flex items-center justify-center text-red-600 shadow transition" title="削除"><Icon name="trash-2" size={14} /></button>
-                      </div>
-                    </div>
                   </div>
                   {/* 情報 */}
                   <div className="p-3">
@@ -704,11 +741,7 @@ export default function App() {
                       {item.size && <span className="text-[10px] text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">{item.size}</span>}
                       {item.paper_type && <span className="text-[10px] text-slate-400 bg-slate-50 px-1.5 py-0.5 rounded">{item.paper_type}</span>}
                     </div>
-                    <div className="flex items-baseline justify-between">
-                      <div className="flex items-baseline gap-1">
-                        <span className="text-[10px] text-slate-400 leading-none">吉スタ在庫</span>
-                        <span className={`text-sm font-bold leading-none ${al === 'critical' ? 'text-red-600' : al === 'warning' ? 'text-amber-600' : 'text-slate-700'}`}>{item.stock ?? '—'}</span>
-                      </div>
+                    <div className="flex items-baseline justify-end">
                       <div className="flex items-baseline gap-1">
                         <span className="text-[10px] text-slate-400 leading-none">前回増刷</span>
                         <span className="text-sm font-bold text-slate-600 leading-none">{item.last_reprint_date ? formatYearMonth(item.last_reprint_date) : '—'}</span>
@@ -725,37 +758,27 @@ export default function App() {
             <table className="w-full min-w-[900px]">
               <thead>
                 <tr className="text-[11px] font-bold text-slate-400 border-b border-slate-100 bg-slate-50">
-                  <th className="w-14 px-1 py-2 text-center whitespace-nowrap">アラート</th>
                   <th className="w-12 px-1 py-2 text-center">画像</th>
                   <th className="text-center px-1 py-2">商品名</th>
                   <th className="text-center px-1 py-2 w-20">事業部</th>
                   <th className="text-center px-1 py-2 w-20">グループ</th>
                   <th className="text-center px-1 py-2 w-10">サイズ</th>
                   <th className="text-center px-1 py-2 w-16">紙種</th>
-                  <th className="text-center px-1 py-2 w-20">吉スタ在庫</th>
                   <th className="text-center px-1 py-2 w-20">前回増刷</th>
                   <th className="text-center px-1 py-2 w-24">次回増刷予定</th>
-                  <th className="text-center px-1 py-2 w-36">操作</th>
                 </tr>
               </thead>
               <tbody>
             {filteredItems.map(item => {
               const gc = GENRE_COLORS[item.genre] || GENRE_COLORS['新築'];
-              const al = alertLevel(item.stock, item.last_reprint_qty);
+              const inactive = item.active === false;
 
               return (
                 <React.Fragment key={item.id}>
                   <tr
-                    className={`animate-enter cursor-pointer transition border-b border-slate-100 ${al === 'critical' ? 'bg-red-50' : al === 'warning' ? 'bg-amber-50' : 'hover:bg-slate-50'}`}
+                    className={`animate-enter cursor-pointer transition border-b border-slate-100 hover:bg-slate-50 ${inactive ? 'opacity-40 grayscale' : ''}`}
                     onClick={() => setDetailItem(item)}
                   >
-                    <td className="px-1 py-2 text-center">
-                      {al !== 'none' ? (
-                        <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[9px] font-bold text-white whitespace-nowrap ${al === 'critical' ? 'bg-red-500' : 'bg-amber-500'}`}>
-                          <Icon name="alert-triangle" size={9} /> {al === 'critical' ? '僅少' : '注意'}
-                        </span>
-                      ) : <span className="text-[9px] text-slate-300">—</span>}
-                    </td>
                     <td className="px-1 py-2 text-center">
                       <div className="w-10 h-10 rounded overflow-hidden bg-slate-100 flex items-center justify-center mx-auto">
                         {item.image_url ? (
@@ -770,9 +793,6 @@ export default function App() {
                     <td className="px-1 py-2 text-center text-[11px] text-slate-500 whitespace-nowrap">{GROUP_ICONS[item.group] || '📋'} {item.group || '—'}</td>
                     <td className="px-1 py-2 text-center text-[11px] text-slate-500 whitespace-nowrap">{item.size || '—'}</td>
                     <td className="px-1 py-2 text-center text-[11px] text-slate-500 whitespace-nowrap">{item.paper_type || '—'}</td>
-                    <td className="px-1 py-2 text-center">
-                      <span className={`font-bold text-xs ${al === 'critical' ? 'text-red-600' : al === 'warning' ? 'text-amber-600' : 'text-slate-800'}`}>{item.stock ?? '—'}</span>
-                    </td>
                     <td className="px-1 py-2 text-center text-[11px] text-slate-500 whitespace-nowrap">{formatYearMonth(item.last_reprint_date)}</td>
                     <td className="px-1 py-2 text-center whitespace-nowrap">
                       {item.next_reprint_date ? (
@@ -780,13 +800,6 @@ export default function App() {
                           {formatYearMonth(item.next_reprint_date)}
                         </span>
                       ) : <span className="text-[11px] text-slate-300">—</span>}
-                    </td>
-                    <td className="px-1 py-2 text-center" onClick={e => e.stopPropagation()}>
-                      <div className="flex items-center justify-center gap-0.5">
-                        <button onClick={() => openEditItem(item)} className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition" title="編集"><Icon name="square-pen" size={10} /> 編集</button>
-                        <button onClick={() => openRequestModal(item)} className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition" title="増刷"><Icon name="shopping-cart" size={10} /> 増刷</button>
-                        <button onClick={() => deleteItem(item.id)} className="flex items-center gap-0.5 px-1 py-0.5 rounded text-[9px] font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 transition" title="削除"><Icon name="trash-2" size={10} /> 削除</button>
-                      </div>
                     </td>
                   </tr>
                 </React.Fragment>
@@ -801,8 +814,12 @@ export default function App() {
       {/* Item Modal */}
       {showItemModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setShowItemModal(false)}>
-          <form onSubmit={saveItem} onClick={e => e.stopPropagation()} className="bg-white rounded-2xl shadow-xl w-full max-w-lg mx-4 p-6 animate-modal max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-bold text-slate-800 mb-5">{editingItemId ? 'カタログ編集' : 'カタログ新規登録'}</h2>
+          <form onSubmit={saveItem} onClick={e => e.stopPropagation()} className="bg-white rounded-2xl shadow-xl w-full max-w-3xl mx-4 p-6 animate-modal max-h-[90vh] overflow-y-auto">
+            <h2 className="text-lg font-bold text-slate-800 mb-5">{editingItemId ? '販促物編集' : '販促物新規登録'}</h2>
+
+            {/* 基本情報セクション */}
+            <div className="border border-slate-200 rounded-xl p-4 mb-4">
+              <h3 className="text-sm font-bold text-slate-600 mb-4 flex items-center gap-1.5"><Icon name="info" size={14} /> 基本情報</h3>
             <div className="space-y-4">
               <div>
                 <label className="text-xs font-bold text-slate-500 block mb-2">ビジュアル画像</label>
@@ -835,14 +852,10 @@ export default function App() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-bold text-slate-500 block mb-2">事業部 *</label>
-                  <div className="flex gap-1.5 flex-wrap">
-                    {GENRES.map(g => {
-                      const c = GENRE_COLORS[g];
-                      return (
-                        <button key={g} type="button" onClick={() => setItemForm(f => ({ ...f, genre: g }))} className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition ${itemForm.genre === g ? `${c.bg} ${c.text} ${c.border}` : 'border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300'}`}>{g}</button>
-                      );
-                    })}
+                  <label className="text-xs font-bold text-slate-500 block mb-2">使用状況</label>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setItemForm(f => ({ ...f, active: true }))} className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition ${itemForm.active !== false ? 'bg-emerald-100 text-emerald-700 border-emerald-300' : 'border-slate-200 text-slate-400 hover:text-slate-600'}`}>使用中</button>
+                    <button type="button" onClick={() => setItemForm(f => ({ ...f, active: false }))} className={`px-4 py-1.5 rounded-lg text-xs font-bold border transition ${itemForm.active === false ? 'bg-slate-200 text-slate-700 border-slate-400' : 'border-slate-200 text-slate-400 hover:text-slate-600'}`}>使用していない</button>
                   </div>
                 </div>
                 <div>
@@ -850,6 +863,18 @@ export default function App() {
                   <select value={itemForm.group} onChange={e => setItemForm(f => ({ ...f, group: e.target.value }))} className="glass-input w-full rounded-xl px-4 py-2.5">
                     {GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
                   </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-2">事業部 *</label>
+                <div className="flex gap-1 flex-wrap">
+                  {GENRES.map(g => {
+                    const c = GENRE_COLORS[g];
+                    return (
+                      <button key={g} type="button" onClick={() => setItemForm(f => ({ ...f, genre: g }))} className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition whitespace-nowrap ${itemForm.genre === g ? `${c.bg} ${c.text} ${c.border}` : 'border-slate-200 text-slate-400 hover:text-slate-600 hover:border-slate-300'}`}>{g}</button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -881,7 +906,7 @@ export default function App() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-bold text-slate-500 block mb-1">在庫数</label>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">吉田スタジオ在庫数</label>
                   <input type="number" value={itemForm.stock} onChange={e => setItemForm(f => ({ ...f, stock: e.target.value }))} placeholder="例: 250" className="glass-input w-full rounded-xl px-4 py-2.5" min="0" />
                 </div>
                 <div>
@@ -890,48 +915,9 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-500 block mb-1">前回増刷年月</label>
-                  <input type="date" value={itemForm.last_reprint_date} onChange={e => setItemForm(f => ({ ...f, last_reprint_date: e.target.value }))} className="glass-input w-full rounded-xl px-4 py-2.5" />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 block mb-1">前回増刷部数</label>
-                  <input type="number" value={itemForm.last_reprint_qty} onChange={e => setItemForm(f => ({ ...f, last_reprint_qty: e.target.value }))} placeholder="例: 1000" className="glass-input w-full rounded-xl px-4 py-2.5" min="0" />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 block mb-1">前回増刷金額</label>
-                  <input type="number" value={itemForm.last_reprint_cost} onChange={e => setItemForm(f => ({ ...f, last_reprint_cost: e.target.value }))} placeholder="例: 150000" className="glass-input w-full rounded-xl px-4 py-2.5" min="0" />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-500 block mb-1">発注先</label>
-                  <input type="text" value={itemForm.supplier} onChange={e => setItemForm(f => ({ ...f, supplier: e.target.value }))} placeholder="例: 〇〇印刷" className="glass-input w-full rounded-xl px-4 py-2.5" />
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 block mb-1">データ格納先URL</label>
-                  <input type="url" value={itemForm.data_url} onChange={e => setItemForm(f => ({ ...f, data_url: e.target.value }))} placeholder="https://..." className="glass-input w-full rounded-xl px-4 py-2.5" />
-                </div>
-              </div>
-
               <div>
-                <label className="text-xs font-bold text-slate-500 block mb-2">納品先（複数選択可）</label>
-                <div className="grid grid-cols-3 gap-1.5 bg-slate-50 rounded-xl p-3 border border-slate-200 ">
-                  {LOCATIONS.map(l => {
-                    const selected = (itemForm.delivery_to || '').split(', ').filter(Boolean);
-                    return (
-                      <label key={l} className="flex items-center gap-2 cursor-pointer hover:bg-white rounded-lg px-2 py-1.5 transition">
-                        <input type="checkbox" checked={selected.includes(l)} onChange={e => {
-                          const newList = e.target.checked ? [...selected, l] : selected.filter(x => x !== l);
-                          setItemForm(f => ({ ...f, delivery_to: newList.join(', ') }));
-                        }} className="w-3.5 h-3.5 rounded accent-indigo-500" />
-                        <span className="text-xs text-slate-700">{l}</span>
-                      </label>
-                    );
-                  })}
-                </div>
+                <label className="text-xs font-bold text-slate-500 block mb-1">データ格納先URL</label>
+                <input type="url" value={itemForm.data_url} onChange={e => setItemForm(f => ({ ...f, data_url: e.target.value }))} placeholder="https://..." className="glass-input w-full rounded-xl px-4 py-2.5" />
               </div>
 
               <div>
@@ -939,6 +925,215 @@ export default function App() {
                 <textarea value={itemForm.notes} onChange={e => setItemForm(f => ({ ...f, notes: e.target.value }))} rows={2} className="glass-input w-full rounded-xl px-4 py-2.5 resize-none" />
               </div>
             </div>
+            </div>
+
+            {/* 増刷情報セクション */}
+            <div className="border border-slate-200 rounded-xl p-4 mb-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-sm font-bold text-slate-600 flex items-center gap-1.5"><Icon name="history" size={14} /> 増刷情報</h3>
+                {!editingItemId && (
+                  <label className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-600 text-[10px] font-bold cursor-pointer hover:bg-indigo-100 transition">
+                    <Icon name="file-text" size={10} /> 見積PDF取込
+                    <input type="file" accept=".pdf" className="hidden" onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      try {
+                        showToast('PDF解析中...');
+                        const data = await extractFromPdf(file);
+                        setItemForm(f => ({
+                          ...f,
+                          ...(data.reprint_date && { last_reprint_date: data.reprint_date }),
+                          ...(data.cost && { last_reprint_cost: data.cost }),
+                          ...(data.quantity && { last_reprint_qty: data.quantity }),
+                          ...(data.supplier && { supplier: data.supplier }),
+                        }));
+                        showToast('PDFから情報を読み取りました');
+                      } catch (err) {
+                        console.error(err);
+                        showToast('PDF解析に失敗しました');
+                      }
+                      e.target.value = '';
+                    }} />
+                  </label>
+                )}
+              </div>
+              {editingItemId ? (
+                /* 編集時: 増刷履歴をインライン編集 */
+                <div>
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-xs font-bold text-slate-600 flex items-center gap-1"><Icon name="list" size={12} /> 増刷履歴</span>
+                    <button type="button" onClick={() => { setInlineReprintEditId(null); setInlineReprintForm(EMPTY_REPRINT); setShowInlineReprintForm(true); setReprintTargetItemId(editingItemId); }} className="text-[10px] bg-indigo-50 text-indigo-600 px-2.5 py-1 rounded-lg font-bold hover:bg-indigo-100 transition flex items-center gap-0.5 border border-indigo-200"><Icon name="plus" size={10} /> 追加</button>
+                  </div>
+
+                  {showInlineReprintForm && (
+                    <div className="bg-indigo-50 rounded-xl p-3 mb-3 border border-indigo-200 animate-enter">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="text-[10px] font-bold text-indigo-600 flex items-center gap-1"><Icon name={inlineReprintEditId ? 'square-pen' : 'plus'} size={10} /> {inlineReprintEditId ? '増刷記録を編集' : '増刷記録を追加'}</h4>
+                        <label className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-white border border-indigo-200 text-indigo-600 text-[9px] font-bold cursor-pointer hover:bg-indigo-50 transition">
+                          <Icon name="file-text" size={9} /> 見積PDF読込
+                          <input type="file" accept=".pdf" className="hidden" onChange={async (ev) => {
+                            const file = ev.target.files?.[0];
+                            if (!file) return;
+                            try {
+                              showToast('PDF解析中...');
+                              const data = await extractFromPdf(file);
+                              setInlineReprintForm(f => ({
+                                ...f,
+                                ...(data.reprint_date && { reprint_date: data.reprint_date }),
+                                ...(data.cost && { cost: data.cost }),
+                                ...(data.quantity && { quantity: data.quantity }),
+                                ...(data.supplier && { supplier: data.supplier }),
+                              }));
+                              showToast('PDFから情報を読み取りました');
+                            } catch (err) { showToast('PDF解析に失敗しました'); }
+                            ev.target.value = '';
+                          }} />
+                        </label>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 mb-2">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 block mb-1">増刷日 *</label>
+                          <input type="date" value={inlineReprintForm.reprint_date} onChange={e => setInlineReprintForm(f => ({ ...f, reprint_date: e.target.value }))} className="glass-input w-full rounded-lg px-2 py-1.5 text-xs" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 block mb-1">金額（円）</label>
+                          <input type="number" value={inlineReprintForm.cost} onChange={e => setInlineReprintForm(f => ({ ...f, cost: e.target.value }))} placeholder="150000" className="glass-input w-full rounded-lg px-2 py-1.5 text-xs" min="0" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 block mb-1">部数</label>
+                          <input type="number" value={inlineReprintForm.quantity} onChange={e => setInlineReprintForm(f => ({ ...f, quantity: e.target.value }))} placeholder="1000" className="glass-input w-full rounded-lg px-2 py-1.5 text-xs" min="0" />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 gap-2 mb-2">
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 block mb-1">印刷会社</label>
+                          <input type="text" value={inlineReprintForm.supplier || ''} onChange={e => setInlineReprintForm(f => ({ ...f, supplier: e.target.value }))} placeholder="例: 〇〇印刷" className="glass-input w-full rounded-lg px-2 py-1.5 text-xs" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 block mb-1">デザイナー</label>
+                          <input type="text" value={inlineReprintForm.designer || ''} onChange={e => setInlineReprintForm(f => ({ ...f, designer: e.target.value }))} placeholder="例: 田中デザイン事務所" className="glass-input w-full rounded-lg px-2 py-1.5 text-xs" />
+                        </div>
+                        <div>
+                          <label className="text-[10px] font-bold text-slate-500 block mb-1">備考</label>
+                          <input type="text" value={inlineReprintForm.notes} onChange={e => setInlineReprintForm(f => ({ ...f, notes: e.target.value }))} placeholder="例: デザイン変更" className="glass-input w-full rounded-lg px-2 py-1.5 text-xs" />
+                        </div>
+                      </div>
+                      <div className="mb-2">
+                        <label className="text-[10px] font-bold text-slate-500 block mb-1">納品先（複数選択可）</label>
+                        <div className="grid grid-cols-3 gap-1 bg-white rounded-lg p-2 border border-slate-200">
+                          {LOCATIONS.map(l => {
+                            const selected = (inlineReprintForm.delivery_to || '').split(', ').filter(Boolean);
+                            return (
+                              <label key={l} className="flex items-center gap-1.5 cursor-pointer hover:bg-slate-50 rounded px-1.5 py-1 transition">
+                                <input type="checkbox" checked={selected.includes(l)} onChange={e => {
+                                  const newList = e.target.checked ? [...selected, l] : selected.filter(x => x !== l);
+                                  setInlineReprintForm(f => ({ ...f, delivery_to: newList.join(', ') }));
+                                }} className="w-3 h-3 rounded accent-indigo-500" />
+                                <span className="text-[10px] text-slate-700">{l}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => { setShowInlineReprintForm(false); setInlineReprintEditId(null); }} className="flex-1 border border-slate-200 rounded-lg py-1.5 text-xs font-bold text-slate-500 hover:bg-white transition">キャンセル</button>
+                        <button type="button" onClick={async () => {
+                          if (!inlineReprintForm.reprint_date) return;
+                          const payload = { catalog_item_id: editingItemId, reprint_date: inlineReprintForm.reprint_date, cost: Number(inlineReprintForm.cost) || 0, quantity: Number(inlineReprintForm.quantity) || 0, file_url: inlineReprintForm.file_url, file_name: inlineReprintForm.file_name, notes: inlineReprintForm.notes, delivery_to: inlineReprintForm.delivery_to || '', supplier: inlineReprintForm.supplier || '', designer: inlineReprintForm.designer || '' };
+                          try {
+                            if (inlineReprintEditId) {
+                              await updateDoc(doc(db, 'catalog_reprints', inlineReprintEditId), payload);
+                              showToast('増刷記録を更新しました');
+                            } else {
+                              payload.created_at = new Date().toISOString();
+                              await addDoc(collection(db, 'catalog_reprints'), payload);
+                              showToast('増刷記録を追加しました');
+                            }
+                          } catch (_) {}
+                          setShowInlineReprintForm(false);
+                          setInlineReprintForm(EMPTY_REPRINT);
+                          setInlineReprintEditId(null);
+                        }} className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg py-1.5 text-xs font-bold hover:opacity-90 transition">保存</button>
+                      </div>
+                    </div>
+                  )}
+
+                  {getReprints(editingItemId).length === 0 && !showInlineReprintForm ? (
+                    <p className="text-slate-400 text-xs py-4 text-center">増刷履歴がありません</p>
+                  ) : (
+                    <div className="space-y-1.5 max-h-[250px] overflow-y-auto">
+                      {getReprints(editingItemId).filter(r => r.id !== inlineReprintEditId).map(r => (
+                        <div key={r.id} className="bg-slate-50 rounded-lg p-2.5 border border-slate-100 text-[11px]">
+                          <div className="grid grid-cols-3 gap-2 mb-1">
+                            <div><span className="text-slate-400">増刷日</span><br /><span className="font-bold text-slate-800">{formatDate(r.reprint_date)}</span></div>
+                            <div><span className="text-slate-400">金額</span><br /><span className="font-bold text-slate-800">{formatCost(r.cost)}</span></div>
+                            <div><span className="text-slate-400">部数</span><br /><span className="font-bold text-slate-800">{r.quantity > 0 ? Number(r.quantity).toLocaleString() : '—'}</span></div>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3 text-[10px]">
+                              {r.supplier && <span><span className="text-slate-400">印刷会社:</span> <span className="text-slate-700">{r.supplier}</span></span>}
+                              {r.designer && <span><span className="text-slate-400">デザイナー:</span> <span className="text-slate-700">{r.designer}</span></span>}
+                              {r.delivery_to && <span><span className="text-slate-400">納品先:</span> <span className="text-slate-700">{r.delivery_to}</span></span>}
+                              {r.notes && <span><span className="text-slate-400">備考:</span> <span className="text-slate-700">{r.notes}</span></span>}
+                            </div>
+                            <div className="flex items-center gap-0.5 flex-shrink-0">
+                              <button type="button" onClick={() => { setInlineReprintEditId(r.id); setInlineReprintForm({ reprint_date: r.reprint_date || '', cost: r.cost || '', quantity: r.quantity || '', file_url: r.file_url || '', file_name: r.file_name || '', notes: r.notes || '', delivery_to: r.delivery_to || '', supplier: r.supplier || '', designer: r.designer || '' }); setShowInlineReprintForm(true); }} className="p-1 text-slate-400 hover:text-indigo-500 transition"><Icon name="square-pen" size={12} /></button>
+                              <button type="button" onClick={() => deleteReprint(r.id)} className="p-1 text-slate-400 hover:text-red-500 transition"><Icon name="trash-2" size={12} /></button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* 新規登録時: 従来のフィールド */
+                <div className="space-y-4">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 block mb-1">前回増刷年月</label>
+                      <input type="date" value={itemForm.last_reprint_date} onChange={e => setItemForm(f => ({ ...f, last_reprint_date: e.target.value }))} className="glass-input w-full rounded-xl px-4 py-2.5" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 block mb-1">前回増刷部数</label>
+                      <input type="number" value={itemForm.last_reprint_qty} onChange={e => setItemForm(f => ({ ...f, last_reprint_qty: e.target.value }))} placeholder="例: 1000" className="glass-input w-full rounded-xl px-4 py-2.5" min="0" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 block mb-1">前回増刷金額</label>
+                      <input type="number" value={itemForm.last_reprint_cost} onChange={e => setItemForm(f => ({ ...f, last_reprint_cost: e.target.value }))} placeholder="例: 150000" className="glass-input w-full rounded-xl px-4 py-2.5" min="0" />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 block mb-1">印刷会社</label>
+                      <input type="text" value={itemForm.supplier} onChange={e => setItemForm(f => ({ ...f, supplier: e.target.value }))} placeholder="例: 〇〇印刷" className="glass-input w-full rounded-xl px-4 py-2.5" />
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-slate-500 block mb-1">デザイナー</label>
+                      <input type="text" value={itemForm.designer || ''} onChange={e => setItemForm(f => ({ ...f, designer: e.target.value }))} placeholder="例: 田中デザイン事務所" className="glass-input w-full rounded-xl px-4 py-2.5" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-bold text-slate-500 block mb-2">納品先（複数選択可）</label>
+                    <div className="grid grid-cols-3 gap-1.5 bg-slate-50 rounded-xl p-3 border border-slate-200">
+                      {LOCATIONS.map(l => {
+                        const selected = (itemForm.delivery_to || '').split(', ').filter(Boolean);
+                        return (
+                          <label key={l} className="flex items-center gap-2 cursor-pointer hover:bg-white rounded-lg px-2 py-1.5 transition">
+                            <input type="checkbox" checked={selected.includes(l)} onChange={e => {
+                              const newList = e.target.checked ? [...selected, l] : selected.filter(x => x !== l);
+                              setItemForm(f => ({ ...f, delivery_to: newList.join(', ') }));
+                            }} className="w-3.5 h-3.5 rounded accent-indigo-500" />
+                            <span className="text-xs text-slate-700">{l}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="flex gap-2 mt-6">
               <button type="button" onClick={() => setShowItemModal(false)} className="flex-1 border border-slate-200 rounded-xl py-2.5 font-bold text-slate-500 hover:bg-slate-50 transition">キャンセル</button>
               <button type="submit" className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl py-2.5 font-bold hover:opacity-90 transition shadow-md">保存</button>
@@ -951,7 +1146,31 @@ export default function App() {
       {showReprintModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setShowReprintModal(false)}>
           <form onSubmit={saveReprint} onClick={e => e.stopPropagation()} className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6 animate-modal">
-            <h2 className="text-lg font-bold text-slate-800 mb-5">{editingReprintId ? '増刷記録編集' : '増刷記録追加'}</h2>
+            <div className="flex items-center justify-between mb-5">
+              <h2 className="text-lg font-bold text-slate-800">{editingReprintId ? '増刷記録編集' : '増刷記録追加'}</h2>
+              <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-50 border border-indigo-200 text-indigo-600 text-xs font-bold cursor-pointer hover:bg-indigo-100 transition">
+                <Icon name="file-text" size={14} /> 見積PDF読込
+                <input type="file" accept=".pdf" className="hidden" onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  try {
+                    showToast('PDF解析中...');
+                    const data = await extractFromPdf(file);
+                    setReprintForm(f => ({
+                      ...f,
+                      ...(data.reprint_date && { reprint_date: data.reprint_date }),
+                      ...(data.cost && { cost: data.cost }),
+                      ...(data.quantity && { quantity: data.quantity }),
+                    }));
+                    showToast('PDFから情報を読み取りました');
+                  } catch (err) {
+                    console.error(err);
+                    showToast('PDF解析に失敗しました');
+                  }
+                  e.target.value = '';
+                }} />
+              </label>
+            </div>
             <div className="space-y-4">
               <div>
                 <label className="text-xs font-bold text-slate-500 block mb-1">増刷日 *</label>
@@ -966,6 +1185,10 @@ export default function App() {
                   <label className="text-xs font-bold text-slate-500 block mb-1">部数</label>
                   <input type="number" value={reprintForm.quantity} onChange={e => setReprintForm(f => ({ ...f, quantity: e.target.value }))} placeholder="1000" className="glass-input w-full rounded-xl px-4 py-2.5" min="0" />
                 </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-slate-500 block mb-1">デザイナー</label>
+                <input type="text" value={reprintForm.designer} onChange={e => setReprintForm(f => ({ ...f, designer: e.target.value }))} placeholder="例: 田中デザイン事務所" className="glass-input w-full rounded-xl px-4 py-2.5" />
               </div>
               <FileUpload label="入稿データ" fileUrl={reprintForm.file_url} fileName={reprintForm.file_name} onFileChange={(url, name) => setReprintForm(f => ({ ...f, file_url: url, file_name: name }))} />
               <div>
@@ -984,39 +1207,12 @@ export default function App() {
       {/* Settings Modal */}
       {showSettings && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setShowSettings(false)}>
-          <form onSubmit={saveSettings} onClick={e => e.stopPropagation()} className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6 animate-modal max-h-[90vh] overflow-y-auto">
-            <h2 className="text-lg font-bold text-slate-800 mb-5 flex items-center gap-2"><Icon name="settings" size={20} className="text-indigo-500" /> 設定</h2>
-            <div className="space-y-5">
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                <h3 className="font-bold text-sm text-slate-700 mb-3 flex items-center gap-2"><Icon name="message-square" size={16} className="text-blue-500" /> チャットワーク通知</h3>
-                <div className="space-y-3">
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1">APIトークン</label>
-                    <input type="password" value={chatworkForm.chatwork_api_token} onChange={e => setChatworkForm(f => ({ ...f, chatwork_api_token: e.target.value }))} placeholder="Chatwork API Token" className="glass-input w-full rounded-lg px-3 py-2 text-sm" />
-                    <p className="text-[10px] text-slate-400 mt-1">Chatwork &gt; 環境設定 &gt; API から取得</p>
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1">ルームID</label>
-                    <input type="text" value={chatworkForm.chatwork_room_id} onChange={e => setChatworkForm(f => ({ ...f, chatwork_room_id: e.target.value }))} placeholder="例: 123456789" className="glass-input w-full rounded-lg px-3 py-2 text-sm" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-slate-500 block mb-1">何日前に通知</label>
-                    <input type="number" value={chatworkForm.chatwork_notify_days_before} onChange={e => setChatworkForm(f => ({ ...f, chatwork_notify_days_before: e.target.value }))} min="1" max="90" className="glass-input w-full rounded-lg px-3 py-2 text-sm" />
-                  </div>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input type="checkbox" checked={chatworkForm.chatwork_notify_enabled === 'true'} onChange={e => setChatworkForm(f => ({ ...f, chatwork_notify_enabled: e.target.checked ? 'true' : 'false' }))} className="w-4 h-4 rounded accent-indigo-500" />
-                    <span className="text-sm font-bold text-slate-600">自動通知を有効にする</span>
-                  </label>
-                </div>
-              </div>
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                <h3 className="font-bold text-sm text-slate-700 mb-3 flex items-center gap-2"><Icon name="lock" size={16} className="text-slate-400" /> パスワード変更</h3>
-                <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="新しいパスワード（変更する場合のみ）" className="glass-input w-full rounded-lg px-3 py-2 text-sm" />
-              </div>
-            </div>
+          <form onSubmit={saveSettings} onClick={e => e.stopPropagation()} className="bg-white rounded-2xl shadow-xl w-full max-w-sm mx-4 p-6 animate-modal">
+            <h2 className="text-lg font-bold text-slate-800 mb-5 flex items-center gap-2"><Icon name="lock" size={20} className="text-indigo-500" /> パスワード変更</h2>
+            <input type="password" value={newPassword} onChange={e => setNewPassword(e.target.value)} placeholder="新しいパスワード" className="glass-input w-full rounded-xl px-4 py-2.5" autoFocus />
             <div className="flex gap-2 mt-6">
               <button type="button" onClick={() => setShowSettings(false)} className="flex-1 border border-slate-200 rounded-xl py-2.5 font-bold text-slate-500 hover:bg-slate-50 transition">キャンセル</button>
-              <button type="submit" className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl py-2.5 font-bold hover:opacity-90 transition shadow-md">保存</button>
+              <button type="submit" className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl py-2.5 font-bold hover:opacity-90 transition shadow-md">変更</button>
             </div>
           </form>
         </div>
@@ -1035,137 +1231,37 @@ export default function App() {
             <div className="space-y-6 text-sm text-slate-600">
               <div>
                 <h3 className="font-bold text-slate-800 flex items-center gap-1.5 mb-2"><Icon name="image" size={14} className="text-indigo-500" /> ギャラリー表示 / リスト表示</h3>
-                <div className="bg-slate-50 rounded-xl p-3 mb-2 border border-slate-200">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="flex bg-slate-200 rounded p-0.5">
-                      <div className="bg-white rounded px-2 py-0.5 text-[9px] font-bold text-indigo-600 flex items-center gap-1"><Icon name="image" size={8} /> ギャラリー</div>
-                      <div className="px-2 py-0.5 text-[9px] text-slate-400 flex items-center gap-1"><Icon name="list" size={8} /> リスト</div>
-                    </div>
-                    <span className="text-[9px] text-slate-400">← この切替ボタンで表示を変更</span>
-                  </div>
-                  <div className="grid grid-cols-4 gap-1.5">
-                    {[1,2,3,4].map(i => <div key={i} className="bg-white rounded border border-slate-200 p-1.5 text-center"><div className="bg-slate-100 rounded h-8 mb-1 flex items-center justify-center"><Icon name="image" size={10} className="text-slate-300" /></div><div className="text-[7px] text-slate-400">アイテム{i}</div></div>)}
-                  </div>
-                </div>
-                <p>ヘッダー右上の切替ボタンで、ギャラリー（カード形式）とリスト（テーブル形式）を切り替えられます。各アイテムをクリックすると詳細画面が表示されます。</p>
+                <p>ヘッダー右上の切替ボタンで、ギャラリー（カード形式）とリスト（テーブル形式）を切り替えられます。各アイテムをクリックすると詳細画面が表示されます。アイテムの枠線は事業部ごとの色で表示されます。</p>
               </div>
               <div>
-                <h3 className="font-bold text-slate-800 flex items-center gap-1.5 mb-2"><Icon name="plus" size={14} className="text-indigo-500" /> カタログの新規登録</h3>
-                <div className="bg-slate-50 rounded-xl p-3 mb-2 border border-slate-200">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="bg-indigo-500 text-white rounded px-2 py-0.5 text-[9px] font-bold flex items-center gap-1"><Icon name="plus" size={8} /> 新規登録</div>
-                    <span className="text-[9px] text-slate-400">← 右上のボタンをクリック</span>
-                  </div>
-                  <div className="bg-white rounded border border-slate-200 p-2 space-y-1">
-                    {['商品名 *', '事業部・グループ', 'サイズ・紙の種類', '在庫数・次回増刷予定', 'ビジュアル画像', '納品先（複数選択可）'].map(l => <div key={l} className="flex items-center gap-1"><div className="w-20 text-[7px] text-slate-400">{l}</div><div className="flex-1 h-3 bg-slate-100 rounded" /></div>)}
-                  </div>
-                </div>
-                <p>右上の「新規登録」ボタンからカタログを登録できます。商品名・事業部・グループ・サイズ・紙の種類・在庫数・ビジュアル画像・データ格納先URL・納品先などを入力します。前回増刷情報を入力すると増刷履歴にも自動登録されます。</p>
+                <h3 className="font-bold text-slate-800 flex items-center gap-1.5 mb-2"><Icon name="plus" size={14} className="text-indigo-500" /> 販促物の新規登録</h3>
+                <p>右上の「新規登録」ボタンから販促物を登録できます。商品名・事業部（新築/リフォーム/不動産/ソリューション/リゾート/工事部/共通/ノベルティ）・グループ・サイズ・紙の種類・ビジュアル画像・データ格納先URL・納品先などを入力します。前回増刷情報を入力すると増刷履歴にも自動登録されます。</p>
               </div>
               <div>
-                <h3 className="font-bold text-slate-800 flex items-center gap-1.5 mb-2"><Icon name="square-pen" size={14} className="text-amber-500" /> カタログの編集・削除</h3>
-                <div className="bg-slate-50 rounded-xl p-3 mb-2 border border-slate-200">
-                  <div className="flex items-center gap-2">
-                    <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-50 border border-amber-200 text-[9px] font-bold text-amber-600"><Icon name="square-pen" size={8} /> 編集</div>
-                    <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-emerald-50 border border-emerald-200 text-[9px] font-bold text-emerald-600"><Icon name="shopping-cart" size={8} /> 増刷</div>
-                    <div className="flex items-center gap-1 px-1.5 py-0.5 rounded bg-red-50 border border-red-200 text-[9px] font-bold text-red-600"><Icon name="trash-2" size={8} /> 削除</div>
-                    <span className="text-[9px] text-slate-400">← 詳細画面下部またはリスト操作列</span>
-                  </div>
-                </div>
+                <h3 className="font-bold text-slate-800 flex items-center gap-1.5 mb-2"><Icon name="square-pen" size={14} className="text-amber-500" /> 販促物の編集・削除</h3>
                 <p>各アイテムの詳細画面下部、またはリスト表示の操作列から編集・削除ができます。ギャラリー表示ではホバー時にもボタンが表示されます。</p>
               </div>
               <div>
                 <h3 className="font-bold text-slate-800 flex items-center gap-1.5 mb-2"><Icon name="history" size={14} className="text-indigo-500" /> 増刷履歴の管理</h3>
-                <div className="bg-slate-50 rounded-xl p-3 mb-2 border border-slate-200">
-                  <div className="flex items-center justify-between mb-1.5">
-                    <span className="text-[9px] font-bold text-slate-600 flex items-center gap-1"><Icon name="history" size={8} /> 増刷履歴</span>
-                    <span className="text-[8px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-200 font-bold flex items-center gap-0.5"><Icon name="plus" size={7} /> 追加</span>
-                  </div>
-                  <div className="space-y-1">
-                    <div className="bg-white rounded border border-slate-200 p-1.5 grid grid-cols-3 gap-1 text-[7px]">
-                      <div><span className="text-slate-400">増刷日</span><br /><span className="font-bold">2025/04/01</span></div>
-                      <div><span className="text-slate-400">金額</span><br /><span className="font-bold">¥150,000</span></div>
-                      <div><span className="text-slate-400">部数</span><br /><span className="font-bold">1,000</span></div>
-                    </div>
-                  </div>
-                  <div className="text-[8px] text-slate-400 mt-1.5">※ 「追加」ボタンで同じ画面内にフォームが展開されます</div>
-                </div>
-                <p>各アイテムの詳細画面で増刷履歴の追加・編集・削除ができます。増刷日・金額・部数・納品先・備考を記録でき、新しい順に表示されます。追加・編集は同じ画面内で操作可能です。</p>
-              </div>
-              <div>
-                <h3 className="font-bold text-slate-800 flex items-center gap-1.5 mb-2"><Icon name="shopping-cart" size={14} className="text-emerald-500" /> 増刷リクエスト</h3>
-                <div className="bg-slate-50 rounded-xl p-3 mb-2 border border-slate-200">
-                  <div className="bg-white rounded border border-slate-200 p-2 space-y-1.5">
-                    <div className="text-[8px] font-bold text-slate-700 flex items-center gap-1"><div className="w-5 h-5 bg-emerald-100 rounded flex items-center justify-center"><Icon name="shopping-cart" size={8} className="text-emerald-600" /></div> 増刷リクエスト</div>
-                    <div className="grid grid-cols-2 gap-1">
-                      {['リクエスト部数', '依頼部署', '担当者名', '納品先拠点'].map(l => <div key={l} className="text-[7px]"><span className="text-slate-400">{l}</span><div className="h-3 bg-slate-100 rounded mt-0.5" /></div>)}
-                    </div>
-                    <div className="text-[7px] text-slate-400">備考・理由</div>
-                    <div className="h-3 bg-slate-100 rounded" />
-                  </div>
-                  <div className="text-[8px] text-slate-400 mt-1.5">※ Chatwork連携設定時は送信と同時に自動通知されます</div>
-                </div>
-                <p>在庫が少なくなったアイテムの増刷を依頼できます。リクエスト部数・依頼部署・担当者名・納品先拠点を入力して送信します。ヘッダーの「増刷リクエスト」から一覧・ステータス管理ができます。</p>
+                <p>各アイテムの詳細画面で増刷履歴の追加・編集・削除ができます。増刷日・金額・部数・印刷会社・デザイナー・納品先・備考を記録できます。「見積PDF読込」ボタンからPDFファイルをアップロードすると、日付・金額・部数・印刷会社を自動で読み取ります。</p>
               </div>
               <div>
                 <h3 className="font-bold text-slate-800 flex items-center gap-1.5 mb-2"><Icon name="bar-chart-2" size={14} className="text-indigo-500" /> 事業部別サマリー</h3>
-                <div className="bg-slate-50 rounded-xl p-3 mb-2 border border-slate-200">
-                  <div className="grid grid-cols-5 gap-1 mb-2">
-                    {['新築', 'リフォーム', '不動産', 'ソリューション', '共通'].map((g, i) => <div key={g} className="bg-white rounded border border-slate-200 px-1.5 py-1 text-center text-[7px]"><span className="text-slate-500">{g}</span><br /><span className="font-bold text-slate-800">{3}件</span></div>)}
-                  </div>
-                  <div className="text-[8px] text-slate-400 flex items-center gap-1"><Icon name="mouse-pointer" size={8} /> クリックすると期別増刷金額が表示されます</div>
-                  <div className="bg-white rounded border border-slate-200 p-1.5 mt-1 space-y-1">
-                    <div className="flex justify-between text-[8px]"><span className="font-bold">26S <span className="text-slate-400 font-normal">2025年9月〜2026年8月</span></span><span className="font-bold text-indigo-600">¥450,000</span></div>
-                    <div className="flex justify-between text-[8px]"><span className="font-bold">25S <span className="text-slate-400 font-normal">2024年9月〜2025年8月</span></span><span className="font-bold text-indigo-600">¥380,000</span></div>
-                  </div>
-                </div>
-                <p>画面上部の事業部カードをクリックすると、期別（9月〜翌年8月）の合計増刷金額をポップアップで確認できます。期の表記は「26S」=2025年9月〜2026年8月です。</p>
+                <p>画面上部の事業部カードをクリックすると、期別（9月〜翌年8月）の合計増刷金額をポップアップで確認できます。期の表記は「26S」=2025年9月〜2026年8月です。上段に新築・リフォーム・不動産・ソリューション、下段にリゾート・工事部・共通・ノベルティが表示されます。</p>
               </div>
               <div>
                 <h3 className="font-bold text-slate-800 flex items-center gap-1.5 mb-2"><Icon name="filter" size={14} className="text-indigo-500" /> フィルター・検索・並び替え</h3>
-                <div className="bg-slate-50 rounded-xl p-3 mb-2 border border-slate-200">
-                  <div className="flex items-center gap-1 flex-wrap mb-2">
-                    <div className="bg-slate-800 text-white rounded px-1.5 py-0.5 text-[8px] font-bold">すべて</div>
-                    <div className="text-slate-400 rounded px-1.5 py-0.5 text-[8px]">新築</div>
-                    <div className="text-slate-400 rounded px-1.5 py-0.5 text-[8px]">リフォーム</div>
-                    <span className="text-slate-200 mx-0.5">|</span>
-                    <div className="border border-slate-200 rounded px-1.5 py-0.5 text-[8px] text-slate-400">グループ ▾</div>
-                    <span className="text-slate-200 mx-0.5">|</span>
-                    <div className="flex gap-0.5">
-                      {['登録順', 'アイテム名', '増刷金額', '在庫数'].map(s => <span key={s} className="text-[7px] text-slate-400 px-1 py-0.5 rounded hover:bg-slate-100">{s}</span>)}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Icon name="search" size={8} className="text-slate-400" />
-                    <div className="flex-1 h-4 bg-white border border-slate-200 rounded text-[7px] text-slate-300 px-1 flex items-center">商品名や納品先で検索...</div>
-                  </div>
-                </div>
                 <p>ヘッダーの事業部タブ・グループ選択でフィルタリング、検索ボックスで商品名・備考・納品先を横断検索できます。並び替えボタンで登録順・アイテム名・増刷年月・増刷金額・在庫数の昇順/降順ソートが可能です。1回クリックで昇順、もう1回で降順、さらにクリックで解除です。</p>
               </div>
               <div>
-                <h3 className="font-bold text-slate-800 flex items-center gap-1.5 mb-2"><Icon name="alert-triangle" size={14} className="text-amber-500" /> 在庫アラート</h3>
-                <div className="bg-slate-50 rounded-xl p-3 mb-2 border border-slate-200">
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1"><span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8px] font-bold text-white bg-amber-500"><Icon name="alert-triangle" size={7} /> 在庫注意</span><span className="text-[8px] text-slate-400">在庫 ≤ 20%</span></div>
-                    <div className="flex items-center gap-1"><span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[8px] font-bold text-white bg-red-500"><Icon name="alert-triangle" size={7} /> 在庫僅少</span><span className="text-[8px] text-slate-400">在庫 ≤ 10%</span></div>
-                  </div>
-                  <div className="text-[8px] text-slate-400 mt-1.5">※ 前回増刷部数に対する在庫数の割合で判定されます</div>
-                </div>
-                <p>在庫数が前回増刷部数の20%以下になると「在庫注意」（オレンジ）、10%以下で「在庫僅少」（赤）のバッジがギャラリー・リスト両方に表示されます。前回増刷部数が未登録の場合はアラートは表示されません。</p>
-              </div>
-              <div>
-                <h3 className="font-bold text-slate-800 flex items-center gap-1.5 mb-2"><Icon name="settings" size={14} className="text-slate-500" /> 設定</h3>
-                <div className="bg-slate-50 rounded-xl p-3 mb-2 border border-slate-200">
-                  <div className="bg-white rounded border border-slate-200 p-2 space-y-1.5">
-                    <div className="text-[8px] font-bold text-slate-600 flex items-center gap-1"><Icon name="message-square" size={8} className="text-blue-500" /> チャットワーク通知</div>
-                    <div className="grid grid-cols-2 gap-1">
-                      {['APIトークン', 'ルームID', '何日前に通知', '自動通知ON/OFF'].map(l => <div key={l} className="text-[7px]"><span className="text-slate-400">{l}</span><div className="h-3 bg-slate-100 rounded mt-0.5" /></div>)}
-                    </div>
-                    <div className="text-[8px] font-bold text-slate-600 flex items-center gap-1 mt-1"><Icon name="lock" size={8} className="text-slate-400" /> パスワード変更</div>
-                    <div className="h-3 bg-slate-100 rounded" />
-                  </div>
-                </div>
-                <p>ヘッダーの「設定」ボタンからChatwork連携（APIトークン・ルームID・通知日数）やパスワード変更ができます。Chatwork APIトークンは Chatwork &gt; 環境設定 &gt; API から取得できます。</p>
+                <h3 className="font-bold text-slate-800 flex items-center gap-1.5 mb-2"><Icon name="store" size={14} className="text-emerald-500" /> 新規オープン機能</h3>
+                <p>ヘッダーの「新規オープン」ボタンから、新規店舗オープン時に必要なアイテムの管理ができます。</p>
+                <ul className="list-disc list-inside mt-1 space-y-1 text-xs text-slate-500">
+                  <li><strong>必要アイテム一覧</strong> — 「編集」ボタンで登録済みアイテムから必要なものをチェックして保存</li>
+                  <li><strong>新規店舗準備</strong> — 店舗名とオープン予定日を入力し、各アイテムのステータス（未着手→見積中→発注済→納品済）・必要部数・印刷会社・デザイナー・金額・納品予定日・備考を管理</li>
+                  <li><strong>進捗管理</strong> — 完了チェックとプログレスバーで準備状況を一目で確認</li>
+                  <li><strong>店舗準備リスト</strong> — 過去の店舗準備データも一覧から確認・再編集可能</li>
+                </ul>
               </div>
             </div>
           </div>
@@ -1185,16 +1281,16 @@ export default function App() {
             </div>
             <div className="space-y-4">
               {[
-                { q: 'データはどこに保存されますか？', a: 'Supabase（クラウドデータベース）に保存されます。DB未接続の場合はブラウザのメモリに一時保存され、ページをリロードするとデータは消えます。' },
-                { q: 'ログインパスワードを忘れました', a: '初期パスワードは「catalog1234」です。設定画面で変更した場合は、管理者にお問い合わせください。' },
-                { q: '画像はどの形式に対応していますか？', a: 'JPG、PNG、GIF、WebPに対応しています。カタログ登録画面でクリックまたはドラッグ&ドロップでアップロードできます。' },
-                { q: '在庫アラートはどのタイミングで表示されますか？', a: '在庫数が前回増刷部数の20%以下で「在庫注意」（オレンジ）、10%以下で「在庫僅少」（赤）が表示されます。前回増刷部数が未登録の場合はアラートは表示されません。' },
-                { q: '増刷リクエストを送信するとどうなりますか？', a: 'リクエスト一覧に追加され、Chatwork連携が設定されている場合は指定ルームに自動通知されます。リクエスト一覧で承認→発注済→納品済とステータスを管理できます。' },
-                { q: 'Chatwork通知が届きません', a: '設定画面でAPIトークンとルームIDが正しく入力されているか確認してください。APIトークンはChatworkの環境設定 > APIから取得できます。' },
+                { q: 'データはどこに保存されますか？', a: 'Firebase（クラウドデータベース）にリアルタイムで保存されます。複数端末から同時にアクセスしても自動で同期されます。' },
+                { q: 'ログインパスワードを忘れました', a: '初期パスワードは「catalog1234」です。変更済みの場合は管理者にお問い合わせください。パスワード変更は「新規オープン」ボタン内の歯車アイコンから行えます。' },
+                { q: '画像はどの形式に対応していますか？', a: 'JPG、PNG、GIF、WebPに対応しています。登録画面でクリックまたはドラッグ&ドロップでアップロードできます。' },
+                { q: '増刷履歴でPDFから情報を読み取れますか？', a: 'はい、増刷記録の追加フォームにある「見積PDF読込」ボタンからPDFをアップロードすると、日付・金額・部数・印刷会社を自動で読み取ってフォームに入力します。' },
                 { q: '期別増刷金額の「26S」とは何ですか？', a: '「26S」は2025年9月〜2026年8月の期間を表します。9月始まり・8月終わりの年度区分です。事業部カードをクリックすると期別の合計増刷金額を確認できます。' },
-                { q: 'デモデータを登録したい', a: 'カタログが0件の状態で表示される「デモデータを登録」ボタンから15件のサンプルデータを一括登録できます。' },
-                { q: '納品先を複数選択できますか？', a: 'はい、カタログ登録・増刷リクエスト・増刷履歴の納品先はチェックリストから複数選択できます。' },
-                { q: 'カタログを誤って削除してしまいました', a: '削除は確認ダイアログが表示されますが、一度削除すると復元できません。重要なデータは定期的にバックアップしてください。' },
+                { q: '事業部の種類は？', a: '新築・リフォーム・不動産・ソリューション・リゾート・工事部・共通・ノベルティの8つの事業部があります。' },
+                { q: '新規オープン機能の使い方は？', a: 'ヘッダーの「新規オープン」→「編集」で必要アイテムを選択・保存します。「新規店舗準備」ボタンで店舗名を入力すると、選択したアイテムの準備状況（ステータス・印刷会社・デザイナー・金額・納品予定日など）を一覧で管理できます。' },
+                { q: '店舗準備のステータスは？', a: '未着手→見積中→発注済→納品済の4段階です。完了チェックを入れると進捗バーに反映されます。' },
+                { q: '納品先を複数選択できますか？', a: 'はい、販促物登録・増刷履歴の納品先はチェックリストから複数選択できます。' },
+                { q: 'アイテムを誤って削除してしまいました', a: '削除は確認ダイアログが表示されますが、一度削除すると復元できません。重要なデータは定期的にバックアップしてください。' },
               ].map((item, i) => (
                 <div key={i} className="bg-slate-50 rounded-xl p-4 border border-slate-100">
                   <p className="font-bold text-slate-800 text-sm flex items-start gap-2"><span className="text-indigo-500 mt-0.5">Q.</span>{item.q}</p>
@@ -1206,139 +1302,268 @@ export default function App() {
         </div>
       )}
 
-      {/* Request Modal */}
-      {showRequestModal && requestTargetItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setShowRequestModal(false)}>
-          <form onSubmit={submitRequest} onClick={e => e.stopPropagation()} className="bg-white rounded-2xl shadow-xl w-full max-w-md mx-4 p-6 animate-modal">
-            <h2 className="text-lg font-bold text-slate-800 mb-1 flex items-center gap-2">
-              <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center"><Icon name="shopping-cart" size={16} className="text-emerald-600" /></div>
-              増刷リクエスト
-            </h2>
-            <p className="text-sm text-slate-400 mb-5">「{requestTargetItem.name}」の増刷を依頼</p>
 
-            <div className="bg-slate-50 rounded-xl p-3 mb-5 border border-slate-100">
-              <div className="grid grid-cols-3 gap-2 text-xs">
-                <div><span className="text-slate-400 block">現在の在庫</span><span className="font-bold text-slate-700">{requestTargetItem.stock ?? '—'}</span></div>
-                <div><span className="text-slate-400 block">前回増刷数</span><span className="font-bold text-slate-700">{requestTargetItem.last_reprint_qty ? Number(requestTargetItem.last_reprint_qty).toLocaleString() : '—'}</span></div>
-                <div><span className="text-slate-400 block">前回金額</span><span className="font-bold text-indigo-600">{formatCost(requestTargetItem.last_reprint_cost)}</span></div>
-              </div>
-            </div>
 
-            <div className="space-y-4">
-              <div>
-                <label className="text-xs font-bold text-slate-500 block mb-1">リクエスト部数 *</label>
-                <input type="number" value={requestForm.quantity} onChange={e => setRequestForm(f => ({ ...f, quantity: e.target.value }))} className="glass-input w-full rounded-xl px-4 py-2.5" placeholder="例: 500" required min="1" autoFocus />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-bold text-slate-500 block mb-1">依頼部署</label>
-                  <select value={requestForm.department} onChange={e => setRequestForm(f => ({ ...f, department: e.target.value }))} className="glass-input w-full rounded-xl px-4 py-2.5">
-                    {GENRES.map(g => <option key={g} value={g}>{g}</option>)}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-bold text-slate-500 block mb-1">担当者名</label>
-                  <input type="text" value={requestForm.requester_name} onChange={e => setRequestForm(f => ({ ...f, requester_name: e.target.value }))} className="glass-input w-full rounded-xl px-4 py-2.5" placeholder="例: 山田太郎" />
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-500 block mb-2">納品先拠点（複数選択可）</label>
-                <div className="grid grid-cols-2 gap-1.5 bg-slate-50 rounded-xl p-3 border border-slate-200 ">
-                  {LOCATIONS.map(l => (
-                    <label key={l} className="flex items-center gap-2 cursor-pointer hover:bg-white rounded-lg px-2 py-1.5 transition">
-                      <input type="checkbox" checked={(requestForm.locations || []).includes(l)} onChange={e => {
-                        const cur = requestForm.locations || [];
-                        setRequestForm(f => ({ ...f, locations: e.target.checked ? [...cur, l] : cur.filter(x => x !== l) }));
-                      }} className="w-3.5 h-3.5 rounded accent-indigo-500" />
-                      <span className="text-xs text-slate-700">{l}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="text-xs font-bold text-slate-500 block mb-1">備考・理由</label>
-                <textarea value={requestForm.notes} onChange={e => setRequestForm(f => ({ ...f, notes: e.target.value }))} rows={2} className="glass-input w-full rounded-xl px-4 py-2.5 resize-none" placeholder="例: イベント用に追加が必要" />
-              </div>
-            </div>
-
-            <div className="flex gap-2 mt-6">
-              <button type="button" onClick={() => setShowRequestModal(false)} className="flex-1 border border-slate-200 rounded-xl py-2.5 font-bold text-slate-500 hover:bg-slate-50 transition">キャンセル</button>
-              <button type="submit" className="flex-1 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-xl py-2.5 font-bold hover:opacity-90 transition shadow-md flex items-center justify-center gap-1.5">
-                <Icon name="send" size={14} /> リクエスト送信
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* Request List Modal */}
-      {showRequestListModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setShowRequestListModal(false)}>
-          <div onClick={e => e.stopPropagation()} className="bg-white rounded-2xl shadow-xl w-full max-w-2xl mx-4 p-6 animate-modal max-h-[85vh] overflow-y-auto">
-            <div className="flex items-center justify-between mb-5">
+      {/* New Open Modal */}
+      {showNewOpenModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => { setShowNewOpenModal(false); setNewOpenEditMode(false); }}>
+          <div onClick={e => e.stopPropagation()} className="bg-white rounded-2xl shadow-xl w-full max-w-4xl mx-4 p-6 animate-modal max-h-[85vh] overflow-y-auto">
+            <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center"><Icon name="inbox" size={16} className="text-indigo-600" /></div>
-                増刷リクエスト一覧
-                {pendingRequestCount > 0 && <span className="bg-red-100 text-red-600 text-xs font-bold px-2 py-0.5 rounded-full">{pendingRequestCount}件 申請中</span>}
+                <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center"><Icon name="store" size={16} className="text-indigo-600" /></div>
+                新規店舗必要アイテム一覧
+                <span className="text-xs text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">{newOpenItemIds.length}件</span>
               </h2>
-              <button onClick={() => setShowRequestListModal(false)} className="p-2 text-slate-400 hover:text-slate-600"><Icon name="x" size={20} /></button>
+              <div className="flex items-center gap-2">
+                <button onClick={() => setNewOpenEditMode(!newOpenEditMode)} className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition border ${newOpenEditMode ? 'bg-blue-100 text-blue-700 border-blue-300' : 'text-blue-600 hover:bg-blue-50 border-blue-200'}`}>
+                  <Icon name="square-pen" size={12} /> {newOpenEditMode ? '編集中' : '登録アイテムを編集'}
+                </button>
+                <button onClick={openNewStoreSetup} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold transition border border-emerald-200 text-emerald-600 hover:bg-emerald-50">
+                  <Icon name="plus" size={12} /> 準備リストを作成
+                </button>
+                <button onClick={() => { setShowNewOpenModal(false); setNewOpenEditMode(false); }} className="p-2 text-slate-400 hover:text-slate-600"><Icon name="x" size={20} /></button>
+              </div>
             </div>
 
-            {requests.length === 0 ? (
-              <div className="text-center py-12 text-slate-400">
-                <Icon name="inbox" size={40} className="mx-auto mb-3 opacity-30" />
-                <p className="font-bold">リクエストはまだありません</p>
-                <p className="text-xs mt-1">カタログ一覧の <Icon name="shopping-cart" size={12} className="inline" /> ボタンからリクエストできます</p>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {requests.map(req => (
-                  <div key={req.id} className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <span className="font-bold text-slate-800">{req.item_name}</span>
-                        <div className="flex items-center gap-2 mt-1">
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${GENRE_COLORS[req.item_genre]?.bg || ''} ${GENRE_COLORS[req.item_genre]?.text || ''}`}>{req.item_genre}</span>
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${REQUEST_STATUS_COLORS[req.status]}`}>{REQUEST_STATUS_LABELS[req.status]}</span>
+            {newOpenEditMode ? (
+              <>
+                {/* 編集モード: 事業部フィルタ + 全アイテムチェックボックス */}
+                <div className="flex items-center gap-1.5 flex-wrap mb-4">
+                  <button onClick={() => setNewOpenFilterGenre('')} className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${!newOpenFilterGenre ? 'bg-slate-800 text-white' : 'text-slate-500 hover:bg-slate-100'}`}>すべて</button>
+                  {GENRES.map(g => {
+                    const c = GENRE_COLORS[g];
+                    return <button key={g} onClick={() => setNewOpenFilterGenre(newOpenFilterGenre === g ? '' : g)} className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition ${newOpenFilterGenre === g ? `${c.bg} ${c.text}` : 'text-slate-500 hover:bg-slate-100'}`}>{g}</button>;
+                  })}
+                </div>
+                <div className="space-y-1.5 mb-4 max-h-[50vh] overflow-y-auto">
+                  {items.filter(i => !newOpenFilterGenre || i.genre === newOpenFilterGenre).map(item => {
+                    const checked = newOpenItemIds.includes(item.id);
+                    const gc = GENRE_COLORS[item.genre] || GENRE_COLORS['新築'];
+                    return (
+                      <label key={item.id} className={`flex items-center gap-3 px-3 py-2 rounded-xl cursor-pointer transition border ${checked ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-100 hover:bg-slate-50'}`}>
+                        <input type="checkbox" checked={checked} onChange={e => {
+                          setNewOpenItemIds(prev => e.target.checked ? [...prev, item.id] : prev.filter(id => id !== item.id));
+                        }} className="w-4 h-4 rounded accent-indigo-500 flex-shrink-0" />
+                        <div className="w-8 h-8 rounded overflow-hidden bg-slate-100 flex-shrink-0">
+                          {item.image_url ? <img src={item.image_url} alt="" className="w-full h-full object-contain" /> : <Icon name="image" size={12} className="text-slate-300 m-auto mt-2" />}
                         </div>
-                      </div>
-                      <span className="text-[10px] text-slate-400 whitespace-nowrap">{new Date(req.requested_at).toLocaleString('ja-JP')}</span>
-                    </div>
-                    <div className="grid grid-cols-4 gap-2 text-xs mt-2">
-                      <div><span className="text-slate-400">リクエスト部数: </span><span className="font-bold text-slate-700">{Number(req.quantity).toLocaleString()}部</span></div>
-                      <div><span className="text-slate-400">依頼部署: </span><span className="font-bold text-slate-700">{req.department}</span></div>
-                      <div><span className="text-slate-400">担当者: </span><span className="font-bold text-slate-700">{req.requester_name || '—'}</span></div>
-                      <div><span className="text-slate-400">納品先: </span><span className="font-bold text-slate-700">{req.locations ? req.locations.join(', ') : (req.location || '未指定')}</span></div>
-                    </div>
-                    {req.notes && <p className="text-xs text-slate-500 mt-2 bg-white rounded-lg px-3 py-1.5 border border-slate-100">{req.notes}</p>}
-
-                    {req.status === 'pending' && (
-                      <div className="flex gap-1.5 mt-3">
-                        <button onClick={() => updateRequestStatus(req.id, 'approved')} className="text-[11px] font-bold px-3 py-1 rounded-lg bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 transition">承認</button>
-                        <button onClick={() => updateRequestStatus(req.id, 'ordered')} className="text-[11px] font-bold px-3 py-1 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 transition">発注済</button>
-                        <button onClick={() => updateRequestStatus(req.id, 'rejected')} className="text-[11px] font-bold px-3 py-1 rounded-lg bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 transition">却下</button>
-                      </div>
-                    )}
-                    {req.status === 'approved' && (
-                      <div className="flex gap-1.5 mt-3">
-                        <button onClick={() => updateRequestStatus(req.id, 'ordered')} className="text-[11px] font-bold px-3 py-1 rounded-lg bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border border-indigo-200 transition">発注済にする</button>
-                      </div>
-                    )}
-                    {req.status === 'ordered' && (
-                      <div className="flex gap-1.5 mt-3">
-                        <button onClick={() => updateRequestStatus(req.id, 'delivered')} className="text-[11px] font-bold px-3 py-1 rounded-lg bg-emerald-50 text-emerald-600 hover:bg-emerald-100 border border-emerald-200 transition">納品済にする</button>
-                      </div>
-                    )}
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm font-bold text-slate-800 truncate block">{item.name}</span>
+                          <div className="flex items-center gap-1.5">
+                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${gc.bg} ${gc.text}`}>{item.genre}</span>
+                            <span className="text-[10px] text-slate-400">{item.group}</span>
+                            {item.size && <span className="text-[10px] text-slate-400">{item.size}</span>}
+                          </div>
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => setNewOpenEditMode(false)} className="flex-1 border border-slate-200 rounded-xl py-2.5 font-bold text-slate-500 hover:bg-slate-50 transition">キャンセル</button>
+                  <button onClick={() => { saveNewOpenItems(); setNewOpenEditMode(false); }} className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl py-2.5 font-bold hover:opacity-90 transition shadow-md flex items-center justify-center gap-1.5">
+                    <Icon name="save" size={14} /> 保存
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                {/* 一覧表示モード: 選択済みアイテムのみ表示 */}
+                {newOpenItemIds.length === 0 ? (
+                  <div className="text-center py-8 text-slate-400">
+                    <Icon name="store" size={40} className="mx-auto mb-3 opacity-30" />
+                    <p className="font-bold">アイテムが選択されていません</p>
+                    <p className="text-xs mt-1">右上の「編集」ボタンから必要なアイテムを選択してください</p>
                   </div>
-                ))}
-              </div>
+                ) : (
+                  <div className="space-y-1.5 mb-4 max-h-[40vh] overflow-y-auto">
+                    {newOpenItemIds.map(id => {
+                      const item = items.find(i => i.id === id);
+                      if (!item) return null;
+                      const gc = GENRE_COLORS[item.genre] || GENRE_COLORS['新築'];
+                      return (
+                        <div key={item.id} className="flex items-center gap-3 px-3 py-2 rounded-xl bg-white border border-slate-100 hover:bg-slate-50 transition cursor-pointer" onClick={() => { setShowNewOpenModal(false); setDetailItem(item); }}>
+                          <div className="w-10 h-10 rounded-lg overflow-hidden bg-slate-100 flex-shrink-0">
+                            {item.image_url ? <img src={item.image_url} alt="" className="w-full h-full object-contain" /> : <Icon name="image" size={14} className="text-slate-300 m-auto mt-3" />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <span className="text-sm font-bold text-slate-800 truncate block">{item.name}</span>
+                            <div className="flex items-center gap-1.5">
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${gc.bg} ${gc.text}`}>{item.genre}</span>
+                              <span className="text-[10px] text-slate-400">{item.group}</span>
+                              {item.size && <span className="text-[10px] text-slate-400">{item.size}</span>}
+                              {item.paper_type && <span className="text-[10px] text-slate-400">{item.paper_type}</span>}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* 既存の店舗準備リスト */}
+                {storeSetups.length > 0 && (
+                  <div className="border-t-2 border-indigo-200 pt-4 mt-4">
+                    <h3 className="text-sm font-bold text-indigo-700 mb-3 flex items-center gap-1.5"><Icon name="clipboard-list" size={16} /> 店舗準備リスト</h3>
+                    <div className="space-y-2">
+                      {storeSetups.map(setup => {
+                        const completedCount = (setup.items || []).filter(i => i.completed).length;
+                        const totalCount = (setup.items || []).length;
+                        const pct = totalCount > 0 ? Math.round(completedCount / totalCount * 100) : 0;
+                        return (
+                          <div key={setup.id} className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 hover:shadow-md transition cursor-pointer ${pct === 100 ? 'bg-emerald-50 border-emerald-300' : 'bg-indigo-50 border-indigo-200'}`} onClick={() => openExistingStoreSetup(setup)}>
+                            <div className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${pct === 100 ? 'bg-emerald-200' : 'bg-indigo-200'}`}>
+                              <Icon name="store" size={16} className={pct === 100 ? 'text-emerald-700' : 'text-indigo-700'} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className="text-sm font-bold text-slate-800">{setup.store_name}</span>
+                              {setup.open_date && <span className="text-[10px] text-slate-400 ml-2">オープン: {formatDate(setup.open_date)}</span>}
+                              <div className="flex items-center gap-2 mt-1">
+                                <div className="flex-1 h-2 bg-white/60 rounded-full overflow-hidden">
+                                  <div className={`h-full rounded-full transition-all ${pct === 100 ? 'bg-emerald-500' : 'bg-indigo-500'}`} style={{ width: `${pct}%` }} />
+                                </div>
+                                <span className={`text-xs font-bold ${pct === 100 ? 'text-emerald-600' : 'text-indigo-600'}`}>{completedCount}/{totalCount}</span>
+                                <span className="text-[10px] text-slate-400">({pct}%)</span>
+                              </div>
+                            </div>
+                            <button onClick={e => { e.stopPropagation(); deleteStoreSetup(setup.id); }} className="p-1.5 text-slate-300 hover:text-red-500 transition flex-shrink-0"><Icon name="trash-2" size={14} /></button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
       )}
+
+      {/* Store Setup Modal */}
+      {showStoreSetupModal && (() => {
+        const completedCount = storeSetupData.items.filter(i => i.completed).length;
+        const totalCount = storeSetupData.items.length;
+        const pct = totalCount > 0 ? Math.round(completedCount / totalCount * 100) : 0;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm" onClick={() => setShowStoreSetupModal(false)}>
+            <div onClick={e => e.stopPropagation()} className="bg-white rounded-2xl shadow-xl w-full max-w-5xl mx-4 p-6 animate-modal max-h-[90vh] overflow-y-auto">
+              {/* ヘッダー */}
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                  <div className="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center"><Icon name="store" size={16} className="text-emerald-600" /></div>
+                  新規店舗準備
+                </h2>
+                <button onClick={() => setShowStoreSetupModal(false)} className="p-2 text-slate-400 hover:text-slate-600"><Icon name="x" size={20} /></button>
+              </div>
+
+              {/* 店舗情報 */}
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">店舗名 *</label>
+                  <input type="text" value={storeSetupData.storeName} onChange={e => setStoreSetupData(prev => ({ ...prev, storeName: e.target.value }))} placeholder="例: 松本店" className="glass-input w-full rounded-xl px-4 py-2.5" autoFocus />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-slate-500 block mb-1">オープン予定日</label>
+                  <input type="date" value={storeSetupData.openDate} onChange={e => setStoreSetupData(prev => ({ ...prev, openDate: e.target.value }))} className="glass-input w-full rounded-xl px-4 py-2.5" />
+                </div>
+              </div>
+
+              {/* 進捗バー */}
+              <div className="flex items-center gap-3 mb-4 bg-slate-50 rounded-xl px-4 py-2.5 border border-slate-100">
+                <span className="text-xs font-bold text-slate-500">進捗</span>
+                <div className="flex-1 h-2 bg-slate-200 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full transition-all ${pct === 100 ? 'bg-emerald-500' : 'bg-indigo-500'}`} style={{ width: `${pct}%` }} />
+                </div>
+                <span className={`text-sm font-bold ${pct === 100 ? 'text-emerald-600' : 'text-slate-700'}`}>{completedCount} / {totalCount}</span>
+                <span className="text-xs text-slate-400">({pct}%)</span>
+              </div>
+
+              {/* アイテムテーブル */}
+              {totalCount === 0 ? (
+                <div className="text-center py-8 text-slate-400">
+                  <p className="font-bold">必要アイテムが登録されていません</p>
+                  <p className="text-xs mt-1">先に「新規店舗必要アイテム一覧」で必要なアイテムを選択してください</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto border border-slate-100 rounded-xl mb-4">
+                  <table className="w-full min-w-[1000px] text-xs">
+                    <thead>
+                      <tr className="text-[10px] font-bold text-slate-400 border-b border-slate-100 bg-slate-50">
+                        <th className="px-2 py-2 text-center w-8">完了</th>
+                        <th className="px-2 py-2 text-left">アイテム名</th>
+                        <th className="px-2 py-2 text-center w-16">事業部</th>
+                        <th className="px-2 py-2 text-center w-24">ステータス</th>
+                        <th className="px-2 py-2 text-center w-16">必要部数</th>
+                        <th className="px-2 py-2 text-center w-24">印刷会社</th>
+                        <th className="px-2 py-2 text-center w-24">デザイナー</th>
+                        <th className="px-2 py-2 text-center w-20">金額</th>
+                        <th className="px-2 py-2 text-center w-28">納品予定日</th>
+                        <th className="px-2 py-2 text-center w-28">備考</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {storeSetupData.items.map((si, idx) => {
+                        const item = items.find(i => i.id === si.item_id);
+                        if (!item) return null;
+                        const gc = GENRE_COLORS[item.genre] || GENRE_COLORS['新築'];
+                        return (
+                          <tr key={idx} className={`border-b border-slate-50 transition ${si.completed ? 'bg-emerald-50/50' : 'hover:bg-slate-50'}`}>
+                            <td className="px-2 py-1.5 text-center">
+                              <input type="checkbox" checked={si.completed} onChange={e => updateSetupItem(idx, 'completed', e.target.checked)} className="w-4 h-4 rounded accent-emerald-500" />
+                            </td>
+                            <td className="px-2 py-1.5">
+                              <div className="flex items-center gap-2">
+                                <div className="w-7 h-7 rounded overflow-hidden bg-slate-100 flex-shrink-0">
+                                  {item.image_url ? <img src={item.image_url} alt="" className="w-full h-full object-contain" /> : <Icon name="image" size={10} className="text-slate-300 m-auto mt-1.5" />}
+                                </div>
+                                <span className={`font-bold text-slate-800 truncate ${si.completed ? 'line-through text-slate-400' : ''}`}>{item.name}</span>
+                              </div>
+                            </td>
+                            <td className="px-2 py-1.5 text-center">
+                              <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${gc.bg} ${gc.text}`}>{item.genre}</span>
+                            </td>
+                            <td className="px-2 py-1.5 text-center">
+                              <select value={si.status} onChange={e => updateSetupItem(idx, 'status', e.target.value)} className={`rounded-lg px-1.5 py-1 text-[10px] font-bold border-0 cursor-pointer ${SETUP_STATUS_COLORS[si.status]}`}>
+                                {Object.entries(SETUP_STATUS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+                              </select>
+                            </td>
+                            <td className="px-1 py-1.5">
+                              <input type="number" value={si.quantity} onChange={e => updateSetupItem(idx, 'quantity', e.target.value)} placeholder="—" className="w-full text-center glass-input rounded-lg px-1 py-1 text-xs" min="0" />
+                            </td>
+                            <td className="px-1 py-1.5">
+                              <input type="text" value={si.supplier} onChange={e => updateSetupItem(idx, 'supplier', e.target.value)} placeholder="—" className="w-full glass-input rounded-lg px-1.5 py-1 text-xs" />
+                            </td>
+                            <td className="px-1 py-1.5">
+                              <input type="text" value={si.designer} onChange={e => updateSetupItem(idx, 'designer', e.target.value)} placeholder="—" className="w-full glass-input rounded-lg px-1.5 py-1 text-xs" />
+                            </td>
+                            <td className="px-1 py-1.5">
+                              <input type="number" value={si.cost} onChange={e => updateSetupItem(idx, 'cost', e.target.value)} placeholder="—" className="w-full text-center glass-input rounded-lg px-1 py-1 text-xs" min="0" />
+                            </td>
+                            <td className="px-1 py-1.5">
+                              <input type="date" value={si.delivery_date} onChange={e => updateSetupItem(idx, 'delivery_date', e.target.value)} className="w-full glass-input rounded-lg px-1 py-1 text-xs" />
+                            </td>
+                            <td className="px-1 py-1.5">
+                              <input type="text" value={si.notes} onChange={e => updateSetupItem(idx, 'notes', e.target.value)} placeholder="—" className="w-full glass-input rounded-lg px-1.5 py-1 text-xs" />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* フッター */}
+              <div className="flex gap-2">
+                <button onClick={() => setShowStoreSetupModal(false)} className="flex-1 border border-slate-200 rounded-xl py-2.5 font-bold text-slate-500 hover:bg-slate-50 transition">閉じる</button>
+                <button onClick={saveStoreSetup} className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-xl py-2.5 font-bold hover:opacity-90 transition shadow-md flex items-center justify-center gap-1.5">
+                  <Icon name="save" size={14} /> 保存
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Detail Modal */}
       {detailItem && (() => {
@@ -1416,7 +1641,32 @@ export default function App() {
 
                 {showInlineReprintForm && (
                   <div className="bg-indigo-50 rounded-xl p-4 mb-3 border border-indigo-200 animate-enter">
-                    <h4 className="text-xs font-bold text-indigo-600 mb-3 flex items-center gap-1"><Icon name={inlineReprintEditId ? 'square-pen' : 'plus'} size={12} /> {inlineReprintEditId ? '増刷記録を編集' : '増刷記録を追加'}</h4>
+                    <div className="flex items-center justify-between mb-3">
+                      <h4 className="text-xs font-bold text-indigo-600 flex items-center gap-1"><Icon name={inlineReprintEditId ? 'square-pen' : 'plus'} size={12} /> {inlineReprintEditId ? '増刷記録を編集' : '増刷記録を追加'}</h4>
+                      <label className="flex items-center gap-1 px-2 py-1 rounded-lg bg-white border border-indigo-200 text-indigo-600 text-[10px] font-bold cursor-pointer hover:bg-indigo-50 transition">
+                        <Icon name="file-text" size={10} /> 見積PDF読込
+                        <input type="file" accept=".pdf" className="hidden" onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            showToast('PDF解析中...');
+                            const data = await extractFromPdf(file);
+                            setInlineReprintForm(f => ({
+                              ...f,
+                              ...(data.reprint_date && { reprint_date: data.reprint_date }),
+                              ...(data.cost && { cost: data.cost }),
+                              ...(data.quantity && { quantity: data.quantity }),
+                              ...(data.supplier && { supplier: data.supplier }),
+                            }));
+                            showToast('PDFから情報を読み取りました');
+                          } catch (err) {
+                            console.error(err);
+                            showToast('PDF解析に失敗しました');
+                          }
+                          e.target.value = '';
+                        }} />
+                      </label>
+                    </div>
                     <div className="grid grid-cols-3 gap-2 mb-2">
                       <div>
                         <label className="text-[10px] font-bold text-slate-500 block mb-1">増刷日 *</label>
@@ -1448,10 +1698,14 @@ export default function App() {
                         })}
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2 mb-2">
+                    <div className="grid grid-cols-3 gap-2 mb-2">
                       <div>
-                        <label className="text-[10px] font-bold text-slate-500 block mb-1">発注先</label>
+                        <label className="text-[10px] font-bold text-slate-500 block mb-1">印刷会社</label>
                         <input type="text" value={inlineReprintForm.supplier || ''} onChange={e => setInlineReprintForm(f => ({ ...f, supplier: e.target.value }))} placeholder="例: 〇〇印刷" className="glass-input w-full rounded-lg px-2 py-1.5 text-xs" />
+                      </div>
+                      <div>
+                        <label className="text-[10px] font-bold text-slate-500 block mb-1">デザイナー</label>
+                        <input type="text" value={inlineReprintForm.designer || ''} onChange={e => setInlineReprintForm(f => ({ ...f, designer: e.target.value }))} placeholder="例: 田中デザイン事務所" className="glass-input w-full rounded-lg px-2 py-1.5 text-xs" />
                       </div>
                       <div>
                         <label className="text-[10px] font-bold text-slate-500 block mb-1">備考</label>
@@ -1462,7 +1716,7 @@ export default function App() {
                       <button onClick={() => { setShowInlineReprintForm(false); setInlineReprintEditId(null); }} className="flex-1 border border-slate-200 rounded-lg py-1.5 text-xs font-bold text-slate-500 hover:bg-white transition">キャンセル</button>
                       <button onClick={async () => {
                         if (!inlineReprintForm.reprint_date) return;
-                        const payload = { catalog_item_id: di.id, reprint_date: inlineReprintForm.reprint_date, cost: Number(inlineReprintForm.cost) || 0, quantity: Number(inlineReprintForm.quantity) || 0, file_url: inlineReprintForm.file_url, file_name: inlineReprintForm.file_name, notes: inlineReprintForm.notes, delivery_to: inlineReprintForm.delivery_to || '', supplier: inlineReprintForm.supplier || '' };
+                        const payload = { catalog_item_id: di.id, reprint_date: inlineReprintForm.reprint_date, cost: Number(inlineReprintForm.cost) || 0, quantity: Number(inlineReprintForm.quantity) || 0, file_url: inlineReprintForm.file_url, file_name: inlineReprintForm.file_name, notes: inlineReprintForm.notes, delivery_to: inlineReprintForm.delivery_to || '', supplier: inlineReprintForm.supplier || '', designer: inlineReprintForm.designer || '' };
                         try {
                           if (inlineReprintEditId) {
                             await updateDoc(doc(db, 'catalog_reprints', inlineReprintEditId), payload);
@@ -1501,14 +1755,18 @@ export default function App() {
                             <span className="font-bold text-slate-800">{r.quantity > 0 ? Number(r.quantity).toLocaleString() : '—'}</span>
                           </div>
                         </div>
-                        <div className="grid grid-cols-3 gap-2">
+                        <div className="grid grid-cols-4 gap-2">
                           <div>
                             <span className="text-slate-400 block mb-0.5">納品先</span>
                             <span className="font-bold text-slate-700">{r.delivery_to || '—'}</span>
                           </div>
                           <div>
-                            <span className="text-slate-400 block mb-0.5">発注先</span>
+                            <span className="text-slate-400 block mb-0.5">印刷会社</span>
                             <span className="font-bold text-slate-700">{r.supplier || '—'}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-400 block mb-0.5">デザイナー</span>
+                            <span className="font-bold text-slate-700">{r.designer || '—'}</span>
                           </div>
                           <div className="flex items-end justify-between">
                             <div>
@@ -1516,7 +1774,7 @@ export default function App() {
                               <span className="text-slate-600">{r.notes || '—'}</span>
                             </div>
                             <div className="flex items-center gap-1">
-                              <button onClick={() => { setInlineReprintEditId(r.id); setInlineReprintForm({ reprint_date: r.reprint_date || '', cost: r.cost || '', quantity: r.quantity || '', file_url: r.file_url || '', file_name: r.file_name || '', notes: r.notes || '', delivery_to: r.delivery_to || '', supplier: r.supplier || '' }); setShowInlineReprintForm(true); }} className="p-1 text-slate-400 hover:text-indigo-500 transition"><Icon name="square-pen" size={14} /></button>
+                              <button onClick={() => { setInlineReprintEditId(r.id); setInlineReprintForm({ reprint_date: r.reprint_date || '', cost: r.cost || '', quantity: r.quantity || '', file_url: r.file_url || '', file_name: r.file_name || '', notes: r.notes || '', delivery_to: r.delivery_to || '', supplier: r.supplier || '', designer: r.designer || '' }); setShowInlineReprintForm(true); }} className="p-1 text-slate-400 hover:text-indigo-500 transition"><Icon name="square-pen" size={14} /></button>
                               <button onClick={() => deleteReprint(r.id)} className="p-1 text-slate-400 hover:text-red-500 transition"><Icon name="trash-2" size={14} /></button>
                             </div>
                           </div>
@@ -1529,7 +1787,6 @@ export default function App() {
 
               <div className="flex gap-2 pt-2 border-t border-slate-100">
                 <button onClick={() => { setDetailItem(null); openEditItem(di); }} className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition"><Icon name="square-pen" size={14} /> 編集</button>
-                <button onClick={() => { openRequestModal(di); }} className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition"><Icon name="shopping-cart" size={14} /> <span className="text-center leading-tight">増刷<br />リクエスト</span></button>
                 <button onClick={() => { setDetailItem(null); deleteItem(di.id); }} className="flex-1 flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 transition"><Icon name="trash-2" size={14} /> 削除</button>
               </div>
             </div>
