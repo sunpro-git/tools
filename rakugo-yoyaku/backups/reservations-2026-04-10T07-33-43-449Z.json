@@ -1,0 +1,1406 @@
+[
+  {
+    "id": "4qxIFpmIvFEFoA8r1PLa",
+    "reservationNo": "030",
+    "wantsReply": false,
+    "createdAt": {
+      "__timestamp__": "2026-04-10T01:34:23.779Z"
+    },
+    "source": "phone",
+    "name": "古瀬　昌彦 setonaikai",
+    "concerns": [
+      "相続の基本的な手続き"
+    ],
+    "history": [],
+    "inheritanceStatus": "",
+    "referralSource": "新聞",
+    "consultationLogs": [],
+    "waitlist": false,
+    "inquiryOnly": false,
+    "contactStatus": "",
+    "consultationTypeLabel": "いずれも希望しない",
+    "status": "active",
+    "count": 1,
+    "concernOther": "",
+    "consultation": "",
+    "address": "",
+    "phone": "026-375-2705",
+    "consultationType": "none",
+    "postalCode": "",
+    "furigana": "フルセ　マサヒコ"
+  },
+  {
+    "id": "6CGoR1tuccWMr57ufOuk",
+    "address": "",
+    "phone": "026-367-3782",
+    "furigana": "ワカバヤシ　キヨコ",
+    "postalCode": "",
+    "consultationType": "none",
+    "count": 2,
+    "status": "active",
+    "concernOther": "",
+    "consultation": "",
+    "inheritanceStatus": "",
+    "referralSource": "新聞",
+    "consultationLogs": [],
+    "waitlist": false,
+    "consultationTypeLabel": "いずれも希望しない",
+    "inquiryOnly": false,
+    "contactStatus": "",
+    "reservationNo": "031",
+    "wantsReply": false,
+    "createdAt": {
+      "__timestamp__": "2026-04-10T03:09:07.713Z"
+    },
+    "history": [],
+    "concerns": [
+      "相続の基本的な手続き"
+    ],
+    "source": "phone",
+    "name": "若林　清子"
+  },
+  {
+    "id": "7MCOy2BeZOsRotUwucXx",
+    "status": "active",
+    "count": 1,
+    "concernOther": "",
+    "consultation": "",
+    "address": "長野県大町市大町5352-7",
+    "phone": "09055303208",
+    "consultationType": "",
+    "postalCode": "3980002",
+    "furigana": "ツキジノリコ",
+    "reservationNo": "029",
+    "createdAt": {
+      "__timestamp__": "2026-04-10T00:22:06.856Z"
+    },
+    "wantsReply": false,
+    "source": "email",
+    "name": "筑地紀子",
+    "concerns": [
+      "相続の基本的な手続き",
+      "家族でもめない方法",
+      "家や土地をどうするか"
+    ],
+    "history": [],
+    "inheritanceStatus": "すでに相続が発生している",
+    "referralSource": "新聞",
+    "waitlist": false,
+    "consultationLogs": [],
+    "inquiryOnly": false,
+    "contactStatus": "",
+    "consultationTypeLabel": "当日の無料相談を希望する（約20分)"
+  },
+  {
+    "id": "81GF4XvDVfnWuDeCiDAl",
+    "status": "cancelled",
+    "count": 0,
+    "concernOther": "",
+    "consultation": "",
+    "phone": "0",
+    "consultationType": "none",
+    "furigana": "ア",
+    "createdAt": {
+      "__timestamp__": "2026-03-27T08:32:22.710Z"
+    },
+    "wantsReply": true,
+    "reservationNo": "005",
+    "name": "あ",
+    "history": [
+      {
+        "detail": "再入電あり・要対応",
+        "changedAt": {
+          "__timestamp__": "2026-03-27T08:53:16.430Z"
+        },
+        "type": "callback"
+      },
+      {
+        "after": {
+          "status": "cancelled"
+        },
+        "before": {
+          "status": "active"
+        },
+        "changedAt": {
+          "__timestamp__": "2026-04-03T00:18:21.608Z"
+        },
+        "type": "cancel"
+      }
+    ],
+    "concerns": [
+      "老後の暮らしとリフォーム"
+    ],
+    "consultationLogs": [],
+    "waitlist": false,
+    "referralSource": "チラシ",
+    "contactStatus": "needs_action",
+    "inquiryOnly": true,
+    "consultationTypeLabel": "いずれも希望しない"
+  },
+  {
+    "id": "AgnGLzGibl2vq2S1chzA",
+    "concernOther": "落語で興味を持ったとのこと",
+    "consultation": "5/9を希望。",
+    "count": 1,
+    "status": "active",
+    "furigana": "カマサキ　クニオ",
+    "postalCode": "390-0804",
+    "consultationType": "none",
+    "phone": "090-5808-0790",
+    "address": "長野県松本市横田",
+    "concerns": [
+      "その他"
+    ],
+    "history": [],
+    "name": "鎌﨑　邦夫",
+    "source": "phone",
+    "wantsReply": false,
+    "createdAt": {
+      "__timestamp__": "2026-04-10T06:20:44.209Z"
+    },
+    "reservationNo": "032",
+    "consultationTypeLabel": "いずれも希望しない",
+    "contactStatus": "",
+    "inquiryOnly": false,
+    "referralSource": "新聞",
+    "consultationLogs": [
+      {
+        "text": "5/9を希望。",
+        "createdAt": {
+          "__timestamp__": "2026-04-10T06:20:42.387Z"
+        }
+      }
+    ],
+    "waitlist": false,
+    "inheritanceStatus": ""
+  },
+  {
+    "id": "E81FvlFAVm0YPmrPwzEG",
+    "furigana": "カトウテスト",
+    "consultationType": "same_day",
+    "phone": "090-5678-1234",
+    "concernOther": "",
+    "consultation": "加藤問い合わせ送信テストです。",
+    "count": 0,
+    "status": "cancelled",
+    "consultationTypeLabel": "当日の無料相談を希望する（約20分）",
+    "contactStatus": "done",
+    "inquiryOnly": true,
+    "referralSource": "ホームページ",
+    "waitlist": false,
+    "consultationLogs": [
+      {
+        "createdAt": {
+          "__timestamp__": "2026-03-27T07:08:51.045Z"
+        },
+        "text": "加藤問い合わせ送信テストです。"
+      }
+    ],
+    "concerns": [
+      "老後の暮らしとリフォーム",
+      "家族でもめない方法",
+      "節税やお金の残し方"
+    ],
+    "history": [
+      {
+        "after": {
+          "status": "cancelled"
+        },
+        "before": {
+          "status": "active"
+        },
+        "changedAt": {
+          "__timestamp__": "2026-04-03T00:18:24.336Z"
+        },
+        "type": "cancel"
+      }
+    ],
+    "name": "加藤お問合せテスト",
+    "wantsReply": true,
+    "createdAt": {
+      "__timestamp__": "2026-03-27T07:08:51.198Z"
+    },
+    "reservationNo": "002"
+  },
+  {
+    "id": "Et63Rg0dWBEcqrxx0qUS",
+    "consultationType": "same_day",
+    "furigana": "ヤマダ　ハナコ",
+    "phone": "01235678910",
+    "concernOther": "",
+    "consultation": "テスト",
+    "status": "cancelled",
+    "count": 0,
+    "contactStatus": "",
+    "inquiryOnly": true,
+    "consultationTypeLabel": "当日の無料相談を希望する（約20分）",
+    "consultationLogs": [
+      {
+        "createdAt": {
+          "__timestamp__": "2026-03-27T09:13:40.227Z"
+        },
+        "text": "テスト"
+      }
+    ],
+    "waitlist": false,
+    "referralSource": "ホームページ",
+    "name": "山田　花子",
+    "history": [
+      {
+        "before": {
+          "status": "active"
+        },
+        "after": {
+          "status": "cancelled"
+        },
+        "changedAt": {
+          "__timestamp__": "2026-04-03T00:18:12.240Z"
+        },
+        "type": "cancel"
+      }
+    ],
+    "concerns": [
+      "家族でもめない方法"
+    ],
+    "wantsReply": false,
+    "createdAt": {
+      "__timestamp__": "2026-03-27T09:13:40.323Z"
+    },
+    "reservationNo": "010"
+  },
+  {
+    "id": "Eu1vkh1kuT9ezjNpCaW6",
+    "furigana": "カトウテスト",
+    "consultationType": "later",
+    "phone": "090-1234-5678",
+    "concernOther": "テストです",
+    "consultation": "テスト内容です。問い合わせ希望",
+    "count": 2,
+    "status": "cancelled",
+    "consultationTypeLabel": "後日の無料相談を希望する（ご希望の時間でゆっくり）",
+    "contactStatus": "",
+    "inquiryOnly": false,
+    "waitlist": false,
+    "consultationLogs": [
+      {
+        "text": "テスト内容です。問い合わせ希望",
+        "createdAt": {
+          "__timestamp__": "2026-03-27T07:02:55.033Z"
+        }
+      }
+    ],
+    "referralSource": "チラシ",
+    "concerns": [
+      "家や土地をどうするか",
+      "特にない",
+      "その他"
+    ],
+    "history": [
+      {
+        "before": {
+          "status": "active"
+        },
+        "after": {
+          "status": "cancelled"
+        },
+        "changedAt": {
+          "__timestamp__": "2026-04-03T00:18:26.882Z"
+        },
+        "type": "cancel"
+      }
+    ],
+    "name": "加藤通常予約テスト",
+    "wantsReply": true,
+    "createdAt": {
+      "__timestamp__": "2026-03-27T07:02:55.374Z"
+    },
+    "reservationNo": "001"
+  },
+  {
+    "id": "F6tqGQ0bpWhj1D9g1gyw",
+    "consultationTypeLabel": "当日の無料相談を希望する（約20分)",
+    "inquiryOnly": false,
+    "contactStatus": "",
+    "inheritanceStatus": "すでに相続が発生している",
+    "waitlist": false,
+    "referralSource": "",
+    "consultationLogs": [
+      {
+        "createdAt": {
+          "__timestamp__": "2026-04-09T23:52:06.883Z"
+        },
+        "text": "不動産の相続について"
+      }
+    ],
+    "history": [],
+    "concerns": [],
+    "source": "email",
+    "name": "林静子",
+    "reservationNo": "026",
+    "wantsReply": false,
+    "createdAt": {
+      "__timestamp__": "2026-04-09T23:52:06.883Z"
+    },
+    "furigana": "ハヤシシズコ",
+    "postalCode": "399-2221",
+    "consultationType": "",
+    "address": "長野県飯田市龍江4299",
+    "phone": "090-4180-4299",
+    "concernOther": "",
+    "consultation": "不動産の相続について",
+    "count": 2,
+    "status": "active"
+  },
+  {
+    "id": "LKIuFXAN9zHOzzoqf4w9",
+    "furigana": "カトウテスト",
+    "postalCode": "",
+    "consultationType": "none",
+    "phone": "000-0000-0001",
+    "address": "",
+    "concernOther": "",
+    "consultation": "テストです。",
+    "count": 4,
+    "status": "cancelled",
+    "consultationTypeLabel": "いずれも希望しない",
+    "contactStatus": "",
+    "inquiryOnly": false,
+    "referralSource": "新聞",
+    "consultationLogs": [
+      {
+        "createdAt": {
+          "__timestamp__": "2026-04-08T03:17:08.060Z"
+        },
+        "text": "テストです。"
+      }
+    ],
+    "waitlist": false,
+    "inheritanceStatus": "",
+    "concerns": [
+      "家や土地をどうするか",
+      "その他"
+    ],
+    "history": [
+      {
+        "changedAt": {
+          "__timestamp__": "2026-04-09T23:36:04.309Z"
+        },
+        "type": "cancel",
+        "after": {
+          "status": "cancelled"
+        },
+        "before": {
+          "status": "active"
+        }
+      }
+    ],
+    "name": "加藤テスト2",
+    "source": "email",
+    "wantsReply": false,
+    "createdAt": {
+      "__timestamp__": "2026-04-08T03:17:08.060Z"
+    },
+    "reservationNo": "023"
+  },
+  {
+    "id": "Q98TFiB0PIRc5CkbyntS",
+    "phone": "000-0000-0000",
+    "consultationType": "same_day",
+    "furigana": "テスト",
+    "status": "cancelled",
+    "count": 2,
+    "consultation": "",
+    "concernOther": "",
+    "referralSource": "チラシ",
+    "consultationLogs": [],
+    "waitlist": false,
+    "inquiryOnly": false,
+    "contactStatus": "",
+    "consultationTypeLabel": "当日の無料相談を希望する（約20分）",
+    "reservationNo": "016",
+    "createdAt": {
+      "__timestamp__": "2026-03-28T02:10:19.428Z"
+    },
+    "wantsReply": false,
+    "name": "テスト",
+    "history": [
+      {
+        "type": "waitlist_confirm",
+        "changedAt": {
+          "__timestamp__": "2026-03-28T02:10:26.171Z"
+        },
+        "before": {
+          "waitlist": true
+        },
+        "after": {
+          "waitlist": false
+        }
+      },
+      {
+        "changedAt": {
+          "__timestamp__": "2026-04-03T00:17:59.680Z"
+        },
+        "type": "cancel",
+        "before": {
+          "status": "active"
+        },
+        "after": {
+          "status": "cancelled"
+        }
+      }
+    ],
+    "concerns": [
+      "相続の基本的な手続き"
+    ]
+  },
+  {
+    "id": "UED85gmC55dNNnu2ME4h",
+    "name": "あ",
+    "history": [
+      {
+        "before": {
+          "status": "active"
+        },
+        "after": {
+          "status": "cancelled"
+        },
+        "type": "cancel",
+        "changedAt": {
+          "__timestamp__": "2026-04-03T00:18:17.224Z"
+        }
+      }
+    ],
+    "concerns": [
+      "節税やお金の残し方"
+    ],
+    "reservationNo": "007",
+    "wantsReply": false,
+    "createdAt": {
+      "__timestamp__": "2026-03-27T09:00:22.422Z"
+    },
+    "inquiryOnly": false,
+    "contactStatus": "",
+    "consultationTypeLabel": "当日の無料相談を希望する（約20分）",
+    "waitlist": false,
+    "consultationLogs": [],
+    "referralSource": "ご紹介",
+    "concernOther": "",
+    "consultation": "",
+    "status": "cancelled",
+    "count": 1,
+    "consultationType": "same_day",
+    "furigana": "ア",
+    "phone": "0"
+  },
+  {
+    "id": "WyIcCC9jJrOWlwLWMUUx",
+    "phone": "0",
+    "furigana": "ｆ",
+    "consultationType": "none",
+    "count": 0,
+    "status": "cancelled",
+    "concernOther": "",
+    "consultation": "",
+    "referralSource": "新聞",
+    "consultationLogs": [],
+    "waitlist": true,
+    "consultationTypeLabel": "いずれも希望しない",
+    "contactStatus": "needs_action",
+    "inquiryOnly": true,
+    "createdAt": {
+      "__timestamp__": "2026-03-27T08:33:22.676Z"
+    },
+    "wantsReply": true,
+    "reservationNo": "006",
+    "concerns": [
+      "どこに相談したらいいかわからない"
+    ],
+    "history": [
+      {
+        "detail": "再入電あり・要対応",
+        "changedAt": {
+          "__timestamp__": "2026-03-27T08:53:05.518Z"
+        },
+        "type": "callback"
+      },
+      {
+        "detail": "再入電あり・要対応",
+        "type": "callback",
+        "changedAt": {
+          "__timestamp__": "2026-03-27T08:53:53.264Z"
+        }
+      },
+      {
+        "after": {
+          "status": "cancelled"
+        },
+        "before": {
+          "status": "active"
+        },
+        "changedAt": {
+          "__timestamp__": "2026-04-03T00:18:19.496Z"
+        },
+        "type": "cancel"
+      }
+    ],
+    "name": "a"
+  },
+  {
+    "id": "ZWhhcUPSD1HLNtSfcD6K",
+    "contactStatus": "",
+    "inquiryOnly": false,
+    "consultationTypeLabel": "いずれも希望しない",
+    "referralSource": "ご紹介",
+    "consultationLogs": [],
+    "waitlist": false,
+    "inheritanceStatus": "",
+    "name": "田宮　浩",
+    "source": "phone",
+    "history": [],
+    "concerns": [
+      "相続の基本的な手続き",
+      "節税やお金の残し方",
+      "家族でもめない方法"
+    ],
+    "wantsReply": false,
+    "createdAt": {
+      "__timestamp__": "2026-04-10T00:03:13.295Z"
+    },
+    "reservationNo": "027",
+    "consultationType": "none",
+    "furigana": "タミヤ　ヒロシ",
+    "postalCode": "",
+    "phone": "090-9962-6065",
+    "address": "",
+    "concernOther": "",
+    "consultation": "",
+    "status": "active",
+    "count": 2
+  },
+  {
+    "id": "aDl3NYugfE8dklQk8avH",
+    "count": 4,
+    "status": "cancelled",
+    "concernOther": "",
+    "consultation": "テストです",
+    "address": "",
+    "phone": "000-0000-0000",
+    "postalCode": "",
+    "furigana": "カトウテスト",
+    "consultationType": "later",
+    "reservationNo": "024",
+    "wantsReply": false,
+    "createdAt": {
+      "__timestamp__": "2026-04-08T03:17:09.352Z"
+    },
+    "history": [
+      {
+        "before": {
+          "status": "active"
+        },
+        "after": {
+          "status": "cancelled"
+        },
+        "changedAt": {
+          "__timestamp__": "2026-04-09T23:36:01.180Z"
+        },
+        "type": "cancel"
+      }
+    ],
+    "concerns": [
+      "家族でもめない方法",
+      "アパートなど土地活用",
+      "特にない",
+      "その他"
+    ],
+    "source": "email",
+    "name": "加藤テスト1",
+    "inheritanceStatus": "",
+    "referralSource": "ホームページ",
+    "consultationLogs": [
+      {
+        "createdAt": {
+          "__timestamp__": "2026-04-08T03:17:09.352Z"
+        },
+        "text": "テストです"
+      }
+    ],
+    "waitlist": false,
+    "consultationTypeLabel": "後日の無料相談を希望する（ご希望の時間でゆっくり）",
+    "inquiryOnly": false,
+    "contactStatus": ""
+  },
+  {
+    "id": "ajYFZGJPIyRVgfWO6iuO",
+    "waitlist": false,
+    "consultationLogs": [
+      {
+        "text": "セミナーについての詳細希望とのこと。",
+        "createdAt": {
+          "__timestamp__": "2026-03-30T02:33:48.562Z"
+        }
+      }
+    ],
+    "referralSource": "新聞",
+    "consultationTypeLabel": "いずれも希望しない",
+    "inquiryOnly": false,
+    "contactStatus": "",
+    "reservationNo": "018",
+    "wantsReply": true,
+    "createdAt": {
+      "__timestamp__": "2026-03-30T02:33:49.952Z"
+    },
+    "history": [
+      {
+        "after": {
+          "status": "cancelled"
+        },
+        "before": {
+          "status": "active"
+        },
+        "type": "cancel",
+        "changedAt": {
+          "__timestamp__": "2026-04-03T00:17:55.192Z"
+        }
+      }
+    ],
+    "concerns": [
+      "相続の基本的な手続き"
+    ],
+    "name": "テスト",
+    "phone": "000-0000-0000",
+    "furigana": "テスト",
+    "consultationType": "none",
+    "count": 2,
+    "status": "cancelled",
+    "concernOther": "",
+    "consultation": "セミナーについての詳細希望とのこと。"
+  },
+  {
+    "id": "e36iFqSWpD8qnFSS69QW",
+    "name": "テスト",
+    "history": [
+      {
+        "type": "cancel",
+        "changedAt": {
+          "__timestamp__": "2026-04-03T00:17:57.432Z"
+        },
+        "before": {
+          "status": "active"
+        },
+        "after": {
+          "status": "cancelled"
+        }
+      }
+    ],
+    "concerns": [
+      "家族でもめない方法"
+    ],
+    "reservationNo": "017",
+    "createdAt": {
+      "__timestamp__": "2026-03-28T02:12:08.674Z"
+    },
+    "wantsReply": true,
+    "inquiryOnly": false,
+    "contactStatus": "",
+    "consultationTypeLabel": "当日の無料相談を希望する（約20分）",
+    "referralSource": "新聞",
+    "consultationLogs": [],
+    "waitlist": false,
+    "consultation": "",
+    "concernOther": "",
+    "status": "cancelled",
+    "count": 2,
+    "consultationType": "same_day",
+    "furigana": "テスト",
+    "phone": "000-0000-0000"
+  },
+  {
+    "id": "g9YwEDdrCvo2DaG89QSD",
+    "source": "email",
+    "name": "清水則子",
+    "history": [],
+    "concerns": [
+      "相続の基本的な手続き",
+      "節税やお金の残し方"
+    ],
+    "reservationNo": "025",
+    "wantsReply": false,
+    "createdAt": {
+      "__timestamp__": "2026-04-09T21:02:07.566Z"
+    },
+    "inquiryOnly": false,
+    "contactStatus": "",
+    "consultationTypeLabel": "いずれも希望しない",
+    "inheritanceStatus": "まだ先だが準備したい",
+    "consultationLogs": [],
+    "referralSource": "新聞",
+    "waitlist": false,
+    "concernOther": "",
+    "consultation": "",
+    "status": "active",
+    "count": 2,
+    "consultationType": "none",
+    "furigana": "シミズノリコ",
+    "postalCode": "399-0705",
+    "address": "長野県塩尻市広丘堅石1134",
+    "phone": "0263-54-6528"
+  },
+  {
+    "id": "jIGzfyrkUlg6FKjU3OSO",
+    "count": 2,
+    "status": "active",
+    "concernOther": "",
+    "consultation": "相続のことと。リフォームをしたいけれどもご自身で所有されていないので、困っている。",
+    "phone": "026-353-2006",
+    "address": "",
+    "furigana": "ヤマダ　ユウコ",
+    "postalCode": "",
+    "consultationType": "none",
+    "wantsReply": false,
+    "createdAt": {
+      "__timestamp__": "2026-04-10T00:17:08.914Z"
+    },
+    "reservationNo": "028",
+    "history": [],
+    "concerns": [
+      "相続の基本的な手続き",
+      "家族でもめない方法",
+      "老後の暮らしとリフォーム"
+    ],
+    "name": "山田　融子",
+    "source": "phone",
+    "referralSource": "新聞",
+    "consultationLogs": [
+      {
+        "createdAt": {
+          "__timestamp__": "2026-04-10T00:17:09.565Z"
+        },
+        "text": "相続のことと。リフォームをしたいけれどもご自身で所有されていないので、困っている。"
+      }
+    ],
+    "waitlist": false,
+    "inheritanceStatus": "",
+    "consultationTypeLabel": "いずれも希望しない",
+    "contactStatus": "",
+    "inquiryOnly": false
+  },
+  {
+    "id": "kQXQ9yMT1NBh1rSFWDJ0",
+    "consultationType": "same_day",
+    "furigana": "テスト",
+    "phone": "090-1111-0000",
+    "consultation": "",
+    "concernOther": "",
+    "status": "cancelled",
+    "count": 2,
+    "contactStatus": "",
+    "inquiryOnly": false,
+    "consultationTypeLabel": "当日の無料相談を希望する（約20分）",
+    "referralSource": "新聞",
+    "consultationLogs": [],
+    "waitlist": false,
+    "name": "テスト",
+    "concerns": [
+      "相続の基本的な手続き"
+    ],
+    "history": [
+      {
+        "changedAt": {
+          "__timestamp__": "2026-03-28T02:09:11.931Z"
+        },
+        "type": "cancel",
+        "after": {
+          "status": "cancelled"
+        },
+        "before": {
+          "status": "active"
+        }
+      }
+    ],
+    "createdAt": {
+      "__timestamp__": "2026-03-28T02:07:24.438Z"
+    },
+    "wantsReply": false,
+    "reservationNo": "015"
+  },
+  {
+    "id": "lIQEzFzqkbNa5aRhui17",
+    "referralSource": "ホームページ",
+    "consultationLogs": [],
+    "waitlist": false,
+    "inquiryOnly": false,
+    "contactStatus": "",
+    "consultationTypeLabel": "当日の無料相談を希望する（約20分）",
+    "reservationNo": "003",
+    "createdAt": {
+      "__timestamp__": "2026-03-27T08:15:56.528Z"
+    },
+    "wantsReply": false,
+    "name": "あ",
+    "history": [
+      {
+        "type": "count_change",
+        "changedAt": {
+          "__timestamp__": "2026-03-27T08:16:10.599Z"
+        },
+        "after": {
+          "count": 3
+        },
+        "before": {
+          "count": 1
+        }
+      },
+      {
+        "after": {
+          "status": "cancelled"
+        },
+        "before": {
+          "status": "active"
+        },
+        "type": "cancel",
+        "changedAt": {
+          "__timestamp__": "2026-03-27T08:16:20.838Z"
+        }
+      }
+    ],
+    "concerns": [
+      "節税やお金の残し方",
+      "アパートなど土地活用",
+      "相続の基本的な手続き",
+      "家や土地をどうするか",
+      "どこに相談したらいいかわからない"
+    ],
+    "phone": "0",
+    "consultationType": "same_day",
+    "furigana": "ア",
+    "status": "cancelled",
+    "count": 3,
+    "concernOther": "",
+    "consultation": ""
+  },
+  {
+    "id": "lZJOhzpELFOOwJGS0P5W",
+    "status": "cancelled",
+    "count": 3,
+    "concernOther": "",
+    "consultation": "",
+    "phone": "0",
+    "consultationType": "later",
+    "furigana": "a",
+    "createdAt": {
+      "__timestamp__": "2026-03-27T08:16:58.801Z"
+    },
+    "wantsReply": false,
+    "reservationNo": "004",
+    "name": "a",
+    "history": [
+      {
+        "changedAt": {
+          "__timestamp__": "2026-03-27T08:19:11.356Z"
+        },
+        "type": "count_change",
+        "after": {
+          "count": 3
+        },
+        "before": {
+          "count": 2
+        }
+      },
+      {
+        "changedAt": {
+          "__timestamp__": "2026-03-27T08:19:25.148Z"
+        },
+        "type": "cancel",
+        "before": {
+          "status": "active"
+        },
+        "after": {
+          "status": "cancelled"
+        }
+      }
+    ],
+    "concerns": [
+      "家族でもめない方法"
+    ],
+    "referralSource": "チラシ",
+    "consultationLogs": [],
+    "waitlist": false,
+    "contactStatus": "",
+    "inquiryOnly": false,
+    "consultationTypeLabel": "後日の無料相談を希望する（ご希望の時間でゆっくり）"
+  },
+  {
+    "id": "lo1Sna0a19IhWgmANfbr",
+    "name": "不明",
+    "history": [],
+    "concerns": [
+      "その他"
+    ],
+    "reservationNo": "021",
+    "wantsReply": false,
+    "createdAt": {
+      "__timestamp__": "2026-04-02T08:11:16.114Z"
+    },
+    "inquiryOnly": true,
+    "contactStatus": "",
+    "consultationTypeLabel": "いずれも希望しない",
+    "referralSource": "その他: ",
+    "consultationLogs": [
+      {
+        "createdAt": {
+          "__timestamp__": "2026-04-02T08:11:19.570Z"
+        },
+        "text": "場内で水彩画が出来ますか？\nとのお問い合わせでございました。\nFAQで内容を確認できず、問い合わせフォームを案内いたしましたが納得されず。\n直接聞きたいから電話で話ができる番号を教えて欲しいと仰せ。\n上記施設の問い合わせ先をお伝えしていいのか判断がつかず、再度問い合わせフォームを案内したところ、不親切すぎると仰せでございました。\n可能かどうか聞きたいだけなのに、直接聞くことが出来る番号も教えてくれない。またお待たせした時間があったため、待たされたことへの苦情も仰せでございました。\nお名前をお聞きしようとしましたが、苦情が続き仰せにならないまま切電となりました。"
+      }
+    ],
+    "waitlist": false,
+    "concernOther": "",
+    "consultation": "場内で水彩画が出来ますか？\nとのお問い合わせでございました。\nFAQで内容を確認できず、問い合わせフォームを案内いたしましたが納得されず。\n直接聞きたいから電話で話ができる番号を教えて欲しいと仰せ。\n上記施設の問い合わせ先をお伝えしていいのか判断がつかず、再度問い合わせフォームを案内したところ、不親切すぎると仰せでございました。\n可能かどうか聞きたいだけなのに、直接聞くことが出来る番号も教えてくれない。またお待たせした時間があったため、待たされたことへの苦情も仰せでございました。\nお名前をお聞きしようとしましたが、苦情が続き仰せにならないまま切電となりました。",
+    "status": "active",
+    "count": 0,
+    "consultationType": "none",
+    "furigana": "不明",
+    "phone": "不明"
+  },
+  {
+    "id": "nLBT2cV5p727ao204n3u",
+    "concernOther": "",
+    "consultation": "テスト\n折り返しご希望でございます。\nテスト",
+    "count": 0,
+    "status": "cancelled",
+    "furigana": "テスト",
+    "consultationType": "none",
+    "phone": "090-1234-5678",
+    "concerns": [],
+    "history": [
+      {
+        "after": {
+          "status": "cancelled"
+        },
+        "before": {
+          "status": "active"
+        },
+        "changedAt": {
+          "__timestamp__": "2026-04-03T00:18:10.233Z"
+        },
+        "type": "cancel"
+      }
+    ],
+    "name": "テスト",
+    "wantsReply": true,
+    "createdAt": {
+      "__timestamp__": "2026-03-27T09:17:14.900Z"
+    },
+    "reservationNo": "011",
+    "consultationTypeLabel": "いずれも希望しない",
+    "contactStatus": "done",
+    "inquiryOnly": true,
+    "referralSource": "新聞",
+    "waitlist": false,
+    "consultationLogs": [
+      {
+        "text": "テスト\n折り返しご希望でございます。\nテスト",
+        "createdAt": {
+          "__timestamp__": "2026-03-27T09:17:14.811Z"
+        }
+      }
+    ]
+  },
+  {
+    "id": "nsleQKUhcC1XNCUKtpPx",
+    "concernOther": "",
+    "consultation": "テスト",
+    "status": "cancelled",
+    "count": 3,
+    "consultationType": "same_day",
+    "furigana": "テスト",
+    "phone": "090-1234-5678",
+    "name": "テスト",
+    "concerns": [
+      "節税やお金の残し方",
+      "どこに相談したらいいかわからない"
+    ],
+    "history": [
+      {
+        "after": {
+          "status": "cancelled"
+        },
+        "before": {
+          "status": "active"
+        },
+        "changedAt": {
+          "__timestamp__": "2026-04-03T00:18:02.832Z"
+        },
+        "type": "cancel"
+      }
+    ],
+    "wantsReply": true,
+    "createdAt": {
+      "__timestamp__": "2026-03-27T13:52:08.425Z"
+    },
+    "reservationNo": "014",
+    "contactStatus": "",
+    "inquiryOnly": false,
+    "consultationTypeLabel": "当日の無料相談を希望する（約20分）",
+    "consultationLogs": [
+      {
+        "createdAt": {
+          "__timestamp__": "2026-03-27T13:52:08.194Z"
+        },
+        "text": "テスト"
+      }
+    ],
+    "waitlist": true,
+    "referralSource": "新聞"
+  },
+  {
+    "id": "phZHnG01VJnkoRMfDCra",
+    "name": "a",
+    "concerns": [
+      "相続の基本的な手続き"
+    ],
+    "history": [
+      {
+        "after": {
+          "status": "cancelled"
+        },
+        "before": {
+          "status": "active"
+        },
+        "changedAt": {
+          "__timestamp__": "2026-04-03T00:18:15.161Z"
+        },
+        "type": "cancel"
+      }
+    ],
+    "reservationNo": "008",
+    "wantsReply": true,
+    "createdAt": {
+      "__timestamp__": "2026-03-27T09:00:59.527Z"
+    },
+    "inquiryOnly": false,
+    "contactStatus": "",
+    "consultationTypeLabel": "当日の無料相談を希望する（約20分）",
+    "waitlist": false,
+    "consultationLogs": [],
+    "referralSource": "新聞",
+    "concernOther": "",
+    "consultation": "",
+    "status": "cancelled",
+    "count": 1,
+    "consultationType": "same_day",
+    "furigana": "s",
+    "phone": "0"
+  },
+  {
+    "id": "rUW4YN7s5NxIKkA1EODp",
+    "furigana": "カトウテスト",
+    "consultationType": "none",
+    "phone": "000-0000-0001",
+    "concernOther": "",
+    "consultation": "通知テストです",
+    "count": 2,
+    "status": "cancelled",
+    "consultationTypeLabel": "いずれも希望しない",
+    "inquiryOnly": false,
+    "contactStatus": "",
+    "referralSource": "ホームページ",
+    "waitlist": false,
+    "consultationLogs": [
+      {
+        "createdAt": {
+          "__timestamp__": "2026-04-02T00:03:25.611Z"
+        },
+        "text": "通知テストです"
+      }
+    ],
+    "concerns": [
+      "節税やお金の残し方",
+      "アパートなど土地活用"
+    ],
+    "history": [
+      {
+        "type": "cancel",
+        "changedAt": {
+          "__timestamp__": "2026-04-03T00:17:50.136Z"
+        },
+        "before": {
+          "status": "active"
+        },
+        "after": {
+          "status": "cancelled"
+        }
+      }
+    ],
+    "name": "加藤テスト",
+    "reservationNo": "020",
+    "wantsReply": true,
+    "createdAt": {
+      "__timestamp__": "2026-04-02T00:03:25.134Z"
+    }
+  },
+  {
+    "id": "tHEqFzkBsowldfQAQJIv",
+    "concernOther": "",
+    "consultation": "",
+    "status": "cancelled",
+    "count": 2,
+    "consultationType": "same_day",
+    "furigana": "テスト1",
+    "phone": "090-1234-1234",
+    "name": "テスト１",
+    "concerns": [
+      "特にない"
+    ],
+    "history": [
+      {
+        "after": {
+          "status": "cancelled"
+        },
+        "before": {
+          "status": "active"
+        },
+        "changedAt": {
+          "__timestamp__": "2026-04-03T00:17:52.984Z"
+        },
+        "type": "cancel"
+      }
+    ],
+    "reservationNo": "019",
+    "wantsReply": false,
+    "createdAt": {
+      "__timestamp__": "2026-04-01T17:16:15.728Z"
+    },
+    "inquiryOnly": false,
+    "contactStatus": "",
+    "consultationTypeLabel": "当日の無料相談を希望する（約20分）",
+    "waitlist": false,
+    "consultationLogs": [],
+    "referralSource": "チラシ"
+  },
+  {
+    "id": "vkE4UoZWLXTOZCrK5Ldh",
+    "createdAt": {
+      "__timestamp__": "2026-03-27T09:12:08.645Z"
+    },
+    "wantsReply": false,
+    "reservationNo": "009",
+    "name": "山田　太郎",
+    "history": [
+      {
+        "type": "count_change",
+        "changedAt": {
+          "__timestamp__": "2026-03-27T09:12:32.097Z"
+        },
+        "before": {
+          "count": 1
+        },
+        "after": {
+          "count": 2
+        }
+      },
+      {
+        "type": "cancel",
+        "changedAt": {
+          "__timestamp__": "2026-03-27T09:12:37.173Z"
+        },
+        "before": {
+          "status": "active"
+        },
+        "after": {
+          "status": "cancelled"
+        }
+      }
+    ],
+    "concerns": [
+      "相続の基本的な手続き"
+    ],
+    "referralSource": "新聞",
+    "waitlist": false,
+    "consultationLogs": [
+      {
+        "text": "テスト",
+        "createdAt": {
+          "__timestamp__": "2026-03-27T09:12:08.552Z"
+        }
+      },
+      {
+        "text": "追記テスト",
+        "createdAt": {
+          "__timestamp__": "2026-03-27T09:12:23.044Z"
+        }
+      }
+    ],
+    "contactStatus": "",
+    "inquiryOnly": false,
+    "consultationTypeLabel": "後日の無料相談を希望する（ご希望の時間でゆっくり）",
+    "status": "cancelled",
+    "count": 2,
+    "consultation": "追記テスト",
+    "concernOther": "",
+    "phone": "090-1234-5678",
+    "consultationType": "later",
+    "furigana": "ヤマダ　タロウ"
+  },
+  {
+    "id": "xcGO8WVDiZvjd36maT7A",
+    "consultation": "テスト項目",
+    "concernOther": "",
+    "count": 2,
+    "status": "cancelled",
+    "postalCode": "3901301",
+    "furigana": "テストイモト",
+    "consultationType": "",
+    "phone": "090-3558-8950",
+    "address": "長野県東筑摩郡山形村1234-123",
+    "concerns": [
+      "節税やお金の残し方"
+    ],
+    "history": [
+      {
+        "changedAt": {
+          "__timestamp__": "2026-04-09T23:36:09.925Z"
+        },
+        "type": "cancel",
+        "after": {
+          "status": "cancelled"
+        },
+        "before": {
+          "status": "active"
+        }
+      }
+    ],
+    "name": "テスト井本WEBフォーム",
+    "source": "email",
+    "createdAt": {
+      "__timestamp__": "2026-04-08T03:17:07.090Z"
+    },
+    "wantsReply": false,
+    "reservationNo": "022",
+    "consultationTypeLabel": "当日の無料相談を希望する（約20分)",
+    "contactStatus": "",
+    "inquiryOnly": false,
+    "referralSource": "テレビ",
+    "waitlist": false,
+    "consultationLogs": [
+      {
+        "text": "テスト項目",
+        "createdAt": {
+          "__timestamp__": "2026-04-08T03:17:07.090Z"
+        }
+      }
+    ],
+    "inheritanceStatus": "近い将来発生するかもしれない"
+  },
+  {
+    "id": "yggRG5PNWjNyw14OCs1J",
+    "concernOther": "",
+    "consultation": "test",
+    "count": 2,
+    "status": "cancelled",
+    "furigana": "ア",
+    "consultationType": "same_day",
+    "phone": "080-1111-2222",
+    "concerns": [
+      "相続の基本的な手続き"
+    ],
+    "history": [
+      {
+        "before": {
+          "status": "active"
+        },
+        "after": {
+          "status": "cancelled"
+        },
+        "type": "cancel",
+        "changedAt": {
+          "__timestamp__": "2026-04-03T00:18:05.624Z"
+        }
+      }
+    ],
+    "name": "あ",
+    "reservationNo": "013",
+    "createdAt": {
+      "__timestamp__": "2026-03-27T11:20:17.928Z"
+    },
+    "wantsReply": false,
+    "consultationTypeLabel": "当日の無料相談を希望する（約20分）",
+    "inquiryOnly": false,
+    "contactStatus": "",
+    "referralSource": "新聞",
+    "consultationLogs": [
+      {
+        "text": "test",
+        "createdAt": {
+          "__timestamp__": "2026-03-27T11:20:17.524Z"
+        }
+      }
+    ],
+    "waitlist": false
+  },
+  {
+    "id": "zXwdCCKnA4kkQXxLNqLq",
+    "createdAt": {
+      "__timestamp__": "2026-03-27T11:10:24.114Z"
+    },
+    "wantsReply": false,
+    "reservationNo": "012",
+    "name": "山田　太郎",
+    "concerns": [
+      "相続の基本的な手続き"
+    ],
+    "history": [
+      {
+        "changedAt": {
+          "__timestamp__": "2026-03-27T11:11:48.390Z"
+        },
+        "type": "count_change",
+        "before": {
+          "count": 0
+        },
+        "after": {
+          "count": 1
+        }
+      },
+      {
+        "changedAt": {
+          "__timestamp__": "2026-04-03T00:18:07.792Z"
+        },
+        "type": "cancel",
+        "after": {
+          "status": "cancelled"
+        },
+        "before": {
+          "status": "active"
+        }
+      }
+    ],
+    "referralSource": "チラシ",
+    "waitlist": false,
+    "consultationLogs": [
+      {
+        "text": "テスト",
+        "createdAt": {
+          "__timestamp__": "2026-03-27T11:10:23.554Z"
+        }
+      },
+      {
+        "text": "test",
+        "createdAt": {
+          "__timestamp__": "2026-03-27T11:12:54.416Z"
+        }
+      }
+    ],
+    "contactStatus": "",
+    "inquiryOnly": true,
+    "consultationTypeLabel": "いずれも希望しない",
+    "status": "cancelled",
+    "count": 1,
+    "concernOther": "",
+    "consultation": "test",
+    "phone": "090-1111-1111",
+    "consultationType": "none",
+    "furigana": "ヤマダ　タロウ"
+  }
+]

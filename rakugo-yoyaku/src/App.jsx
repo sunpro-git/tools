@@ -23,7 +23,7 @@ const DEFAULT_FORM_TITLE = '落語で相続 予約フォーム'
 const DEFAULT_CAPACITY = 200
 const MIN_CAPACITY = 1
 
-const DEFAULT_REFERRAL_SOURCES = ['新聞', 'チラシ', 'ホームページ', 'ご紹介', 'その他']
+const DEFAULT_REFERRAL_SOURCES = ['新聞', 'チラシ', 'テレビ', 'ホームページ', 'ご紹介', 'その他']
 const DEFAULT_CONCERN_OPTIONS = [
   '相続の基本的な手続き',
   '節税やお金の残し方',
@@ -44,19 +44,19 @@ const DEFAULT_CHATWORK_API_TOKEN = '01272590631f16ed47b9789f07d5cf75'
 const DEFAULT_CHATWORK_ROOM_ID = '402525982'
 
 const DEFAULT_MESSAGE_TEMPLATES = {
-  onNewReservation: '[info][title]{{type}}[/title]\n受付番号: {{no}}\n氏名: {{name}}\nフリガナ: {{furigana}}\n電話番号: {{phone}}\n{{count_line}}{{referral_line}}{{concerns_line}}{{consultation_type_line}}{{consultation_line}}[/info]',
-  onNewReservationWithReply: '[To:2301384]井本真人 (めばえ｜090-3558-8950)さん\n[To:2515405]加藤あや(9:00~16:00)さん\n[To:11168792]【新】村越あかりさん\n[To:10163419]岡原 遼太さん\n[info][title]{{type}}（折り返し希望）[/title]\n受付番号: {{no}}\n氏名: {{name}}\nフリガナ: {{furigana}}\n電話番号: {{phone}}\n{{count_line}}{{referral_line}}{{concerns_line}}{{consultation_type_line}}{{consultation_line}}※折り返し連絡希望[/info]',
-  onCancel: '[info][title]予約キャンセル[/title]\n氏名: {{name}}\n人数: {{count}}名[/info]',
-  onCountChange: '[info][title]人数変更[/title]\n氏名: {{name}}\n変更: {{old_count}}名 → {{new_count}}名[/info]',
-  onConsultationUpdate: '[info][title]相談内容更新[/title]\n氏名: {{name}}\n内容: {{consultation}}[/info]',
-  onCallback: '[info][title]再入電・要対応[/title]\n受付番号: {{no}}\n氏名: {{name}}\n電話番号: {{phone}}\n※折り返し対応が必要です[/info]',
-  onWaitlistConfirm: '[info][title]キャンセル待ち → 予約確定[/title]\n受付番号: {{no}}\n氏名: {{name}}\n電話番号: {{phone}}\n人数: {{count}}名[/info]',
-  onStatusChange: '[info][title]対応ステータス変更[/title]\n受付番号: {{no}}\n氏名: {{name}}\nステータス: {{status}}[/info]',
+  onNewReservation: '[info][title]{{type}}[/title]\n【受付番号】{{no}}\n【氏名】{{name}}\n【フリガナ】{{furigana}}\n【電話番号】{{phone}}\n{{address_line}}{{count_line}}{{referral_line}}{{inheritance_line}}{{concerns_line}}{{consultation_type_line}}{{consultation_line}}[/info]',
+  onNewReservationWithReply: '[info][title]{{type}}（折り返し希望）[/title]\n【受付番号】{{no}}\n【氏名】{{name}}\n【フリガナ】{{furigana}}\n【電話番号】{{phone}}\n{{address_line}}{{count_line}}{{referral_line}}{{inheritance_line}}{{concerns_line}}{{consultation_type_line}}{{consultation_line}}※折り返し連絡希望[/info]',
+  onCancel: '[info][title]予約キャンセル[/title]\n【氏名】{{name}}\n【人数】{{count}}名[/info]',
+  onCountChange: '[info][title]人数変更[/title]\n【氏名】{{name}}\n【変更】{{old_count}}名 → {{new_count}}名[/info]',
+  onConsultationUpdate: '[info][title]相談内容更新[/title]\n【氏名】{{name}}\n【内容】{{consultation}}[/info]',
+  onCallback: '[info][title]再入電・要対応[/title]\n【受付番号】{{no}}\n【氏名】{{name}}\n【電話番号】{{phone}}\n※折り返し対応が必要です[/info]',
+  onWaitlistConfirm: '[info][title]キャンセル待ち → 予約確定[/title]\n【受付番号】{{no}}\n【氏名】{{name}}\n【電話番号】{{phone}}\n【人数】{{count}}名[/info]',
+  onStatusChange: '[info][title]対応ステータス変更[/title]\n【受付番号】{{no}}\n【氏名】{{name}}\n【ステータス】{{status}}[/info]',
 }
 
 const TEMPLATE_VARIABLES = {
-  onNewReservation: '{{type}}, {{no}}, {{name}}, {{furigana}}, {{phone}}, {{count_line}}, {{referral_line}}, {{concerns_line}}, {{consultation_type_line}}, {{consultation_line}}',
-  onNewReservationWithReply: '{{type}}, {{no}}, {{name}}, {{furigana}}, {{phone}}, {{count_line}}, {{referral_line}}, {{concerns_line}}, {{consultation_type_line}}, {{consultation_line}}',
+  onNewReservation: '{{type}}, {{no}}, {{name}}, {{furigana}}, {{phone}}, {{address_line}}, {{count_line}}, {{referral_line}}, {{inheritance_line}}, {{concerns_line}}, {{consultation_type_line}}, {{consultation_line}}',
+  onNewReservationWithReply: '{{type}}, {{no}}, {{name}}, {{furigana}}, {{phone}}, {{address_line}}, {{count_line}}, {{referral_line}}, {{inheritance_line}}, {{concerns_line}}, {{consultation_type_line}}, {{consultation_line}}',
   onCancel: '{{name}}, {{count}}',
   onCountChange: '{{name}}, {{old_count}}, {{new_count}}',
   onConsultationUpdate: '{{name}}, {{consultation}}',
@@ -66,16 +66,23 @@ const TEMPLATE_VARIABLES = {
 }
 
 
-const sendChatworkNotification = async (message, apiToken, roomId) => {
-  if (!apiToken || !roomId) return
+// Chatwork通知はGAS Web App経由で送信する。
+// 直接Chatwork APIを呼ぶとCORSでブロックされるため、サーバーサイド（GAS）を経由する。
+// GAS URLはFirestoreのsettings/content.gasWebAppUrlから取得する。
+// URL未設定の場合は静かにスキップ（既存動作を壊さないため）。
+const sendChatworkNotification = async (message, gasWebAppUrl) => {
+  if (!gasWebAppUrl) {
+    console.warn('Chatwork通知: GAS Web App URLが未設定のため送信スキップ')
+    return
+  }
   try {
-    await fetch(`/api/chatwork/v2/rooms/${roomId}/messages`, {
+    // GAS Web AppはCORSリクエストではリダイレクト応答を返すため、
+    // 'no-cors' モードで fire-and-forget 方式にする（応答は読めないが送信は成功する）
+    await fetch(gasWebAppUrl, {
       method: 'POST',
-      headers: {
-        'X-ChatWorkToken': apiToken,
-        'Content-Type': 'application/x-www-form-urlencoded',
-      },
-      body: `body=${encodeURIComponent(message)}`,
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ message }),
     })
   } catch (e) {
     console.warn('Chatwork通知の送信に失敗しました:', e)
@@ -239,6 +246,26 @@ const formatPhoneNumber = (raw) => {
   return raw
 }
 
+const fetchAddressByPostalCode = async (postalCode) => {
+  const digits = postalCode.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0)).replace(/[^\d]/g, '')
+  if (digits.length !== 7) return null
+  try {
+    const res = await fetch(`https://zipcloud.ibsnet.co.jp/api/search?zipcode=${digits}`)
+    const data = await res.json()
+    if (data.results && data.results.length > 0) {
+      const r = data.results[0]
+      return `${r.address1}${r.address2}${r.address3}`
+    }
+  } catch (e) { /* ignore */ }
+  return null
+}
+
+const formatPostalCode = (raw) => {
+  const digits = raw.replace(/[０-９]/g, (c) => String.fromCharCode(c.charCodeAt(0) - 0xfee0)).replace(/[^\d]/g, '')
+  if (digits.length === 7) return `${digits.slice(0, 3)}-${digits.slice(3)}`
+  return raw
+}
+
 /** 異体字検索漢字リスト（PDF準拠）: 異体字→正字 の正規化マップ */
 const KANJI_VARIANTS = {
   // ア行
@@ -375,8 +402,9 @@ function App() {
   const [pw, setPw] = useState('')
   const [pwError, setPwError] = useState('')
   const [form, setForm] = useState({
-    name: '', furigana: '', phone: '', count: '', customCount: '',
+    name: '', furigana: '', phone: '', postalCode: '', address: '', count: '', customCount: '',
     referralSource: '', referralSourceOther: '',
+    inheritanceStatus: '',
     concerns: [], concernOther: '',
     consultationType: '',
     consultation: '', wantsReply: false, reservationType: 'normal',
@@ -419,6 +447,7 @@ function App() {
   })
   const [chatworkApiToken, setChatworkApiToken] = useState(DEFAULT_CHATWORK_API_TOKEN)
   const [chatworkRoomId, setChatworkRoomId] = useState(DEFAULT_CHATWORK_ROOM_ID)
+  const [gasWebAppUrl, setGasWebAppUrl] = useState('')
   const [messageTemplates, setMessageTemplates] = useState({ ...DEFAULT_MESSAGE_TEMPLATES })
   const [showNotifySettings, setShowNotifySettings] = useState(false)
 
@@ -465,6 +494,18 @@ function App() {
   }
 
   useEffect(() => {
+    const handleHash = () => {
+      const h = window.location.hash
+      if (h === '#manual') { setShowManual(true); setShowFaq(false); setShowNotifySettings(false) }
+      else if (h === '#faq') { setShowFaq(true); setShowManual(false); setShowNotifySettings(false) }
+      else if (h === '#settings') { setShowNotifySettings(true); setShowManual(false); setShowFaq(false) }
+    }
+    handleHash()
+    window.addEventListener('hashchange', handleHash)
+    return () => window.removeEventListener('hashchange', handleHash)
+  }, [])
+
+  useEffect(() => {
     const q = query(collection(db, COLLECTION), orderBy('createdAt', 'desc'))
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }))
@@ -482,6 +523,7 @@ function App() {
         if (local.notifySettings) setNotifySettings((prev) => ({ ...prev, ...local.notifySettings }))
         if (local.chatworkApiToken) setChatworkApiToken(local.chatworkApiToken)
         if (local.chatworkRoomId) setChatworkRoomId(local.chatworkRoomId)
+        if (local.gasWebAppUrl) setGasWebAppUrl(local.gasWebAppUrl)
         if (local.messageTemplates) setMessageTemplates((prev) => ({ ...prev, ...local.messageTemplates }))
         if (local.formTitle) setFormTitle(local.formTitle)
         if (local.appPassword) setAppPassword(local.appPassword)
@@ -500,7 +542,41 @@ function App() {
           if (data.notifySettings) setNotifySettings((prev) => ({ ...prev, ...data.notifySettings }))
           if (data.chatworkApiToken) setChatworkApiToken(data.chatworkApiToken)
           if (data.chatworkRoomId) setChatworkRoomId(data.chatworkRoomId)
-          if (data.messageTemplates) setMessageTemplates((prev) => ({ ...prev, ...data.messageTemplates }))
+          if (data.gasWebAppUrl) setGasWebAppUrl(data.gasWebAppUrl)
+          if (data.messageTemplates) {
+            const validVars = new Set(Object.values(TEMPLATE_VARIABLES).join(', ').split(', ').map(v => v.trim()))
+            const merged = {}
+            let needsUpdate = false
+            for (const [k, v] of Object.entries(DEFAULT_MESSAGE_TEMPLATES)) {
+              const saved = data.messageTemplates[k]
+              if (!saved) {
+                // テンプレートが存在しない場合はデフォルトを使用
+                merged[k] = v
+                needsUpdate = true
+              } else {
+                // デフォルトにある変数がFirestore版に欠けていればデフォルトにリセット
+                const expectedVars = (TEMPLATE_VARIABLES[k] || '').split(', ').map(s => s.trim()).filter(Boolean)
+                const hasMissing = expectedVars.some(ev => !saved.includes(ev))
+                if (hasMissing) {
+                  merged[k] = v
+                  needsUpdate = true
+                } else {
+                  // 無効な変数を除去
+                  const c = saved.replace(/\{\{[^}]+\}\}/g, (match) => {
+                    if (validVars.has(match)) return match
+                    needsUpdate = true
+                    return ''
+                  })
+                  merged[k] = c
+                }
+              }
+            }
+            setMessageTemplates((prev) => ({ ...prev, ...merged }))
+            if (needsUpdate) {
+              try { await setDoc(doc(db, 'settings', 'content'), { messageTemplates: merged }, { merge: true }) } catch (e) { /* ignore */ }
+              saveToLocal({ messageTemplates: merged })
+            }
+          }
           if (data.formTitle) setFormTitle(data.formTitle)
           if (data.appPassword) setAppPassword(data.appPassword)
           if (data.referralSources) setReferralSources(data.referralSources)
@@ -542,6 +618,13 @@ function App() {
     setChatworkRoomId(roomId)
     saveToLocal({ chatworkApiToken: token, chatworkRoomId: roomId })
     try { await setDoc(doc(db, 'settings', 'content'), { chatworkApiToken: token, chatworkRoomId: roomId }, { merge: true }) } catch (e) { /* ignore */ }
+  }
+
+  const saveGasWebAppUrl = async (url) => {
+    const trimmed = url.trim()
+    setGasWebAppUrl(trimmed)
+    saveToLocal({ gasWebAppUrl: trimmed })
+    try { await setDoc(doc(db, 'settings', 'content'), { gasWebAppUrl: trimmed }, { merge: true }) } catch (e) { /* ignore */ }
   }
 
   const saveMessageTemplate = async (key, value) => {
@@ -636,8 +719,11 @@ function App() {
       name: form.name.trim(),
       furigana: form.furigana.trim(),
       phone: formattedPhone,
+      postalCode: form.postalCode.trim(),
+      address: form.address.trim(),
       count,
       referralSource: referralText,
+      inheritanceStatus: form.inheritanceStatus,
       concerns: form.concerns,
       concernOther: form.concernOther.trim(),
       consultationType: form.consultationType,
@@ -650,10 +736,11 @@ function App() {
       inquiryOnly: form.reservationType === 'inquiry',
       status: 'active',
       history: [],
+      source: 'phone',
       createdAt: serverTimestamp(),
     })
     {
-      const type = form.reservationType === 'inquiry' ? '問い合わせ' : isWaitlist ? '新規予約（キャンセル待ち）' : '新規予約'
+      const type = form.reservationType === 'inquiry' ? '問い合わせ（TEL受付）' : isWaitlist ? '新規予約・キャンセル待ち（TEL受付）' : '新規予約（TEL受付）'
       const templateKey = form.wantsReply ? 'onNewReservationWithReply' : 'onNewReservation'
       if (notifySettings[templateKey]) {
         const msg = messageTemplates[templateKey]
@@ -662,17 +749,20 @@ function App() {
           .replace('{{name}}', form.name.trim())
           .replace('{{furigana}}', form.furigana.trim())
           .replace('{{phone}}', formattedPhone)
-          .replace('{{count_line}}', form.reservationType === 'inquiry' ? '' : `人数: ${count}名\n`)
-          .replace('{{referral_line}}', `きっかけ: ${referralText}\n`)
-          .replace('{{concerns_line}}', form.concerns.length > 0 ? `お悩み: ${form.concerns.join('、')}\n` : '')
-          .replace('{{consultation_type_line}}', form.consultationType ? `無料相談: ${consultationTypeLabel}\n` : '')
-          .replace('{{consultation_line}}', form.consultation.trim() ? `相談内容: ${form.consultation.trim()}\n` : '')
-        sendChatworkNotification(msg, chatworkApiToken, chatworkRoomId)
+          .replace('{{address_line}}', form.address.trim() ? `【住所】${form.postalCode.trim() ? form.postalCode.trim() + ' ' : ''}${form.address.trim()}\n` : '')
+          .replace('{{count_line}}', form.reservationType === 'inquiry' ? '' : `【人数】${count}名\n`)
+          .replace('{{referral_line}}', `【きっかけ】${referralText}\n`)
+          .replace('{{inheritance_line}}', form.inheritanceStatus ? `【相続の状況】${form.inheritanceStatus}\n` : '')
+          .replace('{{concerns_line}}', form.concerns.length > 0 ? `【お悩み】${form.concerns.join('、')}\n` : '')
+          .replace('{{consultation_type_line}}', form.consultationType ? `【無料相談】${consultationTypeLabel}\n` : '')
+          .replace('{{consultation_line}}', form.consultation.trim() ? `【相談内容】${form.consultation.trim()}\n` : '')
+        sendChatworkNotification(msg, gasWebAppUrl)
       }
     }
     setForm({
-      name: '', furigana: '', phone: '', count: '', customCount: '',
+      name: '', furigana: '', phone: '', postalCode: '', address: '', count: '', customCount: '',
       referralSource: '', referralSourceOther: '',
+      inheritanceStatus: '',
       concerns: [], concernOther: '', consultationType: '',
       consultation: '', wantsReply: false, reservationType: 'normal',
     })
@@ -699,7 +789,7 @@ function App() {
       const msg = messageTemplates.onCancel
         .replace('{{name}}', r.name)
         .replace('{{count}}', r.count)
-      sendChatworkNotification(msg, chatworkApiToken, chatworkRoomId)
+      sendChatworkNotification(msg, gasWebAppUrl)
     }
   }
 
@@ -721,7 +811,7 @@ function App() {
         .replace('{{name}}', r.name)
         .replace('{{phone}}', r.phone || '-')
         .replace('{{count}}', r.count || '-')
-      sendChatworkNotification(msg, chatworkApiToken, chatworkRoomId)
+      sendChatworkNotification(msg, gasWebAppUrl)
     }
   }
 
@@ -757,7 +847,7 @@ function App() {
         .replace('{{name}}', r.name)
         .replace('{{old_count}}', r.count)
         .replace('{{new_count}}', parsed)
-      sendChatworkNotification(msg, chatworkApiToken, chatworkRoomId)
+      sendChatworkNotification(msg, gasWebAppUrl)
     }
     setEditingCountId(null)
     setNewCount('')
@@ -772,7 +862,7 @@ function App() {
         .replace('{{no}}', r.reservationNo || '-')
         .replace('{{name}}', r.name)
         .replace('{{status}}', STATUS_LABELS[status] || status)
-      sendChatworkNotification(msg, chatworkApiToken, chatworkRoomId)
+      sendChatworkNotification(msg, gasWebAppUrl)
     }
   }
 
@@ -793,7 +883,7 @@ function App() {
         .replace('{{no}}', r.reservationNo || '-')
         .replace('{{name}}', r.name)
         .replace('{{phone}}', r.phone || '')
-      sendChatworkNotification(msg, chatworkApiToken, chatworkRoomId)
+      sendChatworkNotification(msg, gasWebAppUrl)
     }
   }
 
@@ -835,7 +925,7 @@ function App() {
       const msg = messageTemplates.onConsultationUpdate
         .replace('{{name}}', r.name)
         .replace('{{consultation}}', newConsultation.trim())
-      sendChatworkNotification(msg, chatworkApiToken, chatworkRoomId)
+      sendChatworkNotification(msg, gasWebAppUrl)
     }
     setEditingConsultationId(null)
     setNewConsultation('')
@@ -860,7 +950,7 @@ function App() {
     const rows = data.map((r) => `<tr>
       <td>${r.reservationNo || '-'}</td><td>${r.name}</td><td>${r.furigana || ''}</td>
       <td>${r.phone || ''}</td><td style="text-align:center">${r.inquiryOnly ? '-' : r.count}</td>
-      <td>${r.referralSource || ''}</td><td style="white-space:normal;max-width:120px">${(r.concerns || []).join('、')}${r.concernOther ? '（' + r.concernOther + '）' : ''}</td>
+      <td>${r.referralSource || ''}</td><td>${r.inheritanceStatus || ''}</td><td style="white-space:normal;max-width:120px">${(r.concerns || []).join('、')}${r.concernOther ? '（' + r.concernOther + '）' : ''}</td>
       <td>${r.consultationTypeLabel || ''}</td><td style="white-space:normal;max-width:150px">${r.consultation || ''}</td>
       <td style="text-align:center">${r.wantsReply ? (r.contactStatus === 'done' ? '済' : r.contactStatus === 'in_progress' ? '対応中' : '希望') : ''}</td>
       <td style="text-align:center">${r.status === 'cancelled' ? 'キャンセル' : r.waitlist ? '待ち' : '確定'}</td>
@@ -878,7 +968,7 @@ function App() {
     </style></head><body>
       <div class="pdf-banner">印刷ダイアログで「PDFに保存」を選択してください</div>
       <h2 style="text-align:center;color:#5c3317;margin:0 0 8px">予約一覧（${data.length}件）</h2>
-      <table><thead><tr><th>受付No.</th><th>氏名</th><th>フリガナ</th><th>電話番号</th><th>人数</th><th>きっかけ</th><th>お悩み</th><th>無料相談</th><th>相談内容</th><th>返信</th><th>状態</th><th>予約日時</th></tr></thead><tbody>${rows}</tbody></table>
+      <table><thead><tr><th>受付No.</th><th>氏名</th><th>フリガナ</th><th>電話番号</th><th>人数</th><th>きっかけ</th><th>相続状況</th><th>お悩み</th><th>無料相談</th><th>相談内容</th><th>返信</th><th>状態</th><th>予約日時</th></tr></thead><tbody>${rows}</tbody></table>
     </body></html>`)
   }
 
@@ -892,8 +982,10 @@ function App() {
         <table style="width:100%;border-collapse:collapse;margin-top:12px;">
           <tr><th style="width:140px;text-align:left;padding:10px;border-bottom:1px solid #ddd;color:#5c3317;background:#faf6f0">フリガナ</th><td style="padding:10px;border-bottom:1px solid #ddd">${r.furigana || ''}</td></tr>
           <tr><th style="text-align:left;padding:10px;border-bottom:1px solid #ddd;color:#5c3317;background:#faf6f0">電話番号</th><td style="padding:10px;border-bottom:1px solid #ddd">${r.phone || ''}</td></tr>
+          <tr><th style="text-align:left;padding:10px;border-bottom:1px solid #ddd;color:#5c3317;background:#faf6f0">住所</th><td style="padding:10px;border-bottom:1px solid #ddd">${r.postalCode ? r.postalCode + ' ' : ''}${r.address || ''}</td></tr>
           <tr><th style="text-align:left;padding:10px;border-bottom:1px solid #ddd;color:#5c3317;background:#faf6f0">参加人数</th><td style="padding:10px;border-bottom:1px solid #ddd">${r.inquiryOnly ? '問合せのみ' : r.count + '名'}</td></tr>
           <tr><th style="text-align:left;padding:10px;border-bottom:1px solid #ddd;color:#5c3317;background:#faf6f0">きっかけ</th><td style="padding:10px;border-bottom:1px solid #ddd">${r.referralSource || ''}</td></tr>
+          <tr><th style="text-align:left;padding:10px;border-bottom:1px solid #ddd;color:#5c3317;background:#faf6f0">相続の状況</th><td style="padding:10px;border-bottom:1px solid #ddd">${r.inheritanceStatus || ''}</td></tr>
           <tr><th style="text-align:left;padding:10px;border-bottom:1px solid #ddd;color:#5c3317;background:#faf6f0">お悩み</th><td style="padding:10px;border-bottom:1px solid #ddd">${(r.concerns || []).join('、')}${r.concernOther ? '（' + r.concernOther + '）' : ''}</td></tr>
           <tr><th style="text-align:left;padding:10px;border-bottom:1px solid #ddd;color:#5c3317;background:#faf6f0">無料相談</th><td style="padding:10px;border-bottom:1px solid #ddd">${r.consultationTypeLabel || ''}</td></tr>
           <tr><th style="text-align:left;padding:10px;border-bottom:1px solid #ddd;color:#5c3317;background:#faf6f0">相談内容</th><td style="padding:10px;border-bottom:1px solid #ddd">${r.consultation || ''}</td></tr>
@@ -1182,25 +1274,18 @@ function App() {
           <div className="notify-section">
             <h3 className="notify-section-title">Chatwork通知設定</h3>
             <div className="notify-field">
-              <label className="notify-field-label">APIトークン</label>
-              <input
-                type="password"
-                className="notify-input"
-                value={chatworkApiToken}
-                onChange={(e) => setChatworkApiToken(e.target.value)}
-                onBlur={() => saveChatworkConfig(chatworkApiToken, chatworkRoomId)}
-                placeholder="APIトークンを入力"
-              />
-            </div>
-            <div className="notify-field">
-              <label className="notify-field-label">ルームID</label>
+              <label className="notify-field-label">GAS Web App URL</label>
+              <p className="notify-settings-desc">
+                Chatwork通知はGAS Web App経由で送信されます。GASをウェブアプリとしてデプロイして得たURLを入力してください（https://script.google.com/macros/s/XXX/exec）。
+                Chatwork APIトークン・ルームIDはGAS側のスクリプトプロパティで管理されます。
+              </p>
               <input
                 type="text"
                 className="notify-input"
-                value={chatworkRoomId}
-                onChange={(e) => setChatworkRoomId(e.target.value)}
-                onBlur={() => saveChatworkConfig(chatworkApiToken, chatworkRoomId)}
-                placeholder="ルームIDを入力"
+                value={gasWebAppUrl}
+                onChange={(e) => setGasWebAppUrl(e.target.value)}
+                onBlur={() => saveGasWebAppUrl(gasWebAppUrl)}
+                placeholder="https://script.google.com/macros/s/.../exec"
               />
             </div>
             <h4 className="notify-section-subtitle">通知イベント・メッセージ</h4>
@@ -1337,6 +1422,32 @@ function App() {
           {errors.phone && <span className="error">{errors.phone}</span>}
         </div>
 
+        <div className="field">
+          <label><span className="badge-optional">任意</span>郵便番号</label>
+          <input
+            type="text"
+            placeholder="000-0000"
+            value={form.postalCode}
+            onChange={(e) => setForm((prev) => ({ ...prev, postalCode: e.target.value }))}
+            onBlur={async () => {
+              const formatted = formatPostalCode(form.postalCode)
+              setForm((prev) => ({ ...prev, postalCode: formatted }))
+              const addr = await fetchAddressByPostalCode(form.postalCode)
+              if (addr) setForm((prev) => ({ ...prev, address: prev.address || addr }))
+            }}
+          />
+        </div>
+
+        <div className="field">
+          <label><span className="badge-optional">任意</span>住所</label>
+          <input
+            type="text"
+            placeholder="都道府県 市区町村 番地"
+            value={form.address}
+            onChange={(e) => setForm((prev) => ({ ...prev, address: e.target.value }))}
+          />
+        </div>
+
         {form.reservationType !== 'inquiry' && (
           <>
         <div className="field">
@@ -1454,6 +1565,24 @@ function App() {
             />
           )}
           {errors.concerns && <span className="error">{errors.concerns}</span>}
+        </div>
+
+        <div className="field">
+          <label><span className="badge-optional">任意</span>相続のご状況</label>
+          <div className="concern-buttons">
+            {['すでに相続が発生している', '近い将来発生するかもしれない', 'まだ先だが準備したい', '特に予定はない'].map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                className={`concern-btn ${form.inheritanceStatus === opt ? 'active' : ''}`}
+                onClick={() => {
+                  setForm((prev) => ({ ...prev, inheritanceStatus: prev.inheritanceStatus === opt ? '' : opt }))
+                }}
+              >
+                {opt}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="field">
@@ -1619,6 +1748,7 @@ function App() {
                   <th>電話番号</th>
                   <th>人数</th>
                   <th>きっかけ</th>
+                  <th>相続状況</th>
                   <th>お悩み</th>
                   <th>無料相談</th>
                   <th>相談内容</th>
@@ -1636,6 +1766,7 @@ function App() {
                     <td>{r.phone || ''}</td>
                     <td className="td-center">{r.inquiryOnly ? '-' : r.count}</td>
                     <td>{r.referralSource || ''}</td>
+                    <td>{r.inheritanceStatus || ''}</td>
                     <td className="td-concerns">{(r.concerns || []).join('、')}</td>
                     <td>{r.consultationTypeLabel || ''}</td>
                     <td className="td-consultation">{r.consultation || ''}</td>
@@ -1660,6 +1791,7 @@ function App() {
                   <span className="card-name">
                     {r.reservationNo && <span className="card-no">#{r.reservationNo}</span>}
                     {r.name}
+                    {r.source === 'email' ? <span className="status-source-web">WEB</span> : <span className="status-source-phone">TEL</span>}
                     {r.status === 'cancelled' && <span className="status-cancelled">キャンセル済</span>}
                     {r.waitlist && r.status !== 'cancelled' && <span className="status-waitlist">キャンセル待ち</span>}
                     {r.wantsReply && !r.contactStatus && <span className="status-reply-pending">返信希望</span>}

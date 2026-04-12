@@ -5,13 +5,4 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   base: './',
-  server: {
-    proxy: {
-      '/api/chatwork': {
-        target: 'https://api.chatwork.com',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api\/chatwork/, ''),
-      },
-    },
-  },
 })
