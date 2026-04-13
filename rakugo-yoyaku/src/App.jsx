@@ -99,12 +99,14 @@ const MANUAL_CATEGORIES = [
     items: [
       { title: '① 受付種別を選ぶ', body: <><p>フォーム先頭の受付種別から目的に合ったボタンを選択します。</p><div className="m-btn-row">{B('通常予約', 'primary')}{B('キャンセル待ち予約', 'waitlist')}{B('お問合せ', 'inquiry')}</div><p>定員に達している場合は {B('通常予約', 'primary')} が選択できなくなり、自動で {B('キャンセル待ち予約', 'waitlist')} に切り替わります。</p></> },
       { title: '② 氏名・フリガナ・電話番号を入力', body: <><p>{Badge('必須', 'required')} マークの付いた3項目を入力します。</p><ul className="m-list"><li>フリガナ — ひらがなで入力すると自動でカタカナに変換されます</li><li>電話番号 — ハイフンなしでも自動整形されます（例: 09012345678 → 090-1234-5678）</li></ul></> },
-      { title: '③ 参加人数を選択', body: <><p>1〜4人のボタンから選択します。5人以上の場合は {B('5人以上', 'default')} を選び、表示される入力欄に具体的な人数を入力します。</p></> },
-      { title: '④ 紹介元を選択', body: <><p>この講演を知ったきっかけを選びます。{B('その他', 'default')} を選ぶと自由入力欄が表示されます。</p></> },
-      { title: '⑤ お悩みや関心のあることを選択', body: <><p>該当するボタンをタップすると色が変わります。{Badge('複数選択可', 'multi')} もう一度タップで解除できます。</p></> },
-      { title: '⑥ 無料相談の希望を選択', body: <><p>以下から1つ選択してください（{Badge('必須', 'required')}）。</p></> },
-      { title: '⑦ 相談内容・折り返し連絡', body: <><p>{Badge('任意', 'optional')} 「詳しい相談内容・お問合せ内容」欄に自由入力できます。</p><p>折り返しの連絡は {B('希望する', 'default')}{B('希望しない', 'default')} から選択します。「希望する」を選ぶと、Chatwork通知にTO（担当者メンション）が付きます。</p></> },
-      { title: '⑧ 登録する', body: <><p>すべて入力したら {B('予約を登録する', 'submit')} を押して登録完了です。受付種別に応じてボタン名が変わります。</p><p>自動で3桁の受付番号（例: #001）が付与され、Chatworkに通知が送信されます。</p></> },
+      { title: '③ 郵便番号・住所（任意）', body: <><p>{Badge('任意', 'optional')} 郵便番号を入力すると住所が自動入力されます。住所欄は手動で編集も可能です。</p></> },
+      { title: '④ 参加人数を選択', body: <><p>1〜4人のボタンから選択します。5人以上の場合は {B('5人以上', 'default')} を選び、表示される入力欄に具体的な人数を入力します。</p></> },
+      { title: '⑤ 紹介元を選択', body: <><p>この講演を知ったきっかけを選びます。{B('その他', 'default')} を選ぶと自由入力欄が表示されます。</p></> },
+      { title: '⑥ お悩みや関心のあることを選択', body: <><p>該当するボタンをタップすると色が変わります。{Badge('複数選択可', 'multi')} もう一度タップで解除できます。</p></> },
+      { title: '⑦ 相続のご状況（任意）', body: <><p>{Badge('任意', 'optional')} 該当するボタンを1つ選択します。もう一度タップで解除できます。</p></> },
+      { title: '⑧ 無料相談の希望を選択', body: <><p>以下から1つ選択してください（{Badge('必須', 'required')}）。</p></> },
+      { title: '⑨ 相談内容・折り返し連絡', body: <><p>{Badge('任意', 'optional')} 「詳しい相談内容・お問合せ内容」欄に自由入力できます。</p><p>折り返しの連絡は {B('希望する', 'default')}{B('希望しない', 'default')} から選択します。</p></> },
+      { title: '⑩ 登録する', body: <><p>すべて入力したら {B('予約を登録する', 'submit')} を押して登録完了です。受付種別に応じてボタン名が変わります。</p><p>自動で3桁の受付番号（例: #001）が付与され、Chatworkに通知が送信されます。</p></> },
     ],
   },
   {
@@ -117,20 +119,20 @@ const MANUAL_CATEGORIES = [
     ],
   },
   {
-    category: '予約の変更・キャンセル',
+    category: '予約の変更・編集',
     items: [
+      { title: '登録内容の編集', body: <><p>カード上の鉛筆アイコン（✏）をクリックすると編集モーダルが開きます。氏名・フリガナ・電話番号・住所・人数・きっかけ・相続状況・お悩み・無料相談・折り返しの全項目を編集できます。</p><p>変更を保存すると履歴に自動記録されます。</p></> },
       { title: '人数変更', body: <><p>カード下部の {B('人数変更', 'default')} を押すと入力欄が表示されます。</p><p>新しい人数を入力して {B('OK', 'ok')} で確定。{B('取消', 'cancel')} で中止。変更前後の人数は履歴に自動記録されます。</p></> },
       { title: '予約キャンセル', body: <><p>カード下部の {B('予約キャンセル', 'danger')} を押すと確認ダイアログが表示されます。「OK」を押すとキャンセル済みとなり、カードが半透明のグレー表示になります。Chatworkにもキャンセル通知が送られます。</p></> },
       { title: 'キャンセル待ちの予約確定', body: <><p>キャンセル待ちのカードには {B('予約確定', 'ok')} ボタンが表示されます。押すとキャンセル待ちから通常予約に変更され、Chatworkに通知が送信されます。</p></> },
-      { title: '対応・相談履歴の追記', body: <><p>カード内の {B('+ 追記', 'add')} ボタンを押すと入力欄が開きます。対応メモを入力して {B('追記保存', 'ok')} で保存。日時付きの履歴として蓄積されます。</p><p>履歴は「対応・相談履歴」の ▼ をクリックして展開・折りたたみできます。</p></> },
+      { title: '対応・相談履歴の管理', body: <><p>カード内の {B('+ 追記', 'add')} ボタンで対応メモを追加できます。各履歴にカーソルを合わせると鉛筆アイコン（編集）と×アイコン（削除）が表示されます。</p><p>履歴は「対応・相談履歴」の ▼ をクリックして展開・折りたたみできます。</p></> },
     ],
   },
   {
-    category: 'ステータス管理',
+    category: 'ステータス・タグ',
     items: [
-      { title: 'ステータスの見方', body: <><p>「折り返し希望」ありの予約には、現在のステータスがラベルで表示されます。</p><div className="m-status-list"><div className="m-status-row">{Badge('未対応', 'pending')} — 登録直後の状態です</div><div className="m-status-row">{Badge('対応中', 'progress')} — 折り返し対応を開始した状態です</div><div className="m-status-row">{Badge('対応済', 'done')} — 対応が完了した状態です</div><div className="m-status-row">{Badge('再入電対応中', 'callback')} — お客様から再度連絡があり対応中です</div></div></> },
-      { title: 'ステータスの変更', body: <><p>ステータスラベルの右にある変更ボタンを押すと切り替わります。</p><div className="m-btn-row">{B('対応中にする', 'default')}{B('対応済にする', 'default')}{B('再入電対応中にする', 'danger')}</div><p>{B('再入電対応中にする', 'danger')} を押すと確認ダイアログが表示され、Chatworkに通知が送信されます。</p><p>現在のステータスのボタンは表示されません（例: 対応中のときは「対応済にする」と「再入電対応中にする」のみ表示）。</p></> },
-      { title: '折り返し連絡の通知', body: <><p>登録時に折り返しの連絡で「希望する」を選ぶと、Chatwork通知に自動でTO（担当者メンション）が付きます。カード上部に {Badge('返信希望', 'reply')} バッジが表示されるので見逃しを防げます。</p><p>通知テンプレートは設定画面の「新規予約時（折り返し希望）」で編集できます。</p></> },
+      { title: 'カードのタグ一覧', body: <><p>カードのヘッダーに予約の状態を示すタグが表示されます。</p><div className="m-status-list"><div className="m-status-row">{Badge('TEL', 'tel')} / {Badge('WEB', 'web')} — 電話受付 / WEB経由の受付</div><div className="m-status-row">{Badge('折り返し対応待ち', 'callback')} — 折り返し連絡が未対応です（赤・点滅）</div><div className="m-status-row">{Badge('折り返し対応中', 'progress')} — 折り返し対応を開始しています</div><div className="m-status-row">{Badge('折り返し対応済', 'done')} — 折り返し対応が完了しています</div><div className="m-status-row">{Badge('再入電あり対応待ち', 'callback')} — 再入電があり対応が必要です（赤・点滅）</div><div className="m-status-row">{Badge('当日20分相談', 'consultation')} — 当日の無料相談を希望</div><div className="m-status-row">{Badge('後日相談', 'consultation')} — 後日の無料相談を希望</div><div className="m-status-row">{Badge('相続税無料診断', 'consultation')} — 相続税の簡易無料診断を希望</div></div></> },
+      { title: 'ステータスの変更', body: <><p>カード下部のグレーのボタンでステータスを変更できます。</p><div className="m-btn-row">{B('対応中にする', 'default')}{B('対応済にする', 'default')}{B('再入電対応中にする', 'default')}</div><p>{B('再入電対応中にする', 'default')} を押すと確認ダイアログが表示され、Chatworkに通知が送信されます。</p><p>折り返し希望がない予約にはこれらのボタンは表示されません。</p></> },
     ],
   },
   {
@@ -139,13 +141,15 @@ const MANUAL_CATEGORIES = [
       { title: '予約の検索', body: <><p>予約一覧上部の検索ボックスに氏名・フリガナ・電話番号を入力すると、リアルタイムで絞り込みできます。漢字の表記ゆれ（例: 斎藤／斉藤／齋藤）にも対応しています。</p></> },
       { title: 'カード表示 / テーブル表示', body: <><p>予約一覧ヘッダーの切替ボタンで表示モードを変更できます。</p><ul className="m-list"><li><strong>カード表示</strong> — 各予約の詳細確認・操作に最適</li><li><strong>テーブル表示</strong> — スプレッドシートのように一覧性を重視</li></ul></> },
       { title: 'PDF出力', body: <><p>{B('一覧PDF', 'default')} で全予約の一覧表を、{B('個別PDF', 'default')} で1件ずつの詳細シートを印刷・PDF保存できます。印刷ダイアログで「PDFに保存」を選択してください。</p></> },
+      { title: 'URLで直接アクセス', body: <><p>URLの末尾にハッシュを付けると特定の画面を直接開けます。</p><ul className="m-list"><li><code>#list</code> — 予約一覧に直接スクロール</li><li><code>#manual</code> — マニュアルを開く</li><li><code>#faq</code> — よくある質問を開く</li><li><code>#settings</code> — 設定画面を開く（Googleログイン時のみ）</li></ul></> },
     ],
   },
   {
     category: 'ログイン・設定',
     items: [
       { title: 'ログイン方法', body: <><p>ログインは2つの方法があります。</p><ul className="m-list"><li><strong>Googleアカウント</strong> — sunpro36.co.jp のアカウントでログインできます。設定画面へのアクセスが可能です。</li><li><strong>パスワード</strong> — 共通パスワードでログインできます。基本的な操作のみ可能です。</li></ul></> },
-      { title: '設定画面（Googleログイン時のみ）', body: <><p>Googleアカウントでログインすると、ヘッダーに {B('設定', 'default')} ボタンが表示されます。設定画面では以下を変更できます。</p><ul className="m-list"><li><strong>基本設定</strong> — フォームタイトル、パスワード</li><li><strong>フォーム項目設定</strong> — きっかけ選択肢、お悩み選択肢、相談希望選択肢</li><li><strong>Chatwork通知設定</strong> — 通知先、通知イベントのON/OFF、メッセージテンプレート</li></ul></> },
+      { title: '設定画面（Googleログイン時のみ）', body: <><p>Googleアカウントでログインすると、ヘッダーに {B('設定', 'default')} ボタンが表示されます。設定画面では以下を変更できます。</p><ul className="m-list"><li><strong>基本設定</strong> — フォームタイトル、パスワード</li><li><strong>フォーム項目設定</strong> — きっかけ選択肢、お悩み選択肢、相談希望選択肢</li><li><strong>Chatwork通知設定</strong> — GAS Web App URL、通知イベントのON/OFF、メッセージテンプレート</li></ul></> },
+      { title: 'メール自動取り込み', body: <><p>LPフォームからの予約メールはGAS（Google Apps Script）で5分ごとに自動チェックされ、予約一覧に追加されます。</p><ul className="m-list"><li>取り込まれたメールは自動で既読になります</li><li>未読に戻すと再取り込みされます</li><li>カードには {Badge('WEB', 'web')} タグが表示されます</li></ul></> },
       { title: 'ログアウト', body: <><p>ヘッダーの {B('ログアウト', 'default')} ボタンでログアウトできます。</p></> },
     ],
   },
@@ -169,6 +173,7 @@ const FAQ_CATEGORIES = [
   {
     category: '会場・アクセス',
     items: [
+      { question: '近くに駐車場はありますか？', answer: '会場の市民芸術館東側の道路向かいすぐにアットパーク松本山源（まつもとやまげん）という150台分ほどの駐車場がございます。料金は60分200円、最大で500円。会場までは徒歩2分ほどの距離です。', isNew: true },
       { question: '会場の最寄り駅・バス停はどこですか？', answer: '・電車の場合はJR松本駅より徒歩10分です。\n・バスでお越しの場合は停留所「市民芸術館」で下車してください。' },
       { question: '会場までの行き方（電車・バス・自動車）を教えてください。', answer: '上記をご参照ください。' },
       { question: '会場に駐車場はありますか？', answer: '駐車場の用意はございません。公共交通機関や有料駐車場をご利用ください。' },
@@ -414,6 +419,8 @@ function App() {
   const [errors, setErrors] = useState({})
   const [loading, setLoading] = useState(true)
   const [searchQuery, setSearchQuery] = useState('')
+  const [filterCallbackWaiting, setFilterCallbackWaiting] = useState(false)
+  const [filterConsultation, setFilterConsultation] = useState([]) // ['same_day', 'later', 'tax']
   const [editingCountId, setEditingCountId] = useState(null)
   const [showManual, setShowManual] = useState(false)
   const [showFaq, setShowFaq] = useState(false)
@@ -430,6 +437,10 @@ function App() {
   const [newCapacity, setNewCapacity] = useState('')
   const [editingConsultationId, setEditingConsultationId] = useState(null)
   const [newConsultation, setNewConsultation] = useState('')
+  const [editingRecord, setEditingRecord] = useState(null)
+  const [editForm, setEditForm] = useState({})
+  const [editingLogKey, setEditingLogKey] = useState(null) // 'recordId-index'
+  const [editLogText, setEditLogText] = useState('')
   const [formTitle, setFormTitle] = useState(DEFAULT_FORM_TITLE)
   const [appPassword, setAppPassword] = useState(DEFAULT_PASSWORD)
   const [referralSources, setReferralSources] = useState(DEFAULT_REFERRAL_SOURCES)
@@ -499,6 +510,7 @@ function App() {
       if (h === '#manual') { setShowManual(true); setShowFaq(false); setShowNotifySettings(false) }
       else if (h === '#faq') { setShowFaq(true); setShowManual(false); setShowNotifySettings(false) }
       else if (h === '#settings') { setShowNotifySettings(true); setShowManual(false); setShowFaq(false) }
+      else if (h === '#list') { setTimeout(() => document.querySelector('.list-section')?.scrollIntoView({ behavior: 'smooth' }), 300) }
     }
     handleHash()
     window.addEventListener('hashchange', handleHash)
@@ -908,6 +920,26 @@ function App() {
     setNewConsultation(r.consultation || '')
   }
 
+  const startEditLog = (rId, idx, text) => {
+    setEditingLogKey(`${rId}-${idx}`)
+    setEditLogText(text)
+  }
+
+  const saveEditLog = async (r, idx) => {
+    const logs = [...(r.consultationLogs || [])]
+    logs[idx] = { ...logs[idx], text: editLogText.trim() }
+    await updateDoc(doc(db, COLLECTION, r.id), { consultationLogs: logs, consultation: editLogText.trim() })
+    setEditingLogKey(null)
+    setEditLogText('')
+  }
+
+  const deleteLog = async (r, idx) => {
+    if (!window.confirm('この履歴を削除しますか？')) return
+    const logs = [...(r.consultationLogs || [])]
+    logs.splice(idx, 1)
+    await updateDoc(doc(db, COLLECTION, r.id), { consultationLogs: logs, consultation: logs.length > 0 ? logs[logs.length - 1].text : '' })
+  }
+
   const cancelEditConsultation = () => {
     setEditingConsultationId(null)
     setNewConsultation('')
@@ -929,6 +961,60 @@ function App() {
     }
     setEditingConsultationId(null)
     setNewConsultation('')
+  }
+
+  const openEditModal = (r) => {
+    setEditingRecord(r)
+    setEditForm({
+      name: r.name || '',
+      furigana: r.furigana || '',
+      phone: r.phone || '',
+      postalCode: r.postalCode || '',
+      address: r.address || '',
+      count: r.count || 0,
+      referralSource: r.referralSource || '',
+      inheritanceStatus: r.inheritanceStatus || '',
+      concerns: r.concerns || [],
+      concernOther: r.concernOther || '',
+      consultationType: r.consultationType || '',
+      consultationTypeLabel: r.consultationTypeLabel || '',
+      consultation: r.consultation || '',
+      wantsReply: r.wantsReply || false,
+    })
+  }
+
+  const saveEditModal = async () => {
+    if (!editingRecord) return
+    const ref = doc(db, COLLECTION, editingRecord.id)
+    const ctMatch = consultationTypes.find(c => c.value === editForm.consultationType)
+    const updates = {
+      name: editForm.name.trim(),
+      furigana: editForm.furigana.trim(),
+      phone: editForm.phone.trim(),
+      postalCode: editForm.postalCode.trim(),
+      address: editForm.address.trim(),
+      count: Number(editForm.count) || 0,
+      referralSource: editForm.referralSource,
+      inheritanceStatus: editForm.inheritanceStatus,
+      concerns: editForm.concerns,
+      concernOther: editForm.concernOther.trim(),
+      consultationType: editForm.consultationType,
+      consultationTypeLabel: ctMatch?.label || editForm.consultationTypeLabel,
+      consultation: editForm.consultation.trim(),
+      wantsReply: editForm.wantsReply,
+    }
+    // Build change summary for history
+    const changes = []
+    if (updates.name !== (editingRecord.name || '')) changes.push(`氏名: ${editingRecord.name} → ${updates.name}`)
+    if (updates.phone !== (editingRecord.phone || '')) changes.push(`電話: ${editingRecord.phone} → ${updates.phone}`)
+    if (updates.count !== (editingRecord.count || 0)) changes.push(`人数: ${editingRecord.count} → ${updates.count}`)
+    if (updates.referralSource !== (editingRecord.referralSource || '')) changes.push(`きっかけ変更`)
+    if (updates.consultationType !== (editingRecord.consultationType || '')) changes.push(`無料相談変更`)
+    if (changes.length > 0) {
+      updates.history = arrayUnion({ type: 'edit', detail: changes.join('、'), changedAt: Timestamp.now() })
+    }
+    await updateDoc(ref, updates)
+    setEditingRecord(null)
   }
 
   const formatDate = (ts) => {
@@ -1019,15 +1105,30 @@ function App() {
   }, [isOverCapacity])
 
   const filtered = reservations.filter((r) => {
-    if (!searchQuery.trim()) return true
-    const q = normalizeForSearch(searchQuery)
-    return (
-      normalizeForSearch(r.name).includes(q) ||
-      normalizeForSearch(r.furigana || '').includes(q) ||
-      normalizeForSearch(r.phone || '').includes(q) ||
-      normalizeForSearch(r.consultation).includes(q) ||
-      (r.status === 'cancelled' && normalizeForSearch('キャンセル').includes(q))
-    )
+    // テキスト検索
+    if (searchQuery.trim()) {
+      const q = normalizeForSearch(searchQuery)
+      const match = normalizeForSearch(r.name).includes(q) ||
+        normalizeForSearch(r.furigana || '').includes(q) ||
+        normalizeForSearch(r.phone || '').includes(q) ||
+        normalizeForSearch(r.consultation).includes(q) ||
+        (r.status === 'cancelled' && normalizeForSearch('キャンセル').includes(q))
+      if (!match) return false
+    }
+    // 対応待ちフィルター
+    if (filterCallbackWaiting) {
+      const isWaiting = (r.wantsReply && !r.contactStatus) || r.contactStatus === 'needs_action'
+      if (!isWaiting) return false
+    }
+    // 相談種別フィルター
+    if (filterConsultation.length > 0) {
+      const hasSameDay = filterConsultation.includes('same_day') && r.consultationType === 'same_day'
+      const hasLater = filterConsultation.includes('later') && r.consultationType === 'later'
+      const hasTax = filterConsultation.includes('tax') && (r.consultationTypeLabel || '').includes('相続税') && (r.consultationTypeLabel || '').includes('無料診断')
+      const hasNone = filterConsultation.includes('none') && (r.consultationType === 'none' || !r.consultationType)
+      if (!hasSameDay && !hasLater && !hasTax && !hasNone) return false
+    }
+    return true
   })
 
   if (!authed) {
@@ -1170,7 +1271,7 @@ function App() {
                   searchResults.map((f, i) => (
                     <div className="faq-item" key={i}>
                       <span className="faq-item-category">{f.category}</span>
-                      <h3>Q. {f.question}</h3>
+                      <h3>Q. {f.question}{f.isNew && <span className="faq-new-badge">NEW</span>}</h3>
                       <p style={{ whiteSpace: 'pre-wrap' }}>{f.answer}</p>
                     </div>
                   ))
@@ -1193,7 +1294,7 @@ function App() {
                 <div className="faq-tab-content">
                   {FAQ_CATEGORIES[faqTab] && FAQ_CATEGORIES[faqTab].items.map((f, i) => (
                     <div className="faq-item" key={i}>
-                      <h3>Q. {f.question}</h3>
+                      <h3>Q. {f.question}{f.isNew && <span className="faq-new-badge">NEW</span>}</h3>
                       <p style={{ whiteSpace: 'pre-wrap' }}>{f.answer}</p>
                     </div>
                   ))}
@@ -1639,6 +1740,56 @@ function App() {
         </button>
       </form>
 
+      {/* 編集モーダル */}
+      {editingRecord && (
+        <div className="edit-modal-overlay" onClick={() => setEditingRecord(null)}>
+          <div className="edit-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="edit-modal-header">
+              <h3>#{editingRecord.reservationNo} {editingRecord.name} の編集</h3>
+              <button type="button" className="edit-modal-close" onClick={() => setEditingRecord(null)}>×</button>
+            </div>
+            <div className="edit-modal-body">
+              <div className="edit-row"><label>氏名</label><input type="text" value={editForm.name} onChange={(e) => setEditForm(p => ({ ...p, name: e.target.value }))} /></div>
+              <div className="edit-row"><label>フリガナ</label><input type="text" value={editForm.furigana} onChange={(e) => setEditForm(p => ({ ...p, furigana: e.target.value }))} /></div>
+              <div className="edit-row"><label>電話番号</label><input type="tel" value={editForm.phone} onChange={(e) => setEditForm(p => ({ ...p, phone: e.target.value }))} /></div>
+              <div className="edit-row"><label>郵便番号</label><input type="text" value={editForm.postalCode} onChange={(e) => setEditForm(p => ({ ...p, postalCode: e.target.value }))} onBlur={async () => { const addr = await fetchAddressByPostalCode(editForm.postalCode); if (addr && !editForm.address) setEditForm(p => ({ ...p, address: addr })); setEditForm(p => ({ ...p, postalCode: formatPostalCode(p.postalCode) })) }} /></div>
+              <div className="edit-row"><label>住所</label><input type="text" value={editForm.address} onChange={(e) => setEditForm(p => ({ ...p, address: e.target.value }))} /></div>
+              <div className="edit-row"><label>人数</label><input type="number" min="0" value={editForm.count} onChange={(e) => setEditForm(p => ({ ...p, count: e.target.value }))} /></div>
+              <div className="edit-row"><label>きっかけ</label>
+                <div className="edit-btn-group">
+                  {referralSources.map(s => <button key={s} type="button" className={`edit-choice-btn ${editForm.referralSource === s ? 'active' : ''}`} onClick={() => setEditForm(p => ({ ...p, referralSource: s }))}>{s}</button>)}
+                </div>
+              </div>
+              <div className="edit-row"><label>相続の状況</label>
+                <div className="edit-btn-group">
+                  {['すでに相続が発生している', '近い将来発生するかもしれない', 'まだ先だが準備したい', '特に予定はない'].map(s => <button key={s} type="button" className={`edit-choice-btn ${editForm.inheritanceStatus === s ? 'active' : ''}`} onClick={() => setEditForm(p => ({ ...p, inheritanceStatus: p.inheritanceStatus === s ? '' : s }))}>{s}</button>)}
+                </div>
+              </div>
+              <div className="edit-row"><label>お悩み</label>
+                <div className="edit-btn-group">
+                  {concernOptions.map(s => <button key={s} type="button" className={`edit-choice-btn ${editForm.concerns.includes(s) ? 'active' : ''}`} onClick={() => setEditForm(p => ({ ...p, concerns: p.concerns.includes(s) ? p.concerns.filter(c => c !== s) : [...p.concerns, s] }))}>{s}</button>)}
+                </div>
+              </div>
+              <div className="edit-row"><label>無料相談</label>
+                <div className="edit-btn-group">
+                  {consultationTypes.map(ct => <button key={ct.value} type="button" className={`edit-choice-btn ${editForm.consultationType === ct.value ? 'active' : ''}`} onClick={() => setEditForm(p => ({ ...p, consultationType: ct.value, consultationTypeLabel: ct.label }))}>{ct.label}</button>)}
+                </div>
+              </div>
+              <div className="edit-row"><label>折り返し</label>
+                <div className="edit-btn-group">
+                  <button type="button" className={`edit-choice-btn ${editForm.wantsReply === false ? 'active' : ''}`} onClick={() => setEditForm(p => ({ ...p, wantsReply: false }))}>希望しない</button>
+                  <button type="button" className={`edit-choice-btn ${editForm.wantsReply === true ? 'active' : ''}`} onClick={() => setEditForm(p => ({ ...p, wantsReply: true }))}>希望する</button>
+                </div>
+              </div>
+            </div>
+            <div className="edit-modal-footer">
+              <button type="button" className="edit-modal-cancel" onClick={() => setEditingRecord(null)}>キャンセル</button>
+              <button type="button" className="edit-modal-save" onClick={saveEditModal}>保存</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <section className="list-section">
         <div className="list-header">
           <h2 className="list-title">予約一覧{reservations.length > 0 && <span className="badge">{reservations.length}</span>}</h2>
@@ -1696,6 +1847,28 @@ function App() {
           </div>
         </div>
 
+        {(() => {
+          const active = reservations.filter(r => r.status !== 'cancelled')
+          const countWaiting = active.filter(r => (r.wantsReply && !r.contactStatus) || r.contactStatus === 'needs_action').length
+          const countSameDay = active.filter(r => r.consultationType === 'same_day').length
+          const countLater = active.filter(r => r.consultationType === 'later').length
+          const countTax = active.filter(r => (r.consultationTypeLabel || '').includes('相続税') && (r.consultationTypeLabel || '').includes('無料診断')).length
+          const countNone = active.filter(r => r.consultationType === 'none' || !r.consultationType).length
+          return (
+            <div className="filter-bar">
+              <button type="button" className={`filter-btn ${filterCallbackWaiting ? 'active' : ''}`} onClick={() => setFilterCallbackWaiting(v => !v)}>対応待ち <span className="filter-count">{countWaiting}</span></button>
+              <span className="filter-divider" />
+              <button type="button" className={`filter-btn ${filterConsultation.includes('same_day') ? 'active' : ''}`} onClick={() => setFilterConsultation(v => v.includes('same_day') ? v.filter(x => x !== 'same_day') : [...v, 'same_day'])}>当日相談 <span className="filter-count">{countSameDay}</span></button>
+              <button type="button" className={`filter-btn ${filterConsultation.includes('later') ? 'active' : ''}`} onClick={() => setFilterConsultation(v => v.includes('later') ? v.filter(x => x !== 'later') : [...v, 'later'])}>後日相談 <span className="filter-count">{countLater}</span></button>
+              <button type="button" className={`filter-btn ${filterConsultation.includes('tax') ? 'active' : ''}`} onClick={() => setFilterConsultation(v => v.includes('tax') ? v.filter(x => x !== 'tax') : [...v, 'tax'])}>相続税診断 <span className="filter-count">{countTax}</span></button>
+              <button type="button" className={`filter-btn ${filterConsultation.includes('none') ? 'active' : ''}`} onClick={() => setFilterConsultation(v => v.includes('none') ? v.filter(x => x !== 'none') : [...v, 'none'])}>相談なし <span className="filter-count">{countNone}</span></button>
+              {(filterCallbackWaiting || filterConsultation.length > 0) && (
+                <button type="button" className="filter-clear-btn" onClick={() => { setFilterCallbackWaiting(false); setFilterConsultation([]) }}>クリア</button>
+              )}
+            </div>
+          )
+        })()}
+
         {!loading && reservations.length > 0 && (
           <div className="total-count">
             予約組数: <span>{activeReservations.length}組</span>
@@ -1738,13 +1911,14 @@ function App() {
         ) : filtered.length === 0 ? (
           <p className="empty">{searchQuery ? '該当する予約はありません' : 'まだ予約はありません'}</p>
         ) : viewMode === 'table' ? (
-          <div className="table-wrapper">
+          <div className="table-wrapper reservation-table-wrap">
             <table className="reservation-table">
               <thead>
                 <tr>
-                  <th>受付No.</th>
+                  <th>No.</th>
                   <th>氏名</th>
                   <th>フリガナ</th>
+                  <th>経路</th>
                   <th>電話番号</th>
                   <th>人数</th>
                   <th>きっかけ</th>
@@ -1763,6 +1937,7 @@ function App() {
                     <td>{r.reservationNo || '-'}</td>
                     <td>{r.name}</td>
                     <td>{r.furigana || ''}</td>
+                    <td className="td-center">{r.source === 'email' ? <span className="status-source-web">WEB</span> : <span className="status-source-phone">TEL</span>}</td>
                     <td>{r.phone || ''}</td>
                     <td className="td-center">{r.inquiryOnly ? '-' : r.count}</td>
                     <td>{r.referralSource || ''}</td>
@@ -1790,12 +1965,18 @@ function App() {
                   {/* ヘッダー: 番号+名前+ステータスバッジ+人数 */}
                   <span className="card-name">
                     {r.reservationNo && <span className="card-no">#{r.reservationNo}</span>}
+                    {r.status !== 'cancelled' && <button type="button" className="edit-pencil-btn" title="編集" onClick={(e) => { e.stopPropagation(); openEditModal(r) }}><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></button>}
                     {r.name}
                     {r.source === 'email' ? <span className="status-source-web">WEB</span> : <span className="status-source-phone">TEL</span>}
                     {r.status === 'cancelled' && <span className="status-cancelled">キャンセル済</span>}
                     {r.waitlist && r.status !== 'cancelled' && <span className="status-waitlist">キャンセル待ち</span>}
-                    {r.wantsReply && !r.contactStatus && <span className="status-reply-pending">返信希望</span>}
-                    {r.contactStatus === 'needs_action' && <span className="status-needs-action">要対応</span>}
+                    {r.wantsReply && !r.contactStatus && <span className="status-callback-waiting">折り返し対応待ち</span>}
+                    {r.wantsReply && r.contactStatus === 'in_progress' && <span className="status-contact-progress">折り返し対応中</span>}
+                    {r.wantsReply && r.contactStatus === 'done' && <span className="status-contact-done">折り返し対応済</span>}
+                    {r.contactStatus === 'needs_action' && <span className="status-callback-waiting">再入電あり対応待ち</span>}
+                    {r.consultationType === 'same_day' && <span className="status-consultation-day">当日20分相談</span>}
+                    {r.consultationType === 'later' && <span className="status-consultation-later">後日相談</span>}
+                    {(r.consultationTypeLabel || '').includes('相続税') && (r.consultationTypeLabel || '').includes('無料診断') && <span className="status-consultation-tax">相続税無料診断</span>}
                   </span>
                   {editingCountId === r.id ? (
                     <span className="count-edit">
@@ -1815,18 +1996,21 @@ function App() {
                   {r.phone && <a className="card-phone" href={`tel:${r.phone.replace(/-/g, '')}`}>{r.phone}</a>}
                 </div>
 
-                {/* 対応ステータス行 */}
-                {r.wantsReply && r.status !== 'cancelled' && (
-                  <div className="card-reply-row">
-                    <span className={`card-status-label ${r.contactStatus === 'needs_action' ? 'status-callback' : r.contactStatus === 'done' ? 'status-done' : r.contactStatus === 'in_progress' ? 'status-progress' : 'status-pending'}`}>
-                      {r.contactStatus === 'needs_action' ? '再入電対応中' : r.contactStatus === 'done' ? '対応済' : r.contactStatus === 'in_progress' ? '対応中' : '未対応'}
-                    </span>
-                    <div className="contact-status-buttons">
-                      {r.contactStatus !== 'in_progress' && <button className="contact-status-btn" onClick={() => updateContactStatus(r, 'in_progress')}>対応中にする</button>}
-                      {r.contactStatus !== 'done' && <button className="contact-status-btn" onClick={() => updateContactStatus(r, 'done')}>対応済にする</button>}
-                      {r.contactStatus !== 'needs_action' && <button className="contact-status-btn callback-btn" onClick={() => handleCallback(r)}>再入電対応中にする</button>}
+                {/* ご状況（折りたたみ） */}
+                {(r.consultationTypeLabel || r.inheritanceStatus || (r.concerns && r.concerns.length > 0)) && (
+                <div className="card-section">
+                  <button type="button" className="card-section-toggle" onClick={() => toggleCardSection(r.id, 'detail')}>
+                    <span className="card-section-arrow">{expandedCards[r.id]?.detail === false ? '▶' : '▼'}</span>
+                    ご状況
+                  </button>
+                  {expandedCards[r.id]?.detail !== false && (
+                    <div className="card-detail-list">
+                      {r.consultationTypeLabel && <div className="card-detail-row"><span className="card-detail-label">無料相談</span><span className="card-detail-value">{r.consultationTypeLabel}</span></div>}
+                      {r.inheritanceStatus && <div className="card-detail-row"><span className="card-detail-label">相続状況</span><span className="card-detail-value">{r.inheritanceStatus}</span></div>}
+                      {r.concerns && r.concerns.length > 0 && <div className="card-detail-row"><span className="card-detail-label">お悩み</span><span className="card-detail-value">{r.concerns.join('、')}{r.concernOther ? `（${r.concernOther}）` : ''}</span></div>}
                     </div>
-                  </div>
+                  )}
+                </div>
                 )}
 
                 {/* 対応・相談履歴（折りたたみ） */}
@@ -1853,7 +2037,21 @@ function App() {
                       {r.consultationLogs.map((log, i) => (
                         <li key={i} className="consultation-log-item">
                           <span className="consultation-log-date">{formatDate(log.createdAt)}</span>
-                          <span className="consultation-log-text">{log.text}</span>
+                          {editingLogKey === `${r.id}-${i}` ? (
+                            <span className="consultation-log-edit">
+                              <textarea className="consultation-edit-input" rows={2} value={editLogText} onChange={(e) => setEditLogText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Escape') { setEditingLogKey(null); setEditLogText('') } }} autoFocus />
+                              <span className="consultation-log-edit-actions">
+                                <button className="count-edit-ok" onClick={() => saveEditLog(r, i)}>保存</button>
+                                <button className="count-edit-cancel" onClick={() => { setEditingLogKey(null); setEditLogText('') }}>取消</button>
+                              </span>
+                            </span>
+                          ) : (
+                            <span className="consultation-log-text">
+                              {log.text}
+                              <button type="button" className="edit-pencil-btn log-edit-btn" title="編集" onClick={() => startEditLog(r.id, i, log.text)}><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg></button>
+                              <button type="button" className="edit-pencil-btn log-delete-btn" title="削除" onClick={() => deleteLog(r, i)}><svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                            </span>
+                          )}
                         </li>
                       ))}
                     </ul>
@@ -1885,13 +2083,27 @@ function App() {
                 {/* フッター: 操作ボタン + 登録日 */}
                 <div className="card-footer">
                   {r.status !== 'cancelled' && editingCountId !== r.id && (
-                    <div className="card-footer-actions">
-                      {r.waitlist && <button className="action-btn confirm-btn" onClick={() => handleConfirmWaitlist(r)}>予約確定</button>}
-                      <button className="action-btn change-btn" onClick={() => startEditCount(r)}>人数変更</button>
-                      <button className="action-btn cancel-btn" onClick={() => handleCancel(r)}>予約キャンセル</button>
+                    <div className="card-footer-row">
+                      <div className="card-footer-left">
+                        {r.waitlist && <button className="action-btn confirm-btn" onClick={() => handleConfirmWaitlist(r)}>予約確定</button>}
+                        <button className="action-btn change-btn" onClick={() => startEditCount(r)}>人数変更</button>
+                        <button className="action-btn cancel-btn" onClick={() => handleCancel(r)}>予約キャンセル</button>
+                      </div>
+                      <div className="card-footer-right">
+                        {r.wantsReply && (
+                          <>
+                            {r.contactStatus !== 'in_progress' && <button className="contact-status-btn" onClick={() => updateContactStatus(r, 'in_progress')}>対応中にする</button>}
+                            {r.contactStatus !== 'done' && <button className="contact-status-btn" onClick={() => updateContactStatus(r, 'done')}>対応済にする</button>}
+                            {r.contactStatus !== 'needs_action' && <button className="contact-status-btn callback-btn" onClick={() => handleCallback(r)}>再入電対応中にする</button>}
+                          </>
+                        )}
+                        <span className="card-date">{formatDate(r.createdAt)}</span>
+                      </div>
                     </div>
                   )}
-                  <span className="card-date">{formatDate(r.createdAt)}</span>
+                  {(r.status === 'cancelled' || editingCountId === r.id) && (
+                    <div className="card-footer-row"><div className="card-footer-right"><span className="card-date">{formatDate(r.createdAt)}</span></div></div>
+                  )}
                 </div>
               </li>
             ))}

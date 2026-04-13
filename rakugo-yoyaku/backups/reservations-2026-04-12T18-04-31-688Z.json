@@ -1,0 +1,574 @@
+[
+  {
+    "id": "4qxIFpmIvFEFoA8r1PLa",
+    "consultationTypeLabel": "いずれも希望しない",
+    "inquiryOnly": false,
+    "contactStatus": "",
+    "name": "古瀬　昌彦 setonaikai",
+    "source": "phone",
+    "concerns": [
+      "相続の基本的な手続き"
+    ],
+    "consultationLogs": [],
+    "phone": "026-375-2705",
+    "createdAt": {
+      "__timestamp__": "2026-04-10T01:34:23.779Z"
+    },
+    "wantsReply": false,
+    "postalCode": "",
+    "concernOther": "",
+    "referralSource": "新聞",
+    "history": [],
+    "address": "",
+    "consultation": "",
+    "status": "active",
+    "inheritanceStatus": "",
+    "consultationType": "none",
+    "reservationNo": "006",
+    "count": 1,
+    "furigana": "フルセ　マサヒコ",
+    "waitlist": false
+  },
+  {
+    "id": "6CGoR1tuccWMr57ufOuk",
+    "postalCode": "",
+    "concernOther": "",
+    "wantsReply": false,
+    "referralSource": "新聞",
+    "history": [],
+    "inheritanceStatus": "",
+    "consultationType": "none",
+    "reservationNo": "007",
+    "status": "active",
+    "consultation": "",
+    "address": "",
+    "furigana": "ワカバヤシ　キヨコ",
+    "count": 2,
+    "waitlist": false,
+    "consultationTypeLabel": "いずれも希望しない",
+    "inquiryOnly": false,
+    "name": "若林　清子",
+    "contactStatus": "",
+    "source": "phone",
+    "concerns": [
+      "相続の基本的な手続き"
+    ],
+    "consultationLogs": [],
+    "phone": "026-367-3782",
+    "createdAt": {
+      "__timestamp__": "2026-04-10T03:09:07.713Z"
+    }
+  },
+  {
+    "id": "7MCOy2BeZOsRotUwucXx",
+    "count": 1,
+    "furigana": "ツキジノリコ",
+    "waitlist": false,
+    "wantsReply": false,
+    "postalCode": "3980002",
+    "concernOther": "",
+    "address": "長野県大町市大町5352-7",
+    "status": "active",
+    "consultation": "",
+    "consultationType": "",
+    "inheritanceStatus": "すでに相続が発生している",
+    "reservationNo": "005",
+    "referralSource": "新聞",
+    "history": [],
+    "concerns": [
+      "相続の基本的な手続き",
+      "家族でもめない方法",
+      "家や土地をどうするか"
+    ],
+    "consultationLogs": [],
+    "source": "email",
+    "createdAt": {
+      "__timestamp__": "2026-04-10T00:22:06.856Z"
+    },
+    "phone": "09055303208",
+    "inquiryOnly": false,
+    "consultationTypeLabel": "当日の無料相談を希望する（約20分)",
+    "contactStatus": "",
+    "name": "筑地紀子"
+  },
+  {
+    "id": "AgnGLzGibl2vq2S1chzA",
+    "concerns": [
+      "その他"
+    ],
+    "consultationLogs": [
+      {
+        "createdAt": {
+          "__timestamp__": "2026-04-10T06:20:42.387Z"
+        },
+        "text": "5/9を希望。"
+      }
+    ],
+    "source": "phone",
+    "phone": "090-5808-0790",
+    "createdAt": {
+      "__timestamp__": "2026-04-10T06:20:44.209Z"
+    },
+    "inquiryOnly": false,
+    "consultationTypeLabel": "いずれも希望しない",
+    "name": "鎌﨑　邦夫",
+    "contactStatus": "",
+    "furigana": "カマサキ　クニオ",
+    "count": 1,
+    "waitlist": false,
+    "postalCode": "390-0804",
+    "concernOther": "落語で興味を持ったとのこと",
+    "wantsReply": false,
+    "inheritanceStatus": "",
+    "consultationType": "none",
+    "reservationNo": "008",
+    "status": "active",
+    "consultation": "5/9を希望。",
+    "address": "長野県松本市横田",
+    "referralSource": "新聞",
+    "history": []
+  },
+  {
+    "id": "AttNB8Bys08eSZMoiKOB",
+    "consultationLogs": [
+      {
+        "createdAt": {
+          "__timestamp__": "2026-04-12T08:10:59.499Z"
+        },
+        "text": "第一部と第二部だけのお話を聞いて無料相談は検討しますとのことでございます。"
+      }
+    ],
+    "concerns": [
+      "相続の基本的な手続き"
+    ],
+    "source": "phone",
+    "phone": "090-9666-5703",
+    "createdAt": {
+      "__timestamp__": "2026-04-12T08:11:06.644Z"
+    },
+    "inquiryOnly": false,
+    "consultationTypeLabel": "いずれも希望しない",
+    "name": "石井　悦子",
+    "contactStatus": "",
+    "count": 1,
+    "furigana": "イシイ　エツコ",
+    "waitlist": false,
+    "postalCode": "",
+    "concernOther": "",
+    "wantsReply": false,
+    "reservationNo": "014",
+    "inheritanceStatus": "",
+    "consultationType": "none",
+    "address": "",
+    "consultation": "第一部と第二部だけのお話を聞いて無料相談は検討しますとのことでございます。",
+    "status": "active",
+    "referralSource": "新聞",
+    "history": []
+  },
+  {
+    "id": "F6tqGQ0bpWhj1D9g1gyw",
+    "wantsReply": false,
+    "postalCode": "399-2221",
+    "concernOther": "",
+    "status": "active",
+    "address": "長野県飯田市龍江4299",
+    "consultation": "不動産の相続について",
+    "consultationType": "",
+    "inheritanceStatus": "すでに相続が発生している",
+    "reservationNo": "002",
+    "referralSource": "",
+    "history": [],
+    "furigana": "ハヤシシズコ",
+    "count": 2,
+    "waitlist": false,
+    "inquiryOnly": false,
+    "consultationTypeLabel": "当日の無料相談を希望する（約20分)",
+    "contactStatus": "",
+    "name": "林静子",
+    "consultationLogs": [
+      {
+        "text": "不動産の相続について",
+        "createdAt": {
+          "__timestamp__": "2026-04-09T23:52:06.883Z"
+        }
+      }
+    ],
+    "concerns": [],
+    "source": "email",
+    "phone": "090-4180-4299",
+    "createdAt": {
+      "__timestamp__": "2026-04-09T23:52:06.883Z"
+    }
+  },
+  {
+    "id": "ULh0brNpbi53pLDY6CoK",
+    "consultationTypeLabel": "いずれも希望しない",
+    "inquiryOnly": false,
+    "contactStatus": "",
+    "name": "テスト井本",
+    "source": "phone",
+    "concerns": [
+      "節税やお金の残し方"
+    ],
+    "consultationLogs": [
+      {
+        "createdAt": {
+          "__timestamp__": "2026-04-12T17:50:30.515Z"
+        },
+        "text": "テストです"
+      }
+    ],
+    "createdAt": {
+      "__timestamp__": "2026-04-12T17:50:30.612Z"
+    },
+    "phone": "090-3558-8950",
+    "wantsReply": false,
+    "concernOther": "",
+    "postalCode": "390-1301",
+    "referralSource": "テレビ",
+    "history": [],
+    "address": "長野県東筑摩郡山形村123",
+    "consultation": "テストです",
+    "status": "active",
+    "reservationNo": "015",
+    "inheritanceStatus": "近い将来発生するかもしれない",
+    "consultationType": "none",
+    "furigana": "テストイモト",
+    "count": 2,
+    "waitlist": false
+  },
+  {
+    "id": "YpVtgN8cFVPOVxZIeA3v",
+    "count": 1,
+    "furigana": "カトウテスト",
+    "waitlist": false,
+    "wantsReply": false,
+    "postalCode": "3990701",
+    "concernOther": "",
+    "referralSource": "ホームページ",
+    "history": [
+      {
+        "changedAt": {
+          "__timestamp__": "2026-04-10T10:37:08.258Z"
+        },
+        "before": {
+          "status": "active"
+        },
+        "type": "cancel",
+        "after": {
+          "status": "cancelled"
+        }
+      }
+    ],
+    "consultation": "",
+    "status": "cancelled",
+    "address": "長野県塩尻市広丘吉田",
+    "reservationNo": "010",
+    "inheritanceStatus": "特に予定はない",
+    "consultationType": "none",
+    "source": "email",
+    "concerns": [
+      "老後の暮らしとリフォーム"
+    ],
+    "consultationLogs": [],
+    "phone": "000-0000-0000",
+    "createdAt": {
+      "__timestamp__": "2026-04-10T10:32:07.926Z"
+    },
+    "consultationTypeLabel": "いずれも希望しない",
+    "inquiryOnly": false,
+    "contactStatus": "",
+    "name": "加藤テスト0410"
+  },
+  {
+    "id": "ZWhhcUPSD1HLNtSfcD6K",
+    "consultationTypeLabel": "いずれも希望しない",
+    "inquiryOnly": false,
+    "contactStatus": "",
+    "name": "田宮　浩",
+    "source": "phone",
+    "concerns": [
+      "相続の基本的な手続き",
+      "節税やお金の残し方",
+      "家族でもめない方法"
+    ],
+    "consultationLogs": [],
+    "phone": "090-9962-6065",
+    "createdAt": {
+      "__timestamp__": "2026-04-10T00:03:13.295Z"
+    },
+    "wantsReply": false,
+    "postalCode": "",
+    "concernOther": "",
+    "referralSource": "ご紹介",
+    "history": [],
+    "status": "active",
+    "consultation": "",
+    "address": "",
+    "inheritanceStatus": "",
+    "consultationType": "none",
+    "reservationNo": "003",
+    "furigana": "タミヤ　ヒロシ",
+    "count": 2,
+    "waitlist": false
+  },
+  {
+    "id": "eYaKqbBDO5mFBbyaGs2N",
+    "reservationNo": "011",
+    "inheritanceStatus": "すでに相続が発生している",
+    "consultationType": "none",
+    "status": "cancelled",
+    "consultation": "",
+    "address": "長野県塩尻市広丘吉田",
+    "referralSource": "新聞",
+    "history": [
+      {
+        "after": {
+          "status": "cancelled"
+        },
+        "type": "cancel",
+        "changedAt": {
+          "__timestamp__": "2026-04-10T11:11:23.336Z"
+        },
+        "before": {
+          "status": "active"
+        }
+      }
+    ],
+    "postalCode": "399-0701",
+    "concernOther": "",
+    "wantsReply": false,
+    "waitlist": false,
+    "furigana": "カトウテスト",
+    "count": 1,
+    "name": "加藤テスト0410",
+    "contactStatus": "",
+    "inquiryOnly": false,
+    "consultationTypeLabel": "いずれも希望しない",
+    "phone": "00000000000",
+    "createdAt": {
+      "__timestamp__": "2026-04-10T11:11:06.813Z"
+    },
+    "concerns": [
+      "相続の基本的な手続き"
+    ],
+    "consultationLogs": [],
+    "source": "phone"
+  },
+  {
+    "id": "g9YwEDdrCvo2DaG89QSD",
+    "furigana": "シミズノリコ",
+    "count": 2,
+    "waitlist": false,
+    "wantsReply": false,
+    "concernOther": "",
+    "postalCode": "399-0705",
+    "status": "active",
+    "address": "長野県塩尻市広丘堅石1134",
+    "consultation": "",
+    "consultationType": "none",
+    "inheritanceStatus": "まだ先だが準備したい",
+    "reservationNo": "001",
+    "history": [],
+    "referralSource": "新聞",
+    "consultationLogs": [],
+    "concerns": [
+      "相続の基本的な手続き",
+      "節税やお金の残し方"
+    ],
+    "source": "email",
+    "phone": "0263-54-6528",
+    "createdAt": {
+      "__timestamp__": "2026-04-09T21:02:07.566Z"
+    },
+    "inquiryOnly": false,
+    "consultationTypeLabel": "いずれも希望しない",
+    "contactStatus": "",
+    "name": "清水則子"
+  },
+  {
+    "id": "jIGzfyrkUlg6FKjU3OSO",
+    "name": "山田　融子",
+    "contactStatus": "",
+    "inquiryOnly": false,
+    "consultationTypeLabel": "いずれも希望しない",
+    "phone": "026-353-2006",
+    "createdAt": {
+      "__timestamp__": "2026-04-10T00:17:08.914Z"
+    },
+    "consultationLogs": [
+      {
+        "createdAt": {
+          "__timestamp__": "2026-04-10T00:17:09.565Z"
+        },
+        "text": "相続のことと。リフォームをしたいけれどもご自身で所有されていないので、困っている。"
+      }
+    ],
+    "concerns": [
+      "相続の基本的な手続き",
+      "家族でもめない方法",
+      "老後の暮らしとリフォーム"
+    ],
+    "source": "phone",
+    "inheritanceStatus": "",
+    "consultationType": "none",
+    "reservationNo": "004",
+    "address": "",
+    "consultation": "相続のことと。リフォームをしたいけれどもご自身で所有されていないので、困っている。",
+    "status": "active",
+    "referralSource": "新聞",
+    "history": [],
+    "postalCode": "",
+    "concernOther": "",
+    "wantsReply": false,
+    "waitlist": false,
+    "count": 2,
+    "furigana": "ヤマダ　ユウコ"
+  },
+  {
+    "id": "tPSwzjOVIvitvkXXwmcx",
+    "concernOther": "",
+    "postalCode": "399-0702",
+    "wantsReply": true,
+    "referralSource": "新聞",
+    "history": [],
+    "inheritanceStatus": "近い将来発生するかもしれない",
+    "consultationType": "same_day",
+    "reservationNo": "009",
+    "address": "長野県塩尻市広丘野村",
+    "consultation": "誰かに継いでもらえたらと相談したい。\n駐車場はどちらにありますか？",
+    "status": "active",
+    "furigana": "テヅカ　ヨシヒロ　ケイコ敬子",
+    "count": 2,
+    "waitlist": false,
+    "consultationTypeLabel": "当日の無料相談を希望する（約20分）",
+    "inquiryOnly": false,
+    "name": "手塚　義広",
+    "contactStatus": "",
+    "source": "phone",
+    "concerns": [
+      "節税やお金の残し方",
+      "相続の基本的な手続き",
+      "家族でもめない方法",
+      "家や土地をどうするか"
+    ],
+    "consultationLogs": [
+      {
+        "createdAt": {
+          "__timestamp__": "2026-04-10T09:45:40.251Z"
+        },
+        "text": "誰かに継いでもらえたらと相談したい。\n駐車場はどちらにありますか？"
+      }
+    ],
+    "phone": "090-5309-8965",
+    "createdAt": {
+      "__timestamp__": "2026-04-10T09:45:42.150Z"
+    }
+  },
+  {
+    "id": "tldwvQZIjfDrsSL87CzR",
+    "phone": "090-3558-8950",
+    "createdAt": {
+      "__timestamp__": "2026-04-12T18:01:25.388Z"
+    },
+    "concerns": [
+      "節税やお金の残し方"
+    ],
+    "consultationLogs": [
+      {
+        "createdAt": {
+          "__timestamp__": "2026-04-12T18:01:25.155Z"
+        },
+        "text": "テスト"
+      }
+    ],
+    "source": "phone",
+    "name": "テスト井本",
+    "contactStatus": "",
+    "inquiryOnly": false,
+    "consultationTypeLabel": "いずれも希望しない",
+    "waitlist": false,
+    "count": 2,
+    "furigana": "テストイモト",
+    "reservationNo": "016",
+    "inheritanceStatus": "近い将来発生するかもしれない",
+    "consultationType": "none",
+    "address": "長野県東筑摩郡山形村",
+    "consultation": "テスト",
+    "status": "active",
+    "referralSource": "テレビ",
+    "history": [],
+    "postalCode": "390-1301",
+    "concernOther": "",
+    "wantsReply": false
+  },
+  {
+    "id": "x1Tv2TccKiA48o0MFrso",
+    "reservationNo": "013",
+    "inheritanceStatus": "まだ先だが準備したい",
+    "consultationType": "none",
+    "address": "",
+    "consultation": "第一部と第二部だけのお話を伺いたいとのこと。\nとりあえずお話聞いてから、後日の無料相談を検討するかもしれないとのことです。\n現在、機会があって相続は済んでいるが、いずれ自分が子供に相続する時のことを考えて少し情報を収集したいとのことです。\n墓じまい等についてもご興味があるとのこと。　\n※有料駐車場をご利用くださいとのことだが、芸術館へ行くのが初めてで、周辺の状況を知りたいとのこと、駐車場の割引きもあるのか教えて欲しいとのことです。折り返しご案内しました。",
+    "status": "active",
+    "referralSource": "チラシ",
+    "history": [],
+    "concernOther": "",
+    "postalCode": "",
+    "wantsReply": true,
+    "waitlist": false,
+    "furigana": "マツザワ　トオル",
+    "count": 1,
+    "name": "松澤　亨",
+    "contactStatus": "",
+    "inquiryOnly": false,
+    "consultationTypeLabel": "いずれも希望しない",
+    "createdAt": {
+      "__timestamp__": "2026-04-12T00:41:38.946Z"
+    },
+    "phone": "090-2496-9230",
+    "concerns": [
+      "節税やお金の残し方",
+      "相続の基本的な手続き"
+    ],
+    "consultationLogs": [
+      {
+        "createdAt": {
+          "__timestamp__": "2026-04-12T00:41:38.832Z"
+        },
+        "text": "第一部と第二部だけのお話を伺いたいとのこと。\nとりあえずお話聞いてから、後日の無料相談を検討するかもしれないとのことです。\n現在、機会があって相続は済んでいるが、いずれ自分が子供に相続する時のことを考えて少し情報を収集したいとのことです。\n墓じまい等についてもご興味があるとのこと。　\n※有料駐車場をご利用くださいとのことだが、芸術館へ行くのが初めてで、周辺の状況を知りたいとのこと、駐車場の割引きもあるのか教えて欲しいとのことです。折り返しご案内しました。"
+      }
+    ],
+    "source": "phone"
+  },
+  {
+    "id": "xC8zwH2a6MquXdZkEHL1",
+    "contactStatus": "",
+    "name": "松沢 勉",
+    "consultationTypeLabel": "後日の相続税の簡易無料診断を希望する",
+    "inquiryOnly": false,
+    "createdAt": {
+      "__timestamp__": "2026-04-11T12:47:07.181Z"
+    },
+    "phone": "090-8848-5044",
+    "source": "email",
+    "consultationLogs": [],
+    "concerns": [
+      "相続の基本的な手続き",
+      "家や土地をどうするか"
+    ],
+    "referralSource": "新聞",
+    "history": [],
+    "address": "長野県北安曇郡白馬村北城6128-１",
+    "status": "active",
+    "consultation": "",
+    "reservationNo": "012",
+    "inheritanceStatus": "まだ先だが準備したい",
+    "consultationType": "",
+    "wantsReply": false,
+    "postalCode": "399-9301",
+    "concernOther": "",
+    "waitlist": false,
+    "furigana": "マツザワ　ツトム",
+    "count": 2
+  }
+]
