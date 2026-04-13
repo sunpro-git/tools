@@ -18,10 +18,6 @@ type Route = 'top' | 'info' | 'quiz' | 'admin';
 const infoSystems: SystemId[] = ['myroom', 'smart', 'zenkan'];
 
 // URL sharing helpers
-function encodeSimEntries(entries: SimEntry[]): string {
-  return btoa(encodeURIComponent(JSON.stringify(entries)));
-}
-
 function decodeSimEntries(hash: string): SimEntry[] | null {
   try {
     const match = hash.match(/^#sim=(.+)$/);

@@ -41,7 +41,7 @@ export function SimulationSlide({ entries, onRemove, onQuiz, onBack, onTop }: Si
       const systemConfig = costConfig.systems[entry.systemId];
       // Convert SimEntry config to unitCounts
       const unitCounts: Record<string, number> = {};
-      const cfg = entry.config as Record<string, number>;
+      const cfg = entry.config as unknown as Record<string, number>;
       if (entry.systemId === 'myroom') {
         unitCounts['floor'] = cfg.floor ?? 0;
         unitCounts['ldk'] = (cfg.ldk1f ?? 0) + (cfg.ldk2f ?? 0);

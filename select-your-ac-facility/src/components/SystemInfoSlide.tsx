@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react';
 import { systems, type SystemId } from '../data/systems';
 import { ImageModal } from './ImageModal';
-import { calcCosts, defaultConfigs } from '../data/simulation';
+import { defaultConfigs } from '../data/simulation';
 import type { SimConfig, SimEntry, SmartConfig } from '../data/simulation';
 import type { YearlyUnitConfig } from '../data/costConfig';
 import { loadCostConfig, calcDisplayCosts, type DisplayCosts } from '../data/costConfig';
