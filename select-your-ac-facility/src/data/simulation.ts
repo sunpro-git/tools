@@ -2,11 +2,9 @@ import type { SystemId } from './systems';
 
 // --- Config types ---
 export interface MyroomConfig {
-  floor: number;
-  ldk1f: number;
-  room1f: number;
-  ldk2f: number;
-  room2f: number;
+  floor: number;   // 床下エアコン 0-2
+  ldk: number;     // LDK用エアコン 0-2
+  room: number;    // 居室用エアコン 0-4
 }
 
 export interface SmartConfig {
@@ -62,7 +60,7 @@ const REPLACEMENT_CYCLE: Record<SystemId, number> = {
 };
 
 export const defaultConfigs: SimConfig = {
-  myroom: { floor: 0, ldk1f: 1, room1f: 0, ldk2f: 0, room2f: 2 },
+  myroom: { floor: 0, ldk: 1, room: 2 },
   smart: { units: 2, floor1: 'floor+2', floor2: '2rooms' },
   zenkan: { system: 1 },
 };
@@ -149,10 +147,8 @@ function configDetail(systemId: SystemId, config: SimConfig[SystemId]): string {
     const c = config as MyroomConfig;
     const parts: string[] = [];
     if (c.floor > 0) parts.push(`床下AC×${c.floor}`);
-    if (c.ldk1f > 0) parts.push(`1F LDK×${c.ldk1f}`);
-    if (c.room1f > 0) parts.push(`1F居室×${c.room1f}`);
-    if (c.ldk2f > 0) parts.push(`2F LDK×${c.ldk2f}`);
-    if (c.room2f > 0) parts.push(`2F居室×${c.room2f}`);
+    if (c.ldk > 0) parts.push(`LDK×${c.ldk}`);
+    if (c.room > 0) parts.push(`居室×${c.room}`);
     return parts.length > 0 ? parts.join(' / ') : '未選択';
   }
   if (systemId === 'smart') {

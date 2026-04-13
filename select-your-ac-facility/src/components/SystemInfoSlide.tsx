@@ -6,6 +6,7 @@ import type { SimConfig, SimEntry, SmartConfig } from '../data/simulation';
 import type { YearlyUnitConfig } from '../data/costConfig';
 import { loadCostConfig, calcDisplayCosts, type DisplayCosts } from '../data/costConfig';
 import { SimEntryBar } from './SimEntryBar';
+import { ProgressBar } from './ProgressBar';
 
 interface SystemInfoSlideProps {
   systemId: SystemId;
@@ -14,6 +15,8 @@ interface SystemInfoSlideProps {
   onAddSimulation: (systemId: SystemId, config: SimConfig[SystemId], yearlyConfigs?: YearlyUnitConfig[]) => void;
   onRemoveSimulation: (id: string) => void;
   simEntries: SimEntry[];
+  progressCurrent: number;
+  progressTotal: number;
 }
 
 const base = import.meta.env.BASE_URL;
@@ -135,39 +138,20 @@ function CostBreakdown({ costs, systemId, color }: { costs: DisplayCosts; system
             <thead>
               <tr style={{ color: 'var(--color-text-muted)' }}>
                 <th className="text-left pb-1 font-bold">項目</th>
-                {openDetail === 'price' && <th className="text-right pb-1 font-bold">単価（万円）</th>}
-                {openDetail === 'electricity' && <th className="text-right pb-1 font-bold">年間（万円）</th>}
-                {openDetail === 'maintenance' && (
-                  <>
-                    <th className="text-right pb-1 font-bold">費用（万円）</th>
-                    <th className="text-right pb-1 font-bold">周期</th>
-                  </>
-                )}
+                <th className="text-right pb-1 font-bold">費用（万円）</th>
+                {openDetail === 'maintenance' && <th className="text-right pb-1 font-bold">周期</th>}
               </tr>
             </thead>
             <tbody>
               {systemConfig.unitCosts.map(uc => {
-                if (openDetail === 'price') {
-                  return (
-                    <tr key={uc.key}>
-                      <td className="py-0.5">{uc.label}</td>
-                      <td className="text-right py-0.5">{uc.price}</td>
-                    </tr>
-                  );
-                }
-                if (openDetail === 'electricity') {
-                  return (
-                    <tr key={uc.key}>
-                      <td className="py-0.5">{uc.label}</td>
-                      <td className="text-right py-0.5">{uc.electricityPerYear}</td>
-                    </tr>
-                  );
-                }
-                return uc.maintenanceCosts.map((mc, mi) => (
+                const items = openDetail === 'price' ? uc.initialCosts
+                  : openDetail === 'electricity' ? uc.electricityCosts
+                  : uc.maintenanceCosts;
+                return items.map((item, mi) => (
                   <tr key={`${uc.key}-${mi}`}>
-                    <td className="py-0.5">{uc.label} - {mc.label}</td>
-                    <td className="text-right py-0.5">{mc.cost}</td>
-                    <td className="text-right py-0.5">{mc.intervalYears}年おき</td>
+                    <td className="py-0.5">{uc.label} - {item.label}</td>
+                    <td className="text-right py-0.5">{item.cost}</td>
+                    {openDetail === 'maintenance' && <td className="text-right py-0.5">{item.intervalYears}年おき</td>}
                   </tr>
                 ));
               })}
@@ -179,7 +163,238 @@ function CostBreakdown({ costs, systemId, color }: { costs: DisplayCosts; system
   );
 }
 
-export function SystemInfoSlide({ systemId, onNext, onBack, onAddSimulation, onRemoveSimulation, simEntries }: SystemInfoSlideProps) {
+// --- Yearly Config Modal ---
+interface UnitKeyDef {
+  key: string;
+  label: string;
+  max: number; // -1 = use options instead
+  options?: { value: string; label: string }[];
+}
+
+const UNIT_KEYS: Record<SystemId, UnitKeyDef[]> = {
+  myroom: [
+    { key: 'floor', label: '床下エアコン', max: 2 },
+    { key: 'ldk', label: 'LDK用エアコン', max: 2 },
+    { key: 'room', label: '居室用エアコン', max: 4 },
+  ],
+  smart: [
+    { key: 'floor1', label: '1Fエアコン', max: -1, options: [
+      { value: 'none', label: '分配しない' },
+      { value: 'floor', label: '床下に分配' },
+      { value: 'floor+2', label: '床下+2箇所に分配' },
+      { value: 'nounit', label: '配置なし' },
+    ] },
+    { key: 'floor2', label: '2Fエアコン', max: -1, options: [
+      { value: 'none', label: '分配しない' },
+      { value: '2rooms', label: '2箇所に分配' },
+      { value: 'nounit', label: '配置なし' },
+    ] },
+  ],
+  zenkan: [
+    { key: 'system', label: 'システム', max: 1 },
+  ],
+};
+
+interface YearlyRow {
+  [unitKey: string]: number | string;
+}
+
+function YearlyConfigModal({
+  systemId, color, initialConfig, baseConfig, onSave, onClose,
+}: {
+  systemId: SystemId;
+  color: string;
+  initialConfig: YearlyUnitConfig[];
+  baseConfig?: { floor: number; ldk: number; room: number };
+  onSave: (configs: YearlyUnitConfig[]) => void;
+  onClose: () => void;
+}) {
+  const units = UNIT_KEYS[systemId];
+  const [maxYear, setMaxYear] = useState(30);
+
+  // Build year-by-year table from initialConfig or base
+  const [rows, setRows] = useState<YearlyRow[]>(() => {
+    const result: YearlyRow[] = [];
+    for (let y = 1; y <= 50; y++) {
+      const row: YearlyRow = {};
+      for (const u of units) {
+        // Check if initialConfig has override for this year
+        const override = initialConfig.find(c => c.unitKey === u.key && y >= c.fromYear && y <= c.toYear);
+        if (override) {
+          row[u.key] = override.units;
+        } else if (baseConfig && systemId === 'myroom') {
+          row[u.key] = (baseConfig as Record<string, number>)[u.key] ?? 0;
+        } else if (u.options) {
+          // String-based: use last option as default
+          row[u.key] = u.options[u.options.length - 2]?.value ?? u.options[0].value;
+        } else {
+          row[u.key] = u.key === 'system' ? 1 : 2;
+        }
+      }
+      result.push(row);
+    }
+    return result;
+  });
+
+  // Batch update state
+  const [batchFrom, setBatchFrom] = useState(1);
+  const [batchTo, setBatchTo] = useState(10);
+  const [batchValues, setBatchValues] = useState<Record<string, number | string>>(() => {
+    const v: Record<string, number | string> = {};
+    for (const u of units) v[u.key] = u.options ? u.options[0].value : 0;
+    return v;
+  });
+
+  const applyBatch = () => {
+    setRows(prev => {
+      const next = [...prev];
+      for (let y = batchFrom; y <= Math.min(batchTo, 50); y++) {
+        next[y - 1] = { ...next[y - 1], ...batchValues };
+      }
+      return next;
+    });
+  };
+
+  const updateCell = (year: number, unitKey: string, value: number | string) => {
+    setRows(prev => {
+      const next = [...prev];
+      next[year - 1] = { ...next[year - 1], [unitKey]: value };
+      return next;
+    });
+  };
+
+  const handleSave = () => {
+    // Convert rows to YearlyUnitConfig[] (compress consecutive same values)
+    const configs: YearlyUnitConfig[] = [];
+    for (const u of units) {
+      let start = 1;
+      let currentVal = rows[0][u.key];
+      for (let y = 2; y <= maxYear; y++) {
+        if (rows[y - 1][u.key] !== currentVal) {
+          configs.push({ unitKey: u.key, fromYear: start, toYear: y - 1, units: currentVal });
+          start = y;
+          currentVal = rows[y - 1][u.key];
+        }
+      }
+      configs.push({ unitKey: u.key, fromYear: start, toYear: maxYear, units: currentVal });
+    }
+    onSave(configs);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center" style={{ background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }} onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl max-w-5xl w-[95vw] max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 rounded-t-2xl" style={{ background: color + '12', borderBottom: `2px solid ${color}30` }}>
+          <h3 className="text-base font-black">年ごとの台数変動を設定</h3>
+          <div className="flex items-center gap-3">
+            <span className="text-[13px]" style={{ color: 'var(--color-text-sub)' }}>表示年数</span>
+            <input type="range" min={10} max={50} step={5} value={maxYear}
+              onChange={e => setMaxYear(Number(e.target.value))}
+              style={{ accentColor: color, width: '100px' }}
+            />
+            <span className="text-[13px] font-black w-10 text-right">{maxYear}年</span>
+          </div>
+        </div>
+
+        {/* Batch update */}
+        <div className="flex items-center gap-2 flex-wrap px-6 py-2" style={{ background: 'rgba(42,33,24,0.03)', borderBottom: '1px solid var(--color-card-border)' }}>
+          <span className="text-[13px] font-bold shrink-0">一括変更:</span>
+          <input type="number" value={batchFrom} min={1} max={50}
+            onChange={e => setBatchFrom(Number(e.target.value))}
+            className="w-14 px-2 py-1 rounded text-[13px]"
+            style={{ border: '1px solid var(--color-card-border)', background: 'white' }}
+          />
+          <span className="text-[13px]">〜</span>
+          <input type="number" value={batchTo} min={1} max={50}
+            onChange={e => setBatchTo(Number(e.target.value))}
+            className="w-14 px-2 py-1 rounded text-[13px]"
+            style={{ border: '1px solid var(--color-card-border)', background: 'white' }}
+          />
+          <span className="text-[13px]">年目</span>
+          {units.map(u => (
+            <div key={u.key} className="flex items-center gap-1">
+              <span className="text-[13px]" style={{ color: 'var(--color-text-sub)' }}>{u.label}</span>
+              <select
+                value={batchValues[u.key]}
+                onChange={e => setBatchValues(prev => ({ ...prev, [u.key]: u.options ? e.target.value : Number(e.target.value) }))}
+                className="text-[13px] font-bold px-1.5 py-0.5 rounded cursor-pointer"
+                style={{ background: 'white', border: '1px solid var(--color-card-border)', outline: 'none' }}
+              >
+                {u.options ? u.options.map(o => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                )) : Array.from({ length: u.max + 1 }, (_, n) => (
+                  <option key={n} value={n}>{n}台</option>
+                ))}
+              </select>
+            </div>
+          ))}
+          <button onClick={applyBatch}
+            className="px-3 py-1 rounded text-[13px] font-bold cursor-pointer"
+            style={{ background: color, color: 'white' }}
+          >
+            適用
+          </button>
+        </div>
+
+        {/* Table */}
+        <div className="flex-1 overflow-auto px-6">
+          <table className="w-full text-[13px]">
+            <thead>
+              <tr style={{ color: 'var(--color-text-sub)' }}>
+                <th className="text-left font-bold py-2 pr-3 sticky top-0 z-10" style={{ background: 'white', borderBottom: '2px solid var(--color-card-border)' }}>年目</th>
+                {units.map(u => (
+                  <th key={u.key} className="text-center font-bold py-2 px-2 sticky top-0 z-10" style={{ background: 'white', borderBottom: '2px solid var(--color-card-border)' }}>{u.label}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {Array.from({ length: maxYear }, (_, i) => i + 1).map(year => (
+                <tr key={year} style={{ borderTop: year > 1 ? '1px solid rgba(42,33,24,0.06)' : undefined }}>
+                  <td className="py-1 pr-3 font-bold" style={{ color: 'var(--color-text-sub)' }}>{year}年目</td>
+                  {units.map(u => (
+                    <td key={u.key} className="text-center py-1 px-2">
+                      <select
+                        value={rows[year - 1][u.key]}
+                        onChange={e => updateCell(year, u.key, u.options ? e.target.value : Number(e.target.value))}
+                        className="text-[13px] font-bold px-2 py-0.5 rounded cursor-pointer"
+                        style={{ background: 'rgba(42,33,24,0.04)', border: '1px solid rgba(42,33,24,0.1)', outline: 'none' }}
+                      >
+                        {u.options ? u.options.map(o => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        )) : Array.from({ length: u.max + 1 }, (_, n) => (
+                          <option key={n} value={n}>{n}台</option>
+                        ))}
+                      </select>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Footer */}
+        <div className="flex justify-end gap-2 px-6 py-4" style={{ borderTop: '1px solid var(--color-card-border)' }}>
+          <button onClick={onClose}
+            className="px-5 py-2 rounded-lg text-[13px] font-bold cursor-pointer"
+            style={{ color: 'var(--color-text-sub)', border: '1px solid var(--color-card-border)' }}
+          >
+            キャンセル
+          </button>
+          <button onClick={handleSave}
+            className="px-5 py-2 rounded-lg text-[13px] font-bold cursor-pointer"
+            style={{ background: color, color: 'white' }}
+          >
+            保存する
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function SystemInfoSlide({ systemId, onNext, onBack, onAddSimulation, onRemoveSimulation, simEntries, progressCurrent, progressTotal }: SystemInfoSlideProps) {
   const thisSystemEntries = simEntries.filter(e => e.systemId === systemId);
   const canAdd = simEntries.length < 5;
   const s = systems[systemId];
@@ -199,13 +414,15 @@ export function SystemInfoSlide({ systemId, onNext, onBack, onAddSimulation, onR
     if (systemId === 'myroom') {
       const c = currentConfig as import('../data/simulation').MyroomConfig;
       unitCounts['floor'] = c.floor;
-      unitCounts['floor_duct'] = c.floor; // ダクトは床下ACと同数
-      unitCounts['ldk'] = c.ldk1f + c.ldk2f;
-      unitCounts['room'] = c.room1f + c.room2f;
+      unitCounts['ldk'] = c.ldk;
+      unitCounts['room'] = c.room;
     } else if (systemId === 'smart') {
       const c = currentConfig as SmartConfig;
-      unitCounts['ac'] = c.units;
-      unitCounts['duct'] = c.units;
+      // Map floor1 selection to cost config key
+      if (c.floor1 === 'floor') unitCounts['1f_floor'] = 1;
+      else if (c.floor1 === 'floor+2') unitCounts['1f_floor2'] = 1;
+      // Map floor2 selection to cost config key
+      if (c.floor2 === '2rooms') unitCounts['2f_2rooms'] = 1;
     } else {
       unitCounts['system'] = 1;
     }
@@ -234,12 +451,6 @@ export function SystemInfoSlide({ systemId, onNext, onBack, onAddSimulation, onR
     onAddSimulation(systemId, currentConfig, yearlyConfigs.length > 0 ? yearlyConfigs : undefined);
   };
 
-  const addYearlyPeriod = () => {
-    const last = yearlyConfigs[yearlyConfigs.length - 1];
-    const fromYear = last ? last.toYear + 1 : 0;
-    const unitKey = s.id === 'myroom' ? 'room' : s.id === 'smart' ? 'ac' : 'system';
-    setYearlyConfigs(prev => [...prev, { unitKey, fromYear, toYear: fromYear + 5, units: 1 }]);
-  };
 
   return (
     <div className="h-full flex flex-col px-[5vw] py-[10vh]">
@@ -317,11 +528,9 @@ export function SystemInfoSlide({ systemId, onNext, onBack, onAddSimulation, onR
               <div className="flex items-center gap-3 flex-wrap pl-3">
                 {systemId === 'myroom' && (
                   <>
-                    <CountSelector label="床下AC" value={myroomCfg.floor} onChange={v => setMyroomCfg(c => ({ ...c, floor: v }))} />
-                    <CountSelector label="1F LDK" value={myroomCfg.ldk1f} onChange={v => setMyroomCfg(c => ({ ...c, ldk1f: v }))} />
-                    <CountSelector label="1F 居室" value={myroomCfg.room1f} onChange={v => setMyroomCfg(c => ({ ...c, room1f: v }))} max={3} />
-                    <CountSelector label="2F LDK" value={myroomCfg.ldk2f} onChange={v => setMyroomCfg(c => ({ ...c, ldk2f: v }))} />
-                    <CountSelector label="2F 居室" value={myroomCfg.room2f} onChange={v => setMyroomCfg(c => ({ ...c, room2f: v }))} max={3} />
+                    <CountSelector label="床下エアコン" value={myroomCfg.floor} onChange={v => setMyroomCfg(c => ({ ...c, floor: v }))} />
+                    <CountSelector label="LDK用エアコン" value={myroomCfg.ldk} onChange={v => setMyroomCfg(c => ({ ...c, ldk: v }))} />
+                    <CountSelector label="居室用エアコン" value={myroomCfg.room} onChange={v => setMyroomCfg(c => ({ ...c, room: v }))} max={4} />
                   </>
                 )}
                 {systemId === 'smart' && (
@@ -362,7 +571,7 @@ export function SystemInfoSlide({ systemId, onNext, onBack, onAddSimulation, onR
             </div>
 
             {/* Right: Add button */}
-            <div className="shrink-0 self-center flex flex-col items-center gap-1">
+            <div className="shrink-0 self-start flex flex-col items-center gap-1">
               <button
                 onClick={handleAdd}
                 disabled={!canAdd}
@@ -384,77 +593,27 @@ export function SystemInfoSlide({ systemId, onNext, onBack, onAddSimulation, onR
                   {thisSystemEntries.length}プラン追加済み
                 </span>
               )}
-            </div>
-          </div>
-
-          {/* Detailed settings toggle + timeline */}
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-1.5 cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={showDetailedSettings}
-                onChange={e => setShowDetailedSettings(e.target.checked)}
-                className="w-4 h-4 cursor-pointer"
-                style={{ accentColor: s.color }}
-              />
-              <span className="text-[13px] font-bold">年ごとの台数変動を設定</span>
-            </label>
-          </div>
-
-          {showDetailedSettings && (
-            <div className="space-y-2">
-              <p className="text-[13px]" style={{ color: 'var(--color-text-muted)' }}>
-                例: 0〜5年は居室1台 → 6〜20年は3台 → 21年以降は0台
-              </p>
-              {yearlyConfigs.map((yc, i) => (
-                <div key={i} className="flex items-center gap-2 flex-wrap">
-                  <select
-                    value={yc.unitKey}
-                    onChange={e => {
-                      const next = [...yearlyConfigs];
-                      next[i] = { ...next[i], unitKey: e.target.value };
-                      setYearlyConfigs(next);
-                    }}
-                    className="text-[13px] font-bold px-2 py-1 rounded-lg cursor-pointer"
-                    style={{ background: 'rgba(255,255,255,0.7)', border: '1px solid var(--color-card-border)', outline: 'none' }}
-                  >
-                    {(systemId === 'myroom' ? [
-                      { key: 'floor', label: '床下AC' }, { key: 'ldk', label: 'LDK用' }, { key: 'room', label: '居室用' },
-                    ] : systemId === 'smart' ? [
-                      { key: 'ac', label: 'エアコン' }, { key: 'duct', label: 'ダクトファン' },
-                    ] : [
-                      { key: 'system', label: 'システム' },
-                    ]).map(u => <option key={u.key} value={u.key}>{u.label}</option>)}
-                  </select>
-                  <input type="number" value={yc.fromYear} min={0}
-                    onChange={e => { const next = [...yearlyConfigs]; next[i] = { ...next[i], fromYear: Number(e.target.value) }; setYearlyConfigs(next); }}
-                    className="w-14 px-2 py-1 rounded-lg text-[13px]"
-                    style={{ border: '1px solid var(--color-card-border)', background: 'rgba(255,255,255,0.7)' }}
-                  />
-                  <span className="text-[13px]">〜</span>
-                  <input type="number" value={yc.toYear} min={0}
-                    onChange={e => { const next = [...yearlyConfigs]; next[i] = { ...next[i], toYear: Number(e.target.value) }; setYearlyConfigs(next); }}
-                    className="w-14 px-2 py-1 rounded-lg text-[13px]"
-                    style={{ border: '1px solid var(--color-card-border)', background: 'rgba(255,255,255,0.7)' }}
-                  />
-                  <span className="text-[13px]">年</span>
-                  <input type="number" value={yc.units} min={0}
-                    onChange={e => { const next = [...yearlyConfigs]; next[i] = { ...next[i], units: Number(e.target.value) }; setYearlyConfigs(next); }}
-                    className="w-14 px-2 py-1 rounded-lg text-[13px]"
-                    style={{ border: '1px solid var(--color-card-border)', background: 'rgba(255,255,255,0.7)' }}
-                  />
-                  <span className="text-[13px]">台</span>
-                  <button onClick={() => setYearlyConfigs(prev => prev.filter((_, j) => j !== i))}
-                    className="text-[13px] font-bold cursor-pointer" style={{ color: '#c45040' }}>×</button>
-                </div>
-              ))}
-              <button onClick={addYearlyPeriod}
-                className="text-[13px] font-bold cursor-pointer px-3 py-1 rounded-lg"
-                style={{ color: s.color, border: `1px solid ${s.color}`, background: 'transparent' }}
+              <button
+                onClick={() => setShowDetailedSettings(prev => !prev)}
+                className="text-[11px] font-bold cursor-pointer transition-all"
+                style={{ color: showDetailedSettings ? s.color : 'var(--color-text-muted)' }}
               >
-                + 期間を追加
+                {showDetailedSettings ? '− 年ごと台数設定を閉じる' : '+ 年ごとの台数変動を設定'}
               </button>
             </div>
+          </div>
+
+
+          {/* Yearly config modal */}
+          {showDetailedSettings && (
+            <YearlyConfigModal
+              systemId={systemId}
+              color={s.color}
+              initialConfig={yearlyConfigs}
+              baseConfig={systemId === 'myroom' ? { floor: myroomCfg.floor, ldk: (myroomCfg as import('../data/simulation').MyroomConfig).ldk, room: (myroomCfg as import('../data/simulation').MyroomConfig).room } : undefined}
+              onSave={(configs) => { setYearlyConfigs(configs); setShowDetailedSettings(false); }}
+              onClose={() => setShowDetailedSettings(false)}
+            />
           )}
 
           {/* Cost items - 3 columns with detail toggle */}
@@ -510,6 +669,7 @@ export function SystemInfoSlide({ systemId, onNext, onBack, onAddSimulation, onR
       {/* Buttons */}
       <div className="flex justify-between items-center w-full mx-auto pt-2">
         <button onClick={onBack} className="nav-btn-outline px-6 py-2.5 text-sm">← 戻る</button>
+        <ProgressBar current={progressCurrent} total={progressTotal} />
         <button onClick={onNext} className="nav-btn px-8 py-2.5 text-sm">次へ →</button>
       </div>
 

@@ -1,4 +1,5 @@
 import type { Question } from '../data/questions';
+import { ProgressBar } from './ProgressBar';
 
 interface QuestionSlideProps {
   question: Question;
@@ -8,10 +9,12 @@ interface QuestionSlideProps {
   onBack: () => void;
   onTop: () => void;
   isFirst: boolean;
+  progressCurrent: number;
+  progressTotal: number;
 }
 
 export function QuestionSlide({
-  question, selectedIndex, onSelect, onNext, onBack, onTop, isFirst,
+  question, selectedIndex, onSelect, onNext, onBack, onTop, isFirst, progressCurrent, progressTotal,
 }: QuestionSlideProps) {
   return (
     <div className="h-full flex flex-col px-[12vw] py-[12vh]">
@@ -69,6 +72,7 @@ export function QuestionSlide({
         ) : (
           <button onClick={onBack} className="nav-btn-outline px-6 py-3 text-sm">← 戻る</button>
         )}
+        <ProgressBar current={progressCurrent} total={progressTotal} />
         <button
           onClick={onNext}
           disabled={selectedIndex === null}

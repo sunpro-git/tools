@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import type { SystemId } from '../../data/systems';
 import { loadCostConfig, saveCostConfig, resetCostConfig, type CostConfig } from '../../data/costConfig';
 import { BasicCostEditor } from './BasicCostEditor';
@@ -12,17 +12,48 @@ const TABS: { id: SystemId; label: string; color: string }[] = [
 export function AdminPage({ onBack }: { onBack: () => void }) {
   const [config, setConfig] = useState<CostConfig>(loadCostConfig);
   const [activeTab, setActiveTab] = useState<SystemId>('myroom');
+  const [isDirty, setIsDirty] = useState(false);
+  const [showSaved, setShowSaved] = useState(false);
+  const savedConfig = useRef<string>(JSON.stringify(loadCostConfig()));
+
+  // Warn on page leave if unsaved
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      if (isDirty) {
+        e.preventDefault();
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
+
   const handleChange = useCallback((systemId: SystemId, updated: CostConfig['systems'][SystemId]) => {
     setConfig(prev => {
       const next = { ...prev, systems: { ...prev.systems, [systemId]: updated } };
-      saveCostConfig(next);
+      setIsDirty(JSON.stringify(next) !== savedConfig.current);
       return next;
     });
   }, []);
 
+  const handleSave = () => {
+    saveCostConfig(config);
+    savedConfig.current = JSON.stringify(config);
+    setIsDirty(false);
+    setShowSaved(true);
+    setTimeout(() => setShowSaved(false), 2000);
+  };
+
   const handleReset = () => {
+    if (!confirm('設定をデフォルトに戻しますか？変更は失われます。')) return;
     const def = resetCostConfig();
     setConfig(def);
+    savedConfig.current = JSON.stringify(def);
+    setIsDirty(false);
+  };
+
+  const handleBack = () => {
+    if (isDirty && !confirm('保存されていない変更があります。ページを離れますか？')) return;
+    onBack();
   };
 
   const handleExport = () => {
@@ -46,8 +77,8 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
       reader.onload = () => {
         try {
           const imported = JSON.parse(reader.result as string);
-          saveCostConfig(imported);
           setConfig(imported);
+          setIsDirty(true);
         } catch {
           alert('JSONファイルの読み込みに失敗しました');
         }
@@ -69,7 +100,7 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
             </p>
           </div>
           <button
-            onClick={onBack}
+            onClick={handleBack}
             className="nav-btn-outline px-5 py-2.5 text-sm"
           >
             ← 戻る
@@ -103,6 +134,17 @@ export function AdminPage({ onBack }: { onBack: () => void }) {
 
         {/* Footer actions */}
         <div className="flex items-center gap-3 mt-8 pt-6" style={{ borderTop: '1px solid var(--color-card-border)' }}>
+          <button
+            onClick={handleSave}
+            className="px-5 py-2 rounded-lg text-[13px] font-bold cursor-pointer transition-all"
+            style={{
+              background: isDirty ? 'var(--color-accent-orange)' : showSaved ? 'var(--color-accent-green)' : 'rgba(42,33,24,0.06)',
+              color: isDirty || showSaved ? 'white' : 'var(--color-text-sub)',
+              boxShadow: isDirty ? '0 4px 12px rgba(232,115,74,0.3)' : 'none',
+            }}
+          >
+            {showSaved ? '保存しました ✓' : isDirty ? '保存する' : '保存済み'}
+          </button>
           <button
             onClick={handleReset}
             className="px-4 py-2 rounded-lg text-[13px] font-bold cursor-pointer"

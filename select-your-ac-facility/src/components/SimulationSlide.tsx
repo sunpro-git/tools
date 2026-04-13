@@ -1,8 +1,8 @@
 import { useState, useMemo } from 'react';
 import { systems, type SystemId } from '../data/systems';
 import { type SimEntry } from '../data/simulation';
-import { loadCostConfig, calcCumulativeFromConfig } from '../data/costConfig';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { loadCostConfig, calcCumulativeFromConfig, type SystemCostConfig } from '../data/costConfig';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceDot } from 'recharts';
 
 interface SimulationSlideProps {
   entries: SimEntry[];
@@ -19,6 +19,40 @@ const SYSTEM_COLORS: Record<SystemId, string[]> = {
   zenkan: ['#4ab87a', '#2a985a', '#6ad89a', '#3aa86a', '#5ac88a'],
 };
 
+interface CostEvent {
+  year: number;
+  label: string;
+  amount: number;
+}
+
+function calcCostEvents(
+  systemConfig: SystemCostConfig,
+  unitCounts: Record<string, number>,
+  maxYears: number,
+): CostEvent[] {
+  const events: CostEvent[] = [];
+  for (const uc of systemConfig.unitCosts) {
+    const count = unitCounts[uc.key] ?? 0;
+    if (count === 0) continue;
+
+    // Initial costs at year 0
+    const initialTotal = uc.initialCosts.reduce((sum, ic) => sum + ic.cost * count, 0);
+    if (initialTotal > 0) {
+      events.push({ year: 0, label: `${uc.label} 初期`, amount: initialTotal });
+    }
+
+    // Periodic maintenance costs (intervalYears > 1)
+    for (const mc of uc.maintenanceCosts) {
+      if (mc.intervalYears > 1) {
+        for (let y = mc.intervalYears; y <= maxYears; y += mc.intervalYears) {
+          events.push({ year: y, label: `${mc.label}`, amount: mc.cost * count });
+        }
+      }
+    }
+  }
+  return events;
+}
+
 export function SimulationSlide({ entries, onRemove, onQuiz, onBack, onTop }: SimulationSlideProps) {
   const [years, setYears] = useState(30);
   const [copied, setCopied] = useState(false);
@@ -32,33 +66,34 @@ export function SimulationSlide({ entries, onRemove, onQuiz, onBack, onTop }: Si
     });
   };
 
-  const chartData = useMemo(() => {
+  const allSeries = useMemo(() => {
     if (entries.length === 0) return [];
-
     const costConfig = loadCostConfig();
-
-    const allSeries = entries.map(entry => {
+    return entries.map(entry => {
       const systemConfig = costConfig.systems[entry.systemId];
-      // Convert SimEntry config to unitCounts
       const unitCounts: Record<string, number> = {};
       const cfg = entry.config as unknown as Record<string, number>;
       if (entry.systemId === 'myroom') {
         unitCounts['floor'] = cfg.floor ?? 0;
-        unitCounts['ldk'] = (cfg.ldk1f ?? 0) + (cfg.ldk2f ?? 0);
-        unitCounts['room'] = (cfg.room1f ?? 0) + (cfg.room2f ?? 0);
+        unitCounts['ldk'] = cfg.ldk ?? 0;
+        unitCounts['room'] = cfg.room ?? 0;
       } else if (entry.systemId === 'smart') {
-        unitCounts['ac'] = cfg.units ?? 2;
-        unitCounts['duct'] = cfg.units ?? 2;
+        const floor1 = (cfg as unknown as { floor1: string }).floor1;
+        const floor2 = (cfg as unknown as { floor2: string }).floor2;
+        if (floor1 === 'floor') unitCounts['1f_floor'] = 1;
+        else if (floor1 === 'floor+2') unitCounts['1f_floor2'] = 1;
+        if (floor2 === '2rooms') unitCounts['2f_2rooms'] = 1;
       } else {
         unitCounts['system'] = cfg.system ?? 1;
       }
-      return {
-        entry,
-        data: calcCumulativeFromConfig(systemConfig, unitCounts, years, entry.yearlyConfigs),
-      };
+      const data = calcCumulativeFromConfig(systemConfig, unitCounts, years, entry.yearlyConfigs);
+      const events = calcCostEvents(systemConfig, unitCounts, years);
+      return { entry, data, events };
     });
+  }, [entries, years]);
 
-    // Merge into single array for Recharts
+  const chartData = useMemo(() => {
+    if (allSeries.length === 0) return [];
     const merged: Record<string, number | string>[] = [];
     for (let y = 0; y <= years; y++) {
       const point: Record<string, number | string> = { year: y };
@@ -68,7 +103,7 @@ export function SimulationSlide({ entries, onRemove, onQuiz, onBack, onTop }: Si
       merged.push(point);
     }
     return merged;
-  }, [entries, years]);
+  }, [allSeries, years]);
 
   const getColor = (entry: SimEntry) => {
     const sameSystem = entries.filter(e => e.systemId === entry.systemId);
@@ -115,7 +150,12 @@ export function SimulationSlide({ entries, onRemove, onQuiz, onBack, onTop }: Si
             {/* Chart */}
             <div className="flex-1 min-h-0">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
+                <LineChart data={chartData} margin={{ top: 200, right: 20, left: 20, bottom: 5 }}>
+                  <defs>
+                    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+                      <feDropShadow dx="0" dy="2" stdDeviation="3" floodOpacity="0.15" />
+                    </filter>
+                  </defs>
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(42,33,24,0.08)" />
                   <XAxis
                     dataKey="year"
@@ -133,7 +173,7 @@ export function SimulationSlide({ entries, onRemove, onQuiz, onBack, onTop }: Si
                     // eslint-disable-next-line @typescript-eslint/no-explicit-any
                     formatter={(value: any, name: any) => {
                       const entry = entries.find(e => e.id === String(name));
-                      return [`${value}万円`, entry?.label ?? String(name)] as [string, string];
+                      return [`${Number(value).toFixed(1)}万円`, entry?.label ?? String(name)] as [string, string];
                     }}
                     labelFormatter={(label) => `${label}年目`}
                     contentStyle={{ borderRadius: '8px', fontSize: '13px', border: '1px solid rgba(42,33,24,0.15)' }}
@@ -157,6 +197,114 @@ export function SimulationSlide({ entries, onRemove, onQuiz, onBack, onTop }: Si
                       activeDot={{ r: 5 }}
                     />
                   ))}
+                  {/* Cost event bubble dots - pre-calculated positions */}
+                  {(() => {
+                    // Flatten all bubbles
+                    type BubbleData = {
+                      key: string; year: number; costAtYear: number; color: string;
+                      header: string; lines: string[];
+                      boxW: number; boxH: number;
+                    };
+                    const lineH = 16, headerH = 20, padX = 10, padY = 8, gap = 30;
+                    const bubbles: BubbleData[] = [];
+                    for (const { entry, data, events } of allSeries) {
+                      const byYear = new Map<number, { label: string; amount: number }[]>();
+                      for (const ev of events) {
+                        if (ev.year > years) continue;
+                        if (!byYear.has(ev.year)) byYear.set(ev.year, []);
+                        byYear.get(ev.year)!.push({ label: ev.label, amount: ev.amount });
+                      }
+                      const shortLabel = systems[entry.systemId].name;
+                      for (const [year, items] of byYear) {
+                        const header = year === 0 ? `${shortLabel} 初期費用` : `${shortLabel} ${year}年目`;
+                        const lines = items.map(it => `${it.label}: ${it.amount.toFixed(1)}万`);
+                        const allTexts = [header, ...lines];
+                        const boxW = Math.min(Math.max(...allTexts.map(l => l.length)) * 8 + padX * 2, 220);
+                        const boxH = headerH + lines.length * lineH + padY * 2;
+                        bubbles.push({
+                          key: `${entry.id}-y${year}`, year, costAtYear: data[year]?.cost ?? 0,
+                          color: getColor(entry), header, lines, boxW, boxH,
+                        });
+                      }
+                    }
+
+                    // We can't pre-compute pixel positions without knowing the scale,
+                    // but we CAN compute relative offsets per year group.
+                    // Group bubbles by year to determine stacking offset.
+                    const yearGroups = new Map<number, number>();
+                    const bubbleOffsets = bubbles.map(b => {
+                      const countAtYear = yearGroups.get(b.year) ?? 0;
+                      yearGroups.set(b.year, countAtYear + 1);
+                      return countAtYear; // 0 = first at this year, 1 = second, etc.
+                    });
+
+                    // Helper to calc bubble position
+                    const calcBubblePos = (cx: number, cy: number, b: typeof bubbles[0], stackIdx: number) => {
+                      let bx = Math.max(5, cx - b.boxW / 2);
+                      const by = Math.max(5, cy - b.boxH - gap - stackIdx * (b.boxH + 6));
+                      if (b.year > years * 0.8) bx = Math.max(5, cx - b.boxW - 10);
+                      return { bx, by };
+                    };
+
+                    return [
+                      // Pass 1: Dots + Connectors (rendered first = behind)
+                      ...bubbles.map((b, bi) => {
+                        const stackIdx = bubbleOffsets[bi];
+                        return (
+                          <ReferenceDot
+                            key={`conn-${b.key}`}
+                            x={b.year}
+                            y={b.costAtYear}
+                            r={5}
+                            fill={b.color}
+                            stroke="white"
+                            strokeWidth={2}
+                            shape={({ cx, cy }: { cx: number; cy: number }) => {
+                              const { bx, by } = calcBubblePos(cx, cy, b, stackIdx);
+                              return (
+                                <g>
+                                  <circle cx={cx} cy={cy} r={5} fill={b.color} stroke="white" strokeWidth={2} />
+                                  <line x1={cx} y1={cy} x2={bx + b.boxW / 2} y2={by + b.boxH}
+                                    stroke={b.color} strokeWidth={2} opacity={0.8} strokeDasharray="4 3" />
+                                </g>
+                              );
+                            }}
+                          />
+                        );
+                      }),
+                      // Pass 2: Bubble boxes + Text (rendered after = on top)
+                      ...bubbles.map((b, bi) => {
+                        const stackIdx = bubbleOffsets[bi];
+                        return (
+                          <ReferenceDot
+                            key={`bubble-${b.key}`}
+                            x={b.year}
+                            y={b.costAtYear}
+                            r={0}
+                            fill="transparent"
+                            stroke="transparent"
+                            shape={({ cx, cy }: { cx: number; cy: number }) => {
+                              const { bx, by } = calcBubblePos(cx, cy, b, stackIdx);
+                              return (
+                                <g>
+                                  <rect x={bx} y={by} width={b.boxW} height={b.boxH} rx={6} ry={6}
+                                    fill="white" stroke={b.color} strokeWidth={1.5} filter="url(#shadow)" />
+                                  <text x={bx + padX} y={by + padY + headerH - 4}
+                                    fontSize={12} fill={b.color} fontWeight="bold">{b.header}</text>
+                                  <line x1={bx + padX} y1={by + padY + headerH} x2={bx + b.boxW - padX} y2={by + padY + headerH}
+                                    stroke={b.color} strokeWidth={0.5} opacity={0.3} />
+                                  {b.lines.map((line, li) => (
+                                    <text key={li} x={bx + padX} y={by + padY + headerH + (li + 1) * lineH - 2}
+                                      fontSize={11} fill="#6b5d4d">{line}</text>
+                                  ))}
+                                </g>
+                              );
+                            }}
+                          />
+                        );
+                      }),
+                    ];
+                  })()}
                 </LineChart>
               </ResponsiveContainer>
             </div>

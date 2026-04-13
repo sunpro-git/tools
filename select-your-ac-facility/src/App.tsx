@@ -10,7 +10,6 @@ import { ResultSlide } from './components/ResultSlide';
 import { SystemInfoSlide } from './components/SystemInfoSlide';
 import { ComparisonSlide } from './components/ComparisonSlide';
 import { SimulationSlide } from './components/SimulationSlide';
-import { ProgressBar } from './components/ProgressBar';
 import { AdminPage } from './components/admin/AdminPage';
 
 type Route = 'top' | 'info' | 'quiz' | 'admin';
@@ -123,7 +122,6 @@ function App() {
   const isInfoSimulation = route === 'info' && step === 3;
   const isInfoComparison = route === 'info' && step === 4;
 
-  const showProgress = isQuizQuestion || (route === 'info' && step <= 4);
   const progressCurrent = step + 1;
   const progressTotal = route === 'quiz' ? questions.length : 5;
 
@@ -137,12 +135,6 @@ function App() {
   return (
     <div className="relative h-full w-full overflow-hidden">
       <div className="paper-bg" />
-
-      {showProgress && (
-        <div className="absolute top-0 left-0 right-0 z-10 p-6">
-          <ProgressBar current={progressCurrent} total={progressTotal} />
-        </div>
-      )}
 
       <div className="relative z-[1] h-full">
         <SlideContainer slideKey={slideKey} direction={direction}>
@@ -158,6 +150,8 @@ function App() {
               onAddSimulation={handleAddSimulation}
               onRemoveSimulation={handleRemoveSimulation}
               simEntries={simEntries}
+              progressCurrent={progressCurrent}
+              progressTotal={progressTotal}
             />
           )}
 
@@ -187,6 +181,8 @@ function App() {
               onBack={handleQuizBack}
               onTop={handleTop}
               isFirst={step === 0}
+              progressCurrent={progressCurrent}
+              progressTotal={progressTotal}
             />
           )}
 
