@@ -11,8 +11,8 @@ export interface MyroomConfig {
 
 export interface SmartConfig {
   units: number;
-  floor1: 'none' | 'floor' | 'floor+2';   // 1階: 分配しない / 床下に分配 / 床下+2箇所
-  floor2: 'none' | '2rooms';               // 2階: 分配しない / 2箇所に分配
+  floor1: 'none' | 'floor' | 'floor+2' | 'nounit';   // 1階: 分配しない / 床下に分配 / 床下+2箇所 / 配置なし
+  floor2: 'none' | '2rooms' | 'nounit';               // 2階: 分配しない / 2箇所に分配 / 配置なし
 }
 
 export interface ZenkanConfig {
@@ -31,6 +31,7 @@ export interface SimEntry {
   systemId: SystemId;
   label: string;
   config: SimConfig[SystemId];
+  yearlyConfigs?: import('./costConfig').YearlyUnitConfig[];
 }
 
 // --- Cost result ---

@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { systems, type SystemId } from '../data/systems';
-import { calcCumulativeCosts, type SimEntry } from '../data/simulation';
+import { type SimEntry } from '../data/simulation';
+import { loadCostConfig, calcCumulativeFromConfig } from '../data/costConfig';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface SimulationSlideProps {
@@ -20,14 +21,42 @@ const SYSTEM_COLORS: Record<SystemId, string[]> = {
 
 export function SimulationSlide({ entries, onRemove, onQuiz, onBack, onTop }: SimulationSlideProps) {
   const [years, setYears] = useState(30);
+  const [copied, setCopied] = useState(false);
+
+  const handleShareUrl = () => {
+    const encoded = btoa(encodeURIComponent(JSON.stringify(entries)));
+    const url = `${window.location.origin}${window.location.pathname}#sim=${encoded}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
 
   const chartData = useMemo(() => {
     if (entries.length === 0) return [];
 
-    const allSeries = entries.map(entry => ({
-      entry,
-      data: calcCumulativeCosts(entry, years),
-    }));
+    const costConfig = loadCostConfig();
+
+    const allSeries = entries.map(entry => {
+      const systemConfig = costConfig.systems[entry.systemId];
+      // Convert SimEntry config to unitCounts
+      const unitCounts: Record<string, number> = {};
+      const cfg = entry.config as Record<string, number>;
+      if (entry.systemId === 'myroom') {
+        unitCounts['floor'] = cfg.floor ?? 0;
+        unitCounts['ldk'] = (cfg.ldk1f ?? 0) + (cfg.ldk2f ?? 0);
+        unitCounts['room'] = (cfg.room1f ?? 0) + (cfg.room2f ?? 0);
+      } else if (entry.systemId === 'smart') {
+        unitCounts['ac'] = cfg.units ?? 2;
+        unitCounts['duct'] = cfg.units ?? 2;
+      } else {
+        unitCounts['system'] = cfg.system ?? 1;
+      }
+      return {
+        entry,
+        data: calcCumulativeFromConfig(systemConfig, unitCounts, years, entry.yearlyConfigs),
+      };
+    });
 
     // Merge into single array for Recharts
     const merged: Record<string, number | string>[] = [];
@@ -167,8 +196,21 @@ export function SimulationSlide({ entries, onRemove, onQuiz, onBack, onTop }: Si
       <div className="flex justify-between items-center w-full mx-auto pt-3">
         <button onClick={onBack} className="nav-btn-outline px-6 py-2.5 text-sm">← 戻る</button>
         <div className="flex gap-2">
+          {entries.length > 0 && (
+            <button
+              onClick={handleShareUrl}
+              className="px-4 py-2.5 rounded-lg text-sm font-bold cursor-pointer transition-all"
+              style={{
+                background: copied ? 'var(--color-accent-green)' : 'transparent',
+                color: copied ? 'white' : 'var(--color-text-sub)',
+                border: copied ? 'none' : '1px solid var(--color-card-border)',
+              }}
+            >
+              {copied ? 'コピーしました ✓' : 'URLで共有'}
+            </button>
+          )}
           <button onClick={onTop} className="nav-btn-outline px-6 py-2.5 text-sm">トップへ</button>
-          <button onClick={onQuiz} className="nav-btn px-8 py-2.5 text-sm">診断へ →</button>
+          <button onClick={onQuiz} className="nav-btn px-8 py-2.5 text-sm">次へ →</button>
         </div>
       </div>
     </div>

@@ -16,7 +16,16 @@ export function TopSlide({ onInfo, onQuiz }: TopSlideProps) {
   const [modalImg, setModalImg] = useState<{ src: string; alt: string } | null>(null);
 
   return (
-    <div className="h-full flex flex-col items-center justify-center gap-[2vh] px-[12vw] py-[12vh]">
+    <div className="h-full flex flex-col items-center justify-center gap-[2vh] px-[12vw] py-[12vh] relative">
+      {/* Admin link */}
+      <a
+        href="#admin"
+        className="absolute top-4 right-4 text-[13px] cursor-pointer px-3 py-1.5 rounded-lg transition-all hover:opacity-80"
+        style={{ color: 'var(--color-text-muted)', border: '1px solid var(--color-card-border)' }}
+      >
+        設定
+      </a>
+
       {/* Hero - compact */}
       <div className="flex flex-col items-center text-center">
         <div

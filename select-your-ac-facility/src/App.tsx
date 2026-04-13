@@ -1,7 +1,8 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { questions } from './data/questions';
 import type { SystemId } from './data/systems';
 import { generateLabel, type SimConfig, type SimEntry } from './data/simulation';
+import type { YearlyUnitConfig } from './data/costConfig';
 import { SlideContainer } from './components/SlideContainer';
 import { TopSlide } from './components/TopSlide';
 import { QuestionSlide } from './components/QuestionSlide';
@@ -10,19 +11,51 @@ import { SystemInfoSlide } from './components/SystemInfoSlide';
 import { ComparisonSlide } from './components/ComparisonSlide';
 import { SimulationSlide } from './components/SimulationSlide';
 import { ProgressBar } from './components/ProgressBar';
+import { AdminPage } from './components/admin/AdminPage';
 
-type Route = 'top' | 'info' | 'quiz';
+type Route = 'top' | 'info' | 'quiz' | 'admin';
 
 const infoSystems: SystemId[] = ['myroom', 'smart', 'zenkan'];
 
+// URL sharing helpers
+function encodeSimEntries(entries: SimEntry[]): string {
+  return btoa(encodeURIComponent(JSON.stringify(entries)));
+}
+
+function decodeSimEntries(hash: string): SimEntry[] | null {
+  try {
+    const match = hash.match(/^#sim=(.+)$/);
+    if (!match) return null;
+    return JSON.parse(decodeURIComponent(atob(match[1])));
+  } catch { return null; }
+}
+
 function App() {
-  const [route, setRoute] = useState<Route>('top');
-  const [step, setStep] = useState(0);
+  const [route, setRoute] = useState<Route>(() => {
+    const hash = window.location.hash;
+    if (hash === '#admin') return 'admin';
+    if (hash.startsWith('#sim=')) return 'info';
+    return 'top';
+  });
+  const [step, setStep] = useState(() => {
+    return window.location.hash.startsWith('#sim=') ? 3 : 0; // go to simulation page
+  });
+
+  // Hash-based routing
+  useEffect(() => {
+    const onHash = () => {
+      if (window.location.hash === '#admin') setRoute('admin');
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
   const [answers, setAnswers] = useState<(number | null)[]>(
     Array(questions.length).fill(null)
   );
   const [direction, setDirection] = useState<'forward' | 'back'>('forward');
-  const [simEntries, setSimEntries] = useState<SimEntry[]>([]);
+  const [simEntries, setSimEntries] = useState<SimEntry[]>(() => {
+    return decodeSimEntries(window.location.hash) ?? [];
+  });
 
   const slideKey = route === 'top' ? 0 : route === 'info' ? 100 + step : 200 + step;
 
@@ -75,12 +108,12 @@ function App() {
 
   const handleRestart = useCallback(() => handleTop(), [handleTop]);
 
-  const handleAddSimulation = useCallback((systemId: SystemId, config: SimConfig[SystemId]) => {
+  const handleAddSimulation = useCallback((systemId: SystemId, config: SimConfig[SystemId], yearlyConfigs?: YearlyUnitConfig[]) => {
     setSimEntries(prev => {
       if (prev.length >= 5) return prev;
       const label = generateLabel(systemId, config, prev);
       const id = `${systemId}-${Date.now()}`;
-      return [...prev, { id, systemId, label, config }];
+      return [...prev, { id, systemId, label, config, yearlyConfigs }];
     });
   }, []);
 
@@ -97,6 +130,13 @@ function App() {
   const showProgress = isQuizQuestion || (route === 'info' && step <= 4);
   const progressCurrent = step + 1;
   const progressTotal = route === 'quiz' ? questions.length : 5;
+
+  // Admin page
+  if (route === 'admin') {
+    return (
+      <AdminPage onBack={() => { window.location.hash = ''; setRoute('top'); }} />
+    );
+  }
 
   return (
     <div className="relative h-full w-full overflow-hidden">
