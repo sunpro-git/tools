@@ -56,7 +56,7 @@ export function DetailedTimeline({ config, onChange }: DetailedTimelineProps) {
                     left: `${left}%`,
                     width: `${width}%`,
                     background: 'var(--color-accent-orange)',
-                    opacity: 0.7 + (yc.units / 5) * 0.3,
+                    opacity: 0.7 + (Number(yc.units) / 5) * 0.3,
                   }}
                 >
                   {unit?.label} ×{yc.units}

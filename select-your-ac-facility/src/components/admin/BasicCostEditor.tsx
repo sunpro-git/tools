@@ -1,3 +1,4 @@
+import React from 'react';
 import type { SystemCostConfig, CostItem } from '../../data/costConfig';
 
 interface BasicCostEditorProps {
@@ -12,7 +13,7 @@ function CostTable({
   showInterval,
 }: {
   label: string;
-  icon: JSX.Element;
+  icon: React.ReactNode;
   items: CostItem[];
   color: string;
   onChange: (idx: number, updates: Partial<CostItem>) => void;

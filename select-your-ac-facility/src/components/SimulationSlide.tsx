@@ -259,7 +259,8 @@ export function SimulationSlide({ entries, onRemove, onQuiz, onBack, onTop }: Si
                             fill={b.color}
                             stroke="white"
                             strokeWidth={2}
-                            shape={({ cx, cy }: { cx: number; cy: number }) => {
+                            shape={(props: { cx?: number; cy?: number }) => {
+                              const cx = props.cx ?? 0, cy = props.cy ?? 0;
                               const { bx, by } = calcBubblePos(cx, cy, b, stackIdx);
                               return (
                                 <g>
@@ -283,7 +284,8 @@ export function SimulationSlide({ entries, onRemove, onQuiz, onBack, onTop }: Si
                             r={0}
                             fill="transparent"
                             stroke="transparent"
-                            shape={({ cx, cy }: { cx: number; cy: number }) => {
+                            shape={(props: { cx?: number; cy?: number }) => {
+                              const cx = props.cx ?? 0, cy = props.cy ?? 0;
                               const { bx, by } = calcBubblePos(cx, cy, b, stackIdx);
                               return (
                                 <g>
