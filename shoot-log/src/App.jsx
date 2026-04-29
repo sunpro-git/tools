@@ -80,7 +80,7 @@ const App = () => {
             const categoryMatch = selectedCategories.length === 0 || selectedCategories.includes(p.category);
             let branchMatch = true; if (selectedBranches.length > 0) { const branchInfo = getAreaBranchDynamic(p.address, p.category); branchMatch = branchInfo && selectedBranches.includes(branchInfo.name); }
             let keywordMatch = true; if (searchKeyword.trim()) { const keywords = searchKeyword.toLowerCase().replace(/　/g, ' ').split(' ').filter(k => k); const targetString = [p.name, p.customerName, p.address, p.eventName, p.salesRep, p.icRep, p.constructionRep, p.systemId, ...(p.youtubeStaff || []), ...(p.photoStaff || []), ...(p.instaLiveStaff || [])].join(' ').toLowerCase(); keywordMatch = keywords.every(k => targetString.includes(k)); }
-            const hasEvent = p.eventDates && p.eventDates.filter(Boolean).length > 0;
+            const hasEvent = (p.eventDates && p.eventDates.filter(Boolean).length > 0) || (p.dates && p.dates.filter(Boolean).length > 0);
             const hasShooting = !!p.shootingRangeFrom || (p.youtubeDates && p.youtubeDates.filter(Boolean).length > 0) || !!p.youtubeDate || (p.photoDates && p.photoDates.filter(Boolean).length > 0) || !!p.photoDate || (p.exteriorPhotoDates && p.exteriorPhotoDates.filter(Boolean).length > 0) || !!p.exteriorPhotoDate || (p.instaLiveDates && p.instaLiveDates.filter(Boolean).length > 0) || !!p.instaLiveDate || (p.instaRegularDates && p.instaRegularDates.filter(Boolean).length > 0) || !!p.instaRegularDate || (p.instaPromoDates && p.instaPromoDates.filter(Boolean).length > 0) || !!p.instaPromoDate || (p.otherDates && p.otherDates.filter(Boolean).length > 0) || !!p.otherDate;
             let scheduleMatch = true; if (selectedScheduleTypes.length > 0) { if (selectedScheduleTypes.includes('撮影') && !selectedScheduleTypes.includes('イベント')) { scheduleMatch = hasShooting; } else if (selectedScheduleTypes.includes('イベント') && !selectedScheduleTypes.includes('撮影')) { scheduleMatch = hasEvent; } }
             return dateMatch && categoryMatch && branchMatch && keywordMatch && scheduleMatch;
@@ -128,12 +128,13 @@ const App = () => {
     const groupedProperties = useMemo(() => {
         const groups = {};
         filteredProperties.forEach(p => {
-            const hasEvent = p.eventDates && p.eventDates.filter(Boolean).length > 0;
+            const hasEvent = (p.eventDates && p.eventDates.filter(Boolean).length > 0) || (p.dates && p.dates.filter(Boolean).length > 0);
             const hasShooting = (p.shootingTypes && p.shootingTypes.length > 0) || p.shootingRangeFrom || (p.youtubeDates && p.youtubeDates.filter(Boolean).length > 0) || p.youtubeDate || (p.photoDates && p.photoDates.filter(Boolean).length > 0) || p.photoDate || (p.exteriorPhotoDates && p.exteriorPhotoDates.filter(Boolean).length > 0) || p.exteriorPhotoDate || (p.instaLiveDates && p.instaLiveDates.filter(Boolean).length > 0) || p.instaLiveDate || (p.instaRegularDates && p.instaRegularDates.filter(Boolean).length > 0) || p.instaRegularDate || (p.instaPromoDates && p.instaPromoDates.filter(Boolean).length > 0) || p.instaPromoDate || (p.otherDates && p.otherDates.filter(Boolean).length > 0) || p.otherDate;
             const _type = hasEvent ? 'event' : (hasShooting ? 'property' : 'event');
             let key = "設営日未定";
             if (hasEvent && !p.setupDate) {
-                const earliest = [...(p.eventDates || []), p.setupDate].filter(Boolean).sort()[0];
+                const eventDateList = (p.eventDates && p.eventDates.filter(Boolean).length > 0) ? p.eventDates : (p.dates || []);
+                const earliest = [...eventDateList, p.setupDate].filter(Boolean).sort()[0];
                 if (earliest) { const d = new Date(earliest.split('T')[0]); if (!isNaN(d.getTime())) key = `${d.getFullYear()}年${d.getMonth() + 1}月 設営`; } else { key = "日程未定"; }
             } else if (p.setupDate) { const d = new Date(p.setupDate); if (!isNaN(d.getTime())) key = `${d.getFullYear()}年${d.getMonth() + 1}月 設営`; }
             if (!groups[key]) groups[key] = [];
@@ -774,7 +775,7 @@ A. ヘッダーのチャットワーク設定アイコンからルームIDと通
                                                     const evtSchedule = [
                                                         { label: '設営', date: evt.setupDate, endTime: evt.setupEndTime, color: 'text-indigo-600' },
                                                         { label: '撤収', date: evt.teardownDate, endTime: evt.teardownEndTime, color: 'text-amber-600' },
-                                                        ...(evt.eventDates || []).filter(Boolean).map(d => ({ label: 'イベント', date: d, endTime: '', color: 'text-purple-600' })),
+                                                        ...((evt.eventDates && evt.eventDates.filter(Boolean).length > 0 ? evt.eventDates : (evt.dates || [])) || []).filter(Boolean).map(d => ({ label: 'イベント', date: d, endTime: '', color: 'text-purple-600' })),
                                                         { label: '引渡', date: evt.handoverDate, color: 'text-emerald-600' }
                                                     ].filter(i => i.date).sort((a,b) => new Date(a.date) - new Date(b.date));
                                                     return (
@@ -822,7 +823,7 @@ A. ヘッダーのチャットワーク設定アイコンからルームIDと通
                                                 const scheduleItems = [
                                                     { type: 'setup', date: prop.setupDate, endTime: prop.setupEndTime, label: '設営', color: 'text-blue-500' },
                                                     { type: 'teardown', date: prop.teardownDate, endTime: prop.teardownEndTime, label: '撤収', color: 'text-orange-500' },
-                                                    ...(prop.eventDates && prop.eventDates.length > 0 ? prop.eventDates : []).filter(Boolean).map(d => ({ type: 'event', date: d, label: 'イベント', color: 'text-purple-600' })),
+                                                    ...((prop.eventDates && prop.eventDates.filter(Boolean).length > 0) ? prop.eventDates : (prop.dates || [])).filter(Boolean).map(d => ({ type: 'event', date: d, label: 'イベント', color: 'text-purple-600' })),
                                                     { type: 'handover', date: prop.handoverDate, label: '引渡', color: 'text-emerald-600', extra: prop.handoverSource }
                                                 ].filter(i => i.date).sort((a,b) => new Date(a.date) - new Date(b.date));
 
