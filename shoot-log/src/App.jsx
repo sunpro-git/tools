@@ -892,7 +892,7 @@ A. ヘッダーのチャットワーク設定アイコンからルームIDと通
                                                                 <div className="flex flex-wrap gap-2 text-xs text-gray-500">{evt.salesRep && <span>営:{formatRepName(evt.salesRep)}</span>}{evt.icRep && <span>IC:{formatRepName(evt.icRep)}</span>}</div>
                                                             </td>
                                                             <td className="px-2 py-3 align-top">
-                                                                <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm items-start">
+                                                                <div className="grid grid-cols-[5rem_1fr] gap-x-2 gap-y-2 text-sm items-start">
                                                                     {evtSchedule.map((s, idx) => (
                                                                         <React.Fragment key={idx}>
                                                                             <span className={`font-bold ${s.color} pt-0.5 whitespace-nowrap`}>{s.label}</span>
@@ -942,7 +942,7 @@ A. ヘッダーのチャットワーク設定アイコンからルームIDと通
                                                             <div className="flex flex-wrap gap-2 text-xs text-gray-500">{prop.salesRep && <span>営:{formatRepName(prop.salesRep)}</span>}{prop.icRep && <span>IC:{formatRepName(prop.icRep)}</span>}</div>
                                                         </td>
                                                         <td className="px-2 py-3 align-top">
-                                                            <div className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm items-start">
+                                                            <div className="grid grid-cols-[5rem_1fr] gap-x-2 gap-y-2 text-sm items-start">
                                                                 {scheduleItems.map((si, idx) => (
                                                                     <React.Fragment key={idx}>
                                                                         <span className={`font-bold ${si.color} pt-0.5 whitespace-nowrap`}>{si.label}</span>
