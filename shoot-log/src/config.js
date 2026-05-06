@@ -7,7 +7,7 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // GAS URL (カレンダー同期用)
-export const CALENDAR_GAS_API_URL = "https://script.google.com/macros/s/AKfycbw8RZQ4-ZCg0chDoDR5Xv7h01NaW0BkvAOCFnHjuV77tKlvYHB3DlTeaqWvr_QpETCG/exec";
+export const CALENDAR_GAS_API_URL = "https://script.google.com/macros/s/AKfycbx22mKPa7DmQMfcM-BF89b0B-_0Xr2Tlox-dJJVWmNg1mdejs2G815bWIbm7tBklOaC/exec";
 
 // 定数
 export const CATEGORIES = ['新築', 'リフォーム', '不動産'];
