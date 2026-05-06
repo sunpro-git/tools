@@ -595,13 +595,22 @@ const App = () => {
     };
     const saveEvent = async (e) => {
         e.preventDefault(); if(!eventForm.name){alert("イベント名必須");return;}
-        const setup = eventForm.setupDate_date ? `${eventForm.setupDate_date}T${eventForm.setupDate_time || '00:00'}` : '';
-        const teardown = eventForm.teardownDate_date ? `${eventForm.teardownDate_date}T${eventForm.teardownDate_time || '00:00'}` : '';
+        const setup = eventForm.setupDate_date ? (eventForm.setupDate_time ? `${eventForm.setupDate_date}T${eventForm.setupDate_time}` : eventForm.setupDate_date) : '';
+        const teardown = eventForm.teardownDate_date ? (eventForm.teardownDate_time ? `${eventForm.teardownDate_date}T${eventForm.teardownDate_time}` : eventForm.teardownDate_date) : '';
         const validDates = eventForm.eventDates.filter(d => d);
-        const srFrom = eventForm.shootingRange_from_date ? `${eventForm.shootingRange_from_date}T${eventForm.shootingRange_from_time || '00:00'}` : '';
-        const srTo = eventForm.shootingRange_to_date ? `${eventForm.shootingRange_to_date}T${eventForm.shootingRange_to_time || '00:00'}` : '';
-        const data = { name: eventForm.name, category: eventForm.category, "subCategory": eventForm.subCategory, "customerName": eventForm.customerName, "customerAndpadId": eventForm.customerAndpadId, address: eventForm.address, "googleMapUrl": eventForm.googleMapUrl, setupDate: setup, setupEndTime: eventForm.setupEndTime, setupVehicle: eventForm.setupVehicle, setupVehicle2: eventForm.setupVehicle2, teardownDate: teardown, teardownEndTime: eventForm.teardownEndTime, teardownVehicle: eventForm.teardownVehicle, teardownVehicle2: eventForm.teardownVehicle2, "eventName": eventForm.eventName, eventDates: validDates, "handoverDate": eventForm.handoverDate, notificationStaff: eventForm.notificationStaff, "systemId": eventForm.systemId, "salesRep": eventForm.salesRep, "icRep": eventForm.icRep, "constructionRep": eventForm.constructionRep, updatedAt: new Date().toISOString() };
-        try { if(editingEventId) { const{error}=await supabase.from('events').update(data).eq('id',editingEventId); if(error) throw error; } else { const{error}=await supabase.from('events').insert(data); if(error) throw error; } setIsEventModalOpen(false); showNotification('イベント保存完了'); } catch(err) { alert('保存失敗: '+err.message); }
+        const srFrom = eventForm.shootingRange_from_date ? (eventForm.shootingRange_from_time ? `${eventForm.shootingRange_from_date}T${eventForm.shootingRange_from_time}` : eventForm.shootingRange_from_date) : '';
+        const srTo = eventForm.shootingRange_to_date ? (eventForm.shootingRange_to_time ? `${eventForm.shootingRange_to_date}T${eventForm.shootingRange_to_time}` : eventForm.shootingRange_to_date) : '';
+        const data = { name: eventForm.name, category: eventForm.category, "subCategory": eventForm.subCategory, "customerName": eventForm.customerName, "customerAndpadId": eventForm.customerAndpadId, address: eventForm.address, "googleMapUrl": eventForm.googleMapUrl, setupDate: setup, setupEndTime: eventForm.setupEndTime, setupVehicle: eventForm.setupVehicle, setupVehicle2: eventForm.setupVehicle2, teardownDate: teardown, teardownEndTime: eventForm.teardownEndTime, teardownVehicle: eventForm.teardownVehicle, teardownVehicle2: eventForm.teardownVehicle2, "eventName": eventForm.eventName, eventDates: validDates, "handoverDate": eventForm.handoverDate, notificationStaff: eventForm.notificationStaff, "systemId": eventForm.systemId, "salesRep": eventForm.salesRep, "icRep": eventForm.icRep, "constructionRep": eventForm.constructionRep, shootingRangeFrom: srFrom, shootingRangeTo: srTo, updatedAt: new Date().toISOString() };
+        try {
+            let tid = editingEventId;
+            if(editingEventId) { const{error}=await supabase.from('events').update(data).eq('id',editingEventId); if(error) throw error; }
+            else { const{data: result, error}=await supabase.from('events').insert(data).select(); if(error) throw error; tid = result[0].id; }
+            const oldProp = editingEventId ? properties.find(x=>x.id===editingEventId) : null;
+            const isNew = !editingEventId;
+            setIsEventModalOpen(false); showNotification('イベント保存完了');
+            autoSyncCalendar({...data, id: tid}, oldProp);
+            sendChatworkNotification({...data, id: tid}, isNew);
+        } catch(err) { alert('保存失敗: '+err.message); }
     };
     const deleteEvent = async (id) => { const item = properties.find(p=>p.id===id); const name = item ? (item.customerName ? `${item.customerName} ${item.name||''}`.trim() : item.name||'') : ''; const ok = await showConfirm('データの削除', `「${name || 'この項目'}」を削除しますか？\nこの操作は取り消せません。`); if(!ok) return; const{error}=await supabase.from('events').delete().eq('id',id); if(error){alert('削除失敗');return;} showNotification('削除完了'); if(editingEventId===id) setIsEventModalOpen(false); if(editingId===id) setIsModalOpen(false); };
     const addEventDate = () => setEventForm(p => ({...p, eventDates: [...p.eventDates, '']}));
