@@ -40,3 +40,17 @@ export const toYMD = (date) => `${date.getFullYear()}-${(date.getMonth()+1).toSt
 export const formatRepName = (n) => n ? (n.includes(':')?n.split(':').pop():n).replace(/[\s\u3000]+/g,'') : '';
 export const formatCurrency = (amount) => amount ? Number(amount).toLocaleString() + '円' : '-';
 export const handleShowPicker = (e) => { try { if (e.target && typeof e.target.showPicker === 'function') e.target.showPicker(); } catch (err) {} };
+
+// 日付入力欄の右に表示する曜日ラベル（例: (水) 土曜は青、日曜は赤）
+export const DowLabel = ({ ymd }) => {
+    if (!ymd) return null;
+    const parts = String(ymd).split('T')[0].split('-');
+    if (parts.length < 3) return null;
+    const year = parseInt(parts[0]); const month = parseInt(parts[1]); const day = parseInt(parts[2]);
+    if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
+    const date = new Date(year, month - 1, day);
+    if (isNaN(date.getTime())) return null;
+    const w = ['日', '月', '火', '水', '木', '金', '土'][date.getDay()];
+    let c = "text-gray-500"; if (date.getDay() === 0) c = "text-red-600"; if (date.getDay() === 6) c = "text-blue-600";
+    return <span className={`text-xs font-bold whitespace-nowrap ${c}`}>({w})</span>;
+};
