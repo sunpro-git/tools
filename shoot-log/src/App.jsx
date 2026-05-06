@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { supabase, CALENDAR_GAS_API_URL, CATEGORIES, BRANCHES, BRANCH_LABELS, STAFF_ROLES, STAFF_DEPARTMENTS, EQUIPMENT_TYPES, SHOOTING_TYPES, ANDPAD_LABELS } from './config';
 import { formatDate, formatDateTime, toYMD, formatRepName, formatCurrency, handleShowPicker, DowLabel, computeShootStatus, computeEventType, EVENT_TYPE_OPTIONS } from './helpers';
+import { signInWithGoogle, signOutAuth, isAllowedEmail, ALLOWED_DOMAIN } from './lib/auth';
 import Icon from './components/Icon';
 import TagInput from './components/TagInput';
 import StaffOnlyInput from './components/StaffOnlyInput';
 import FileUpload from './components/FileUpload';
 
 const App = () => {
-    const [user, setUser] = useState(null); const [properties, setProperties] = useState([]); const [staffs, setStaffs] = useState([]); const [equipments, setEquipments] = useState([]);
+    const [user, setUser] = useState(null); const [authLoading, setAuthLoading] = useState(true); const [authError, setAuthError] = useState(null); const [properties, setProperties] = useState([]); const [staffs, setStaffs] = useState([]); const [equipments, setEquipments] = useState([]);
     const [loading, setLoading] = useState(true); const [isModalOpen, setIsModalOpen] = useState(false); const [isRequestModalOpen, setIsRequestModalOpen] = useState(false); const [requestMode, setRequestMode] = useState('shoot'); const [isStaffModalOpen, setIsStaffModalOpen] = useState(false); const [isStaffBulkModalOpen, setIsStaffBulkModalOpen] = useState(false); const [staffBulkText, setStaffBulkText] = useState(''); const [staffBulkMode, setStaffBulkMode] = useState('import'); const [isEquipmentModalOpen, setIsEquipmentModalOpen] = useState(false); const [isEquipBulkModalOpen, setIsEquipBulkModalOpen] = useState(false); const [equipBulkText, setEquipBulkText] = useState(''); const [equipBulkMode, setEquipBulkMode] = useState('import');
     const [editingId, setEditingId] = useState(null); const [notification, setNotification] = useState(null); const [isSyncingCalendar, setIsSyncingCalendar] = useState(false); const [scrollToRequest, setScrollToRequest] = useState(false);
     const [visibleEventTypes, setVisibleEventTypes] = useState(['setup', 'teardown', 'openhouse', 'youtube', 'photo', 'instalive', 'event_setup', 'event_teardown', 'event_date']); const [viewMode, setViewMode] = useState('list');
@@ -232,7 +233,36 @@ const App = () => {
         if (!error) { fetchBranchAssignmentsTop(); showNotification('削除しました'); }
     };
 
-    useEffect(() => { const now = new Date(); const future = new Date(); future.setMonth(future.getMonth() + 3); const formatYM = (d) => `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}`; setFilterFrom(formatYM(now)); setFilterTo(formatYM(future)); setUser({ id: 'anon' }); const cleanup = listenToData(); return () => { if (cleanup) cleanup(); }; }, []);
+    useEffect(() => { const now = new Date(); const future = new Date(); future.setMonth(future.getMonth() + 3); const formatYM = (d) => `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, '0')}`; setFilterFrom(formatYM(now)); setFilterTo(formatYM(future)); }, []);
+
+    // Google OAuth: セッション取得 + 認証状態の監視
+    useEffect(() => {
+        const handleSession = async (session) => {
+            if (session?.user) {
+                if (!isAllowedEmail(session.user.email)) {
+                    await signOutAuth();
+                    setAuthError(`@${ALLOWED_DOMAIN} のアカウントのみログインできます`);
+                    setUser(null);
+                } else {
+                    setUser(session.user);
+                    setAuthError(null);
+                }
+            } else {
+                setUser(null);
+            }
+            setAuthLoading(false);
+        };
+        supabase.auth.getSession().then(({ data: { session } }) => handleSession(session));
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => handleSession(session));
+        return () => subscription.unsubscribe();
+    }, []);
+
+    // データ購読: 認証済み時のみ
+    useEffect(() => {
+        if (!user) return;
+        const cleanup = listenToData();
+        return () => { if (cleanup) cleanup(); };
+    }, [user]);
     useEffect(() => { if (isModalOpen && scrollToRequest) { setTimeout(() => { const s = document.getElementById('shooting-request-section'); if (s) s.scrollIntoView({ behavior: 'smooth', block: 'start' }); setScrollToRequest(false); }, 300); } }, [isModalOpen, scrollToRequest]);
 
     const realtimePausedRef = useRef(false);
@@ -762,6 +792,28 @@ A. ヘッダーのチャットワーク設定アイコンからルームIDと通
         showNotification('FAQ内容を保存しました');
     };
 
+    if (authLoading) return <div className="flex h-screen items-center justify-center bg-gray-50 text-gray-400">認証確認中…</div>;
+
+    if (!user) return (
+        <div className="flex h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-blue-50 p-4">
+            <div className="bg-white rounded-2xl shadow-xl border border-gray-100 p-8 max-w-md w-full">
+                <div className="flex flex-col items-center text-center">
+                    <div className="flex items-center gap-2 mb-1">
+                        <Icon name="camera" size={28} className="text-accent"/>
+                        <h1 className="text-2xl font-bold text-primary">シューログ</h1>
+                    </div>
+                    <p className="text-sm text-gray-500 mb-8">現場撮影管理システム</p>
+                    {authError && <div className="w-full mb-4 px-4 py-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">{authError}</div>}
+                    <button onClick={()=>{ setAuthError(null); signInWithGoogle().catch(e=>setAuthError('ログイン失敗: ' + e.message)); }} className="w-full flex items-center justify-center gap-3 px-6 py-3 bg-white border-2 border-gray-200 rounded-xl font-bold text-gray-700 hover:bg-gray-50 hover:border-accent transition-colors shadow-sm">
+                        <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3c-1.6 4.7-6.1 8-11.3 8c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4C12.9 4 4 12.9 4 24s8.9 20 20 20s20-8.9 20-20c0-1.3-.1-2.6-.4-3.9z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3l5.7-5.7C34 6.1 29.3 4 24 4C16.3 4 9.7 8.3 6.3 14.7z"/><path fill="#4CAF50" d="M24 44c5.2 0 9.9-2 13.4-5.2l-6.2-5.2c-2 1.5-4.5 2.4-7.2 2.4c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.6 39.6 16.2 44 24 44z"/><path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.1 5.6l6.2 5.2c-.4.4 6.6-4.8 6.6-14.8c0-1.3-.1-2.6-.4-3.9z"/></svg>
+                        Googleでログイン
+                    </button>
+                    <p className="text-xs text-gray-400 mt-4">@{ALLOWED_DOMAIN} のアカウントのみ</p>
+                </div>
+            </div>
+        </div>
+    );
+
     if (loading) return <div className="flex h-screen items-center justify-center bg-gray-50">Loading...</div>;
 
     return (
@@ -773,7 +825,7 @@ A. ヘッダーのチャットワーク設定アイコンからルームIDと通
                     <div className="flex items-center gap-2">
                         <button onClick={openNewEventModal} className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-full text-sm font-bold hover:bg-gray-50 transition-all shadow-sm"><Icon name="calendar-plus" size={16} className="text-purple-500" /> イベント追加</button>
                         <button onClick={openRequestModal} className="hidden sm:flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-full text-sm font-bold hover:bg-gray-50 transition-all shadow-sm"><Icon name="camera" size={16} className="text-accent" /> 撮影依頼</button>
-                        <div className="relative"><button onClick={()=>setIsMenuOpen(!isMenuOpen)} className="p-2 text-gray-500 hover:text-primary hover:bg-gray-50 rounded-full transition-colors" title="メニュー"><Icon name="menu" size={22}/></button>{isMenuOpen && (<><div className="fixed inset-0 z-40" onClick={()=>setIsMenuOpen(false)}/><div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 py-2 w-56 z-50 animate-enter">{[{label:'スタッフ管理',icon:'users',action:()=>{setStaffForm({id:'',name:'',email:'',department:'',roles:[],chatwork_account_id:''});setIsStaffModalOpen(true);}},{label:'設備管理',icon:'package',action:()=>{setEquipmentForm({id:'',name:'',email:'',type:'設備'});setIsEquipmentModalOpen(true);}},{label:'チャットワーク設定',icon:'message-square',action:()=>setIsSettingsModalOpen(true)},{label:'イベント種別設定',icon:'tag',action:()=>setIsEventTypeSettingsOpen(true)},{label:'支店振分管理',icon:'map-pin',action:()=>setIsBranchModalOpen(true)},{label:'カレンダー予定一覧',icon:'calendar',action:()=>{setIsCalendarEventsModalOpen(true);fetchCalendarEvents();}}].map(item=>(<button key={item.label} onClick={()=>{item.action();setIsMenuOpen(false);}} disabled={item.disabled} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-primary transition-colors disabled:opacity-50"><Icon name={item.icon} size={18}/>{item.label}</button>))}</div></>)}</div>
+                        <div className="relative"><button onClick={()=>setIsMenuOpen(!isMenuOpen)} className="p-2 text-gray-500 hover:text-primary hover:bg-gray-50 rounded-full transition-colors" title="メニュー"><Icon name="menu" size={22}/></button>{isMenuOpen && (<><div className="fixed inset-0 z-40" onClick={()=>setIsMenuOpen(false)}/><div className="absolute right-0 top-full mt-1 bg-white rounded-xl shadow-2xl border border-gray-100 py-2 w-56 z-50 animate-enter">{[{label:'スタッフ管理',icon:'users',action:()=>{setStaffForm({id:'',name:'',email:'',department:'',roles:[],chatwork_account_id:''});setIsStaffModalOpen(true);}},{label:'設備管理',icon:'package',action:()=>{setEquipmentForm({id:'',name:'',email:'',type:'設備'});setIsEquipmentModalOpen(true);}},{label:'チャットワーク設定',icon:'message-square',action:()=>setIsSettingsModalOpen(true)},{label:'イベント種別設定',icon:'tag',action:()=>setIsEventTypeSettingsOpen(true)},{label:'支店振分管理',icon:'map-pin',action:()=>setIsBranchModalOpen(true)},{label:'カレンダー予定一覧',icon:'calendar',action:()=>{setIsCalendarEventsModalOpen(true);fetchCalendarEvents();}}].map(item=>(<button key={item.label} onClick={()=>{item.action();setIsMenuOpen(false);}} disabled={item.disabled} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-gray-600 hover:bg-gray-50 hover:text-primary transition-colors disabled:opacity-50"><Icon name={item.icon} size={18}/>{item.label}</button>))}<div className="border-t border-gray-100 mt-1 pt-1"><div className="px-4 py-2 text-xs text-gray-400">{user.email}</div><button onClick={()=>{ setIsMenuOpen(false); signOutAuth(); }} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-500 hover:bg-red-50 transition-colors"><Icon name="log-out" size={18}/>ログアウト</button></div></div></>)}</div>
                     </div>
                 </div>
             </header>
