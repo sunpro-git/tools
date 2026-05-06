@@ -42,7 +42,7 @@ export const formatCurrency = (amount) => amount ? Number(amount).toLocaleString
 export const handleShowPicker = (e) => { try { if (e.target && typeof e.target.showPicker === 'function') e.target.showPicker(); } catch (err) {} };
 
 // 日付入力欄の右に表示する曜日ラベル（例: (水) 土曜は青、日曜は赤）
-export const DowLabel = ({ ymd }) => {
+export const DowLabel = ({ ymd, className = '' }) => {
     if (!ymd) return null;
     const parts = String(ymd).split('T')[0].split('-');
     if (parts.length < 3) return null;
@@ -52,5 +52,13 @@ export const DowLabel = ({ ymd }) => {
     if (isNaN(date.getTime())) return null;
     const w = ['日', '月', '火', '水', '木', '金', '土'][date.getDay()];
     let c = "text-gray-500"; if (date.getDay() === 0) c = "text-red-600"; if (date.getDay() === 6) c = "text-blue-600";
-    return <span className={`text-xs font-bold whitespace-nowrap ${c}`}>({w})</span>;
+    return <span className={`text-xs font-bold whitespace-nowrap ${c} ${className}`}>({w})</span>;
 };
+
+// 曜日ラベルを内側に重ねた date input ラッパー
+export const DateInputDow = ({ value, className = '', wrapperClassName = '', ...rest }) => (
+    <span className={`relative inline-block ${wrapperClassName}`}>
+        <input type="date" value={value} {...rest} className={`${className} pr-12`} />
+        <DowLabel ymd={value} className="absolute right-9 top-1/2 -translate-y-1/2 pointer-events-none bg-gray-50 px-0.5" />
+    </span>
+);
