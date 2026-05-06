@@ -991,11 +991,10 @@ A. ヘッダーのチャットワーク設定アイコンからルームIDと通
                         <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
                             <h2 className="text-xl font-bold text-primary">カレンダー (4ヶ月表示)</h2>
                             <div className="flex flex-wrap gap-2 justify-center">
-                                {[{ id: 'setup_teardown', label: '設営・撤収', color: 'text-blue-600 border-blue-200 bg-blue-50' }, { id: 'openhouse', label: '見学会', color: 'text-purple-600 border-purple-200 bg-purple-50' }, { id: 'media', label: '撮影・配信', color: 'text-pink-600 border-pink-200 bg-pink-50' }, { id: 'handover', label: '引渡', color: 'text-emerald-600 border-emerald-200 bg-emerald-50' }, { id: 'event', label: 'イベント', color: 'text-teal-600 border-teal-200 bg-teal-50' }].map(type => {
+                                {[{ id: 'setup_teardown', label: '設営・撤収', color: 'text-blue-600 border-blue-200 bg-blue-50' }, { id: 'event_date', label: 'イベント', color: 'text-purple-600 border-purple-200 bg-purple-50' }, { id: 'shooting_range', label: '撮影可能', color: 'text-amber-600 border-amber-200 bg-amber-50' }, { id: 'media', label: '撮影・配信', color: 'text-pink-600 border-pink-200 bg-pink-50' }, { id: 'handover', label: '引渡', color: 'text-emerald-600 border-emerald-200 bg-emerald-50' }].map(type => {
                                     let isActive = false;
                                     if (type.id === 'setup_teardown') isActive = visibleEventTypes.includes('setup') || visibleEventTypes.includes('teardown');
                                     else if (type.id === 'media') isActive = visibleEventTypes.includes('youtube') || visibleEventTypes.includes('photo') || visibleEventTypes.includes('instalive');
-                                    else if (type.id === 'event') isActive = visibleEventTypes.includes('event_setup') || visibleEventTypes.includes('event_teardown') || visibleEventTypes.includes('event_date');
                                     else isActive = visibleEventTypes.includes(type.id);
                                     return <button key={type.id} onClick={() => toggleEventType(type.id)} className={`px-3 py-1 rounded-full text-sm font-bold border transition-all ${isActive ? `${type.color} shadow-sm` : 'bg-white text-gray-300 border-gray-100'}`}>{type.label}</button>;
                                 })}
