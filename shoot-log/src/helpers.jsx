@@ -69,10 +69,13 @@ export const EVENT_TYPE_OPTIONS = [
 // - イベント日が登録されている → event
 // - 撮影日のみ → satsuei / satsuei_nashi（家具設営有無で分岐）
 // - 何もない → '' (空)
-export const computeEventType = (p) => {
+export const computeEventType = (p, ohiromePattern = 'お披露目会|見学会') => {
     const hasFurniture = p.furnitureSetup === 'あり';
     const titleText = `${p.eventName || ''} ${p.name || ''}`;
-    const isOhirome = /お披露目会|見学会/.test(titleText);
+    let regex;
+    try { regex = new RegExp(ohiromePattern || 'お披露目会|見学会'); }
+    catch (e) { regex = /お披露目会|見学会/; }
+    const isOhirome = regex.test(titleText);
     const hasEventDates = (p.eventDates || []).filter(Boolean).length > 0
         || (p.openHouseDates || []).filter(Boolean).length > 0
         || !!p.openHouseDate;
