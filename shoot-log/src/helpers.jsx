@@ -55,6 +55,40 @@ export const DowLabel = ({ ymd, className = '' }) => {
     return <span className={`text-xs font-bold whitespace-nowrap ${c} ${className}`}>({w})</span>;
 };
 
+// eventType の選択肢（管理画面で編集可能な値）
+export const EVENT_TYPE_OPTIONS = [
+    { value: 'ohirome',       label: 'お披露目会・見学会（家具有）' },
+    { value: 'ohirome_nashi', label: 'お披露目会・見学会（家具無）' },
+    { value: 'event',         label: 'イベント（その他）' },
+    { value: 'satsuei',       label: '撮影のみ（家具有）' },
+    { value: 'satsuei_nashi', label: '撮影のみ（家具無）' },
+];
+
+// 登録内容から eventType を自動判定
+// - 名称に「お披露目会」「見学会」を含む → ohirome / ohirome_nashi（家具設営有無で分岐）
+// - イベント日が登録されている → event
+// - 撮影日のみ → satsuei / satsuei_nashi（家具設営有無で分岐）
+// - 何もない → '' (空)
+export const computeEventType = (p) => {
+    const hasFurniture = p.furnitureSetup === 'あり';
+    const titleText = `${p.eventName || ''} ${p.name || ''}`;
+    const isOhirome = /お披露目会|見学会/.test(titleText);
+    const hasEventDates = (p.eventDates || []).filter(Boolean).length > 0
+        || (p.openHouseDates || []).filter(Boolean).length > 0
+        || !!p.openHouseDate;
+    const hasShootingDates = (p.youtubeDates || []).filter(Boolean).length > 0 || !!p.youtubeDate
+        || (p.photoDates || []).filter(Boolean).length > 0 || !!p.photoDate
+        || (p.exteriorPhotoDates || []).filter(Boolean).length > 0 || !!p.exteriorPhotoDate
+        || (p.instaLiveDates || []).filter(Boolean).length > 0 || !!p.instaLiveDate
+        || (p.instaRegularDates || []).filter(Boolean).length > 0 || !!p.instaRegularDate
+        || (p.instaPromoDates || []).filter(Boolean).length > 0 || !!p.instaPromoDate
+        || (p.otherDates || []).filter(Boolean).length > 0 || !!p.otherDate;
+    if (isOhirome) return hasFurniture ? 'ohirome' : 'ohirome_nashi';
+    if (hasEventDates) return 'event';
+    if (hasShootingDates) return hasFurniture ? 'satsuei' : 'satsuei_nashi';
+    return '';
+};
+
 // 撮影ステータス計算: 全日程の最古/最新と今日を比較
 // - 全て未来: 撮影予定 (blue)
 // - 開催期間中: 撮影中 (emerald)
