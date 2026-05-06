@@ -78,7 +78,7 @@ const App = () => {
         return properties.filter(p => {
             const toYM = (d) => { if (!d) return ''; return (d.split('T')[0]).substring(0, 7); };
             const ymInRange = (ym) => ym && (!filterFrom || ym >= filterFrom) && (!filterTo || ym <= filterTo);
-            const allDates = [p.setupDate, p.teardownDate, p.photoDate, p.exteriorPhotoDate, p.youtubeDate, p.instaLiveDate, p.instaRegularDate, p.instaPromoDate, p.otherDate, ...(Array.isArray(p.youtubeDates) ? p.youtubeDates : []), ...(Array.isArray(p.photoDates) ? p.photoDates : []), ...(Array.isArray(p.exteriorPhotoDates) ? p.exteriorPhotoDates : []), ...(Array.isArray(p.instaLiveDates) ? p.instaLiveDates : []), ...(Array.isArray(p.instaRegularDates) ? p.instaRegularDates : []), ...(Array.isArray(p.instaPromoDates) ? p.instaPromoDates : []), ...(Array.isArray(p.otherDates) ? p.otherDates : []), ...(Array.isArray(p.openHouseDates) ? p.openHouseDates : []), ...(Array.isArray(p.eventDates) ? p.eventDates : [])];
+            const allDates = [p.setupDate, p.teardownDate, p.handoverDate, p.shootingRangeFrom, p.shootingRangeTo, p.photoDate, p.exteriorPhotoDate, p.youtubeDate, p.instaLiveDate, p.instaRegularDate, p.instaPromoDate, p.otherDate, ...(Array.isArray(p.youtubeDates) ? p.youtubeDates : []), ...(Array.isArray(p.photoDates) ? p.photoDates : []), ...(Array.isArray(p.exteriorPhotoDates) ? p.exteriorPhotoDates : []), ...(Array.isArray(p.instaLiveDates) ? p.instaLiveDates : []), ...(Array.isArray(p.instaRegularDates) ? p.instaRegularDates : []), ...(Array.isArray(p.instaPromoDates) ? p.instaPromoDates : []), ...(Array.isArray(p.otherDates) ? p.otherDates : []), ...(Array.isArray(p.openHouseDates) ? p.openHouseDates : []), ...(Array.isArray(p.eventDates) ? p.eventDates : []), ...(Array.isArray(p.dates) ? p.dates : [])];
             const hasAnyDate = allDates.some(d => d);
             const dateMatch = viewMode === 'calendar' ? true : (!hasAnyDate ? showNoDateProperties : allDates.some(d => ymInRange(toYM(d))));
             const categoryMatch = selectedCategories.length === 0 || selectedCategories.includes(p.category);
@@ -152,18 +152,22 @@ const App = () => {
             const hasEvent = (p.eventDates && p.eventDates.filter(Boolean).length > 0) || (p.dates && p.dates.filter(Boolean).length > 0);
             const hasShooting = (p.shootingTypes && p.shootingTypes.length > 0) || p.shootingRangeFrom || (p.youtubeDates && p.youtubeDates.filter(Boolean).length > 0) || p.youtubeDate || (p.photoDates && p.photoDates.filter(Boolean).length > 0) || p.photoDate || (p.exteriorPhotoDates && p.exteriorPhotoDates.filter(Boolean).length > 0) || p.exteriorPhotoDate || (p.instaLiveDates && p.instaLiveDates.filter(Boolean).length > 0) || p.instaLiveDate || (p.instaRegularDates && p.instaRegularDates.filter(Boolean).length > 0) || p.instaRegularDate || (p.instaPromoDates && p.instaPromoDates.filter(Boolean).length > 0) || p.instaPromoDate || (p.otherDates && p.otherDates.filter(Boolean).length > 0) || p.otherDate;
             const _type = hasEvent ? 'event' : (hasShooting ? 'property' : 'event');
-            let key = "設営日未定";
-            if (hasEvent && !p.setupDate) {
-                const eventDateList = (p.eventDates && p.eventDates.filter(Boolean).length > 0) ? p.eventDates : (p.dates || []);
-                const earliest = [...eventDateList, p.setupDate].filter(Boolean).sort()[0];
-                if (earliest) { const d = new Date(earliest.split('T')[0]); if (!isNaN(d.getTime())) key = `${d.getFullYear()}年${d.getMonth() + 1}月 設営`; } else { key = "日程未定"; }
-            } else if (p.setupDate) { const d = new Date(p.setupDate); if (!isNaN(d.getTime())) key = `${d.getFullYear()}年${d.getMonth() + 1}月 設営`; }
+            // 全ての日付フィールドを集約してソート
+            const allDateValues = [p.setupDate, p.teardownDate, p.handoverDate, p.shootingRangeFrom, p.shootingRangeTo, p.youtubeDate, p.photoDate, p.exteriorPhotoDate, p.instaLiveDate, p.instaRegularDate, p.instaPromoDate, p.otherDate, ...(p.eventDates || []), ...(p.dates || []), ...(p.openHouseDates || []), ...(p.youtubeDates || []), ...(p.photoDates || []), ...(p.exteriorPhotoDates || []), ...(p.instaLiveDates || []), ...(p.instaRegularDates || []), ...(p.instaPromoDates || []), ...(p.otherDates || [])].filter(Boolean).map(d => String(d).split('T')[0]).filter(d => /^\d{4}-\d{2}-\d{2}$/.test(d)).sort();
+            // フィルター範囲内の最古日付を優先、なければ全体の最古
+            let groupDate = null;
+            if (allDateValues.length > 0) {
+                const inRangeDates = allDateValues.filter(d => { const ym = d.substring(0, 7); return (!filterFrom || ym >= filterFrom) && (!filterTo || ym <= filterTo); });
+                groupDate = inRangeDates[0] || allDateValues[0];
+            }
+            let key = "日程未定";
+            if (groupDate) { const d = new Date(groupDate); if (!isNaN(d.getTime())) key = `${d.getFullYear()}年${d.getMonth() + 1}月`; }
             if (!groups[key]) groups[key] = [];
             groups[key].push({ ...p, _type });
         });
-        const sortedKeys = Object.keys(groups).sort((a, b) => { if (a === "設営日未定" || a === "日程未定") return 1; if (b === "設営日未定" || b === "日程未定") return -1; const dateA = new Date(a.replace(' 設営', '').replace('年', '/').replace('月', '/1')); const dateB = new Date(b.replace(' 設営', '').replace('年', '/').replace('月', '/1')); return dateA - dateB; });
+        const sortedKeys = Object.keys(groups).sort((a, b) => { if (a === "日程未定") return 1; if (b === "日程未定") return -1; const dateA = new Date(a.replace('年', '/').replace('月', '/1')); const dateB = new Date(b.replace('年', '/').replace('月', '/1')); return dateA - dateB; });
         return sortedKeys.map(key => ({ title: key, items: groups[key] }));
-    }, [filteredProperties]);
+    }, [filteredProperties, filterFrom, filterTo]);
 
     const calendarEvents = useMemo(() => {
         const calItems = [];
