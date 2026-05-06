@@ -111,9 +111,8 @@ export const computeShootStatus = (p) => {
     addArr(p.instaPromoDates); addOne(p.instaPromoDate);
     addArr(p.otherDates); addOne(p.otherDate);
     addOne(p.shootingRangeFrom); addOne(p.shootingRangeTo);
-    const hasTypes = p.shootingTypes && p.shootingTypes.length > 0;
     if (dates.length === 0) {
-        return hasTypes ? { label: '撮影', cls: 'bg-yellow-100 text-yellow-700 border-yellow-200' } : null;
+        return null;
     }
     const sorted = [...new Set(dates)].sort();
     const first = sorted[0];
