@@ -7,7 +7,10 @@ body {
     color: #1F2937;
     -webkit-font-smoothing: antialiased;
     font-size: 14px;
-    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace, "Noto Sans JP", sans-serif;
+    font-family: "Noto Sans JP", "Hiragino Sans", "Meiryo", system-ui, sans-serif;
+}
+body, input, select, textarea, button {
+    font-family: "Noto Sans JP", "Hiragino Sans", "Meiryo", system-ui, sans-serif;
 }
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
