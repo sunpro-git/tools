@@ -291,7 +291,7 @@ const App = () => {
 
     const generatePropertyEvents = (p) => {
         const events = []; const guests = getGuestEmails(p);
-        const desc = `【シューログ 現場撮影管理より登録】\n\n担当: ${p.salesRep||'-'}\n種別: ${p.category}\n住所: ${p.address||'-'}`;
+        const desc = `【シューログ 現場撮影管理より登録】\n\n担当: ${p.salesRep||'-'}\n事業部: ${p.category}\nイベント種別: ${p.event_type||'-'}\n住所: ${p.address||'-'}`;
         const cat = p.category; const hasF = p.furnitureSetup==='あり'; const hasOh = (p.openHouseDates&&p.openHouseDates.some(d=>d))||!!p.openHouseDate;
         const type = hasF?(hasOh?'ohirome':'satsuei'):(hasOh?'ohirome_nashi':'satsuei_nashi');
         const loc = p.googleMapUrl || p.address || '';
