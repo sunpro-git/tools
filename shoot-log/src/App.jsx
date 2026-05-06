@@ -862,7 +862,7 @@ A. ヘッダーのチャットワーク設定アイコンからルームIDと通
                     <div className="bg-white rounded-2xl shadow-card overflow-hidden border border-gray-200">
                         <div className="overflow-x-auto">
                             <table className="w-full text-left border-collapse table-fixed">
-                                <thead><tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-sm uppercase font-bold tracking-wider"><th className="px-2 py-3 w-[12%]">ステータス</th><th className="px-2 py-3 w-[31%]">顧客情報</th><th className="px-2 py-3 w-[25%]">スケジュール</th><th className="px-2 py-3 w-[25%]">撮影</th><th className="px-2 py-3 text-center w-[7%]">操作</th></tr></thead>
+                                <thead><tr className="bg-gray-50 border-b border-gray-200 text-gray-500 text-sm uppercase font-bold tracking-wider"><th className="px-2 py-3 w-[12%]">ステータス</th><th className="px-2 py-3 w-[31%]">現場情報 / イベント情報</th><th className="px-2 py-3 w-[25%]">スケジュール</th><th className="px-2 py-3 w-[25%]">撮影</th><th className="px-2 py-3 text-center w-[7%]">操作</th></tr></thead>
                                 <tbody className="divide-y divide-gray-100">
                                     {groupedProperties.map(group => (
                                         <React.Fragment key={group.title}>
