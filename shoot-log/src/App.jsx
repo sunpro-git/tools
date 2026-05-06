@@ -11,7 +11,7 @@ const App = () => {
     const [user, setUser] = useState(null); const [authLoading, setAuthLoading] = useState(true); const [authError, setAuthError] = useState(null); const [properties, setProperties] = useState([]); const [staffs, setStaffs] = useState([]); const [equipments, setEquipments] = useState([]);
     const [loading, setLoading] = useState(true); const [isModalOpen, setIsModalOpen] = useState(false); const [isRequestModalOpen, setIsRequestModalOpen] = useState(false); const [requestMode, setRequestMode] = useState('shoot'); const [isStaffModalOpen, setIsStaffModalOpen] = useState(false); const [isStaffBulkModalOpen, setIsStaffBulkModalOpen] = useState(false); const [staffBulkText, setStaffBulkText] = useState(''); const [staffBulkMode, setStaffBulkMode] = useState('import'); const [isEquipmentModalOpen, setIsEquipmentModalOpen] = useState(false); const [isEquipBulkModalOpen, setIsEquipBulkModalOpen] = useState(false); const [equipBulkText, setEquipBulkText] = useState(''); const [equipBulkMode, setEquipBulkMode] = useState('import');
     const [editingId, setEditingId] = useState(null); const [notification, setNotification] = useState(null); const [isSyncingCalendar, setIsSyncingCalendar] = useState(false); const [scrollToRequest, setScrollToRequest] = useState(false);
-    const [visibleEventTypes, setVisibleEventTypes] = useState(['setup', 'teardown', 'openhouse', 'youtube', 'photo', 'instalive', 'event_setup', 'event_teardown', 'event_date']); const [viewMode, setViewMode] = useState('list');
+    const [visibleEventTypes, setVisibleEventTypes] = useState(['setup', 'teardown', 'openhouse', 'youtube', 'photo', 'instalive', 'event_setup', 'event_teardown', 'event_date', 'shooting_range']); const [viewMode, setViewMode] = useState('list');
     const [isFilterExpanded, setIsFilterExpanded] = useState(true); const [selectedCategories, setSelectedCategories] = useState([]); const [selectedBranches, setSelectedBranches] = useState([]); const [selectedScheduleTypes, setSelectedScheduleTypes] = useState([]); const [searchKeyword, setSearchKeyword] = useState('');
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     const [confirmDialog, setConfirmDialog] = useState(null);
@@ -179,7 +179,10 @@ const App = () => {
             (prop.instaRegularDates && prop.instaRegularDates.length > 0 ? prop.instaRegularDates : (prop.instaRegularDate ? [prop.instaRegularDate] : [])).forEach(d => { if(d) addEvent(d, 'instalive', 'インスタ投稿', 'bg-pink-100 text-pink-800 border-pink-200'); });
             (prop.instaPromoDates && prop.instaPromoDates.length > 0 ? prop.instaPromoDates : (prop.instaPromoDate ? [prop.instaPromoDate] : [])).forEach(d => { if(d) addEvent(d, 'instalive', 'インスタ広告', 'bg-pink-100 text-pink-800 border-pink-200'); });
             (prop.otherDates && prop.otherDates.length > 0 ? prop.otherDates : (prop.otherDate ? [prop.otherDate] : [])).forEach(d => { if(d) addEvent(d, 'photo', 'その他', 'bg-gray-100 text-gray-600 border-gray-200'); });
-            (prop.eventDates || []).forEach(d => { if(d) addEvent(d, 'event_date', 'イベント', 'bg-purple-100 text-purple-800 border-purple-200'); });
+            const _eventDateList = (prop.eventDates && prop.eventDates.filter(Boolean).length > 0) ? prop.eventDates : (prop.dates || []);
+            _eventDateList.forEach(d => { if(d) addEvent(d, 'event_date', 'イベント', 'bg-purple-100 text-purple-800 border-purple-200'); });
+            if (prop.shootingRangeFrom) addEvent(prop.shootingRangeFrom, 'shooting_range', '撮影可能(開始)', 'bg-amber-100 text-amber-800 border-amber-200');
+            if (prop.shootingRangeTo) addEvent(prop.shootingRangeTo, 'shooting_range', '撮影可能(終了)', 'bg-amber-100 text-amber-800 border-amber-200');
         });
         return calItems;
     }, [filteredProperties, visibleEventTypes]);
