@@ -58,7 +58,7 @@ export const DowLabel = ({ ymd, className = '' }) => {
 // 曜日ラベルを内側に重ねた date input ラッパー
 export const DateInputDow = ({ value, className = '', wrapperClassName = '', ...rest }) => (
     <span className={`relative inline-block ${wrapperClassName}`}>
-        <input type="date" value={value} {...rest} className={`${className} pr-9`} />
-        <DowLabel ymd={value} className="absolute right-7 top-1/2 -translate-y-1/2 pointer-events-none bg-gray-50 px-0.5" />
+        <input type="date" value={value} {...rest} className={`${className} pr-5`} />
+        <DowLabel ymd={value} className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none bg-gray-50 px-0.5" />
     </span>
 );
