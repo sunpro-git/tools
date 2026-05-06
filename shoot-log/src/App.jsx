@@ -342,18 +342,29 @@ const App = () => {
         const type = hasF?(hasOh?'ohirome':'satsuei'):(hasOh?'ohirome_nashi':'satsuei_nashi');
         const loc = p.googleMapUrl || p.address || '';
 
-        // タイトル生成: [RF/松本市]△△邸_撮影種類_担当スタッフ
-        const catCode = cat === 'リフォーム' ? 'RF' : p.subCategory === '建築設計' ? '建' : p.subCategory === 'LIFIT' ? 'LF' : 'NK';
-        const cityMatch = (p.address || '').match(/[都道府県](.+?[市区町村郡])/);
+        // タイトル生成: A_B邸_C_D
+        // A: 事業部 (建/L/R/不/新) / B: 顧客苗字 or イベント名から抽出 / C: 市町村名 (市町村なし) / D: 種別
+        const catCode = cat === 'リフォーム' ? 'R'
+            : cat === '不動産' ? '不'
+            : cat === '新築' ? (p.subCategory === '建築設計' ? '建' : p.subCategory === 'LIFIT' ? 'L' : '新')
+            : '';
+        const cityMatch = (p.address || '').match(/[都道府県](.+?)[市区町村郡]/);
         const city = cityMatch ? cityMatch[1] : '';
         const isNoCustomer = !p.customerName || p.customerName === '顧客なし';
-        const isNoName = !p.name || p.name === '案件なし';
-        const custName = (isNoCustomer && isNoName) ? (p.eventName || '') : ((!isNoCustomer ? p.customerName : p.name) || '').replace(/[\s\u3000]+/g, '');
-        const suffix = (isNoCustomer && isNoName) ? '' : '邸';
-        const prefix = `[${catCode}${city ? '/' + city : ''}]${custName}${custName ? suffix : ''}`;
-        const makeTitle = (typeLabel, staffArr) => {
-            const parts = [prefix, typeLabel];
-            if (staffArr && staffArr.length > 0) parts.push(staffArr.map(s => typeof s === 'string' ? s.split(' ').pop() : s).join('・'));
+        let bPart = '';
+        if (!isNoCustomer) {
+            bPart = (p.customerName || '').split(/[\s\u3000]+/)[0];
+        } else {
+            const evStr = p.eventName || (p.name && p.name !== '案件なし' ? p.name : '') || '';
+            const m = evStr.match(/([^_\s\u3000]+?)邸/);
+            bPart = m ? m[1] : evStr.replace(/[\s\u3000]+/g, '');
+        }
+        const makeTitle = (typeLabel) => {
+            const parts = [];
+            if (catCode) parts.push(catCode);
+            if (bPart) parts.push(`${bPart}邸`);
+            if (city) parts.push(city);
+            parts.push(typeLabel);
             return parts.join('_');
         };
 
@@ -367,6 +378,9 @@ const App = () => {
 
         if(p.setupDate){ const r = calculateTimeRange(p.setupDate, null, p.setupEndTime); if(r){ const ve = getVehicleEmail(p.setupVehicle); const ve2 = getVehicleEmail(p.setupVehicle2); let g = ve ? (guests ? `${guests},${ve}` : ve) : guests; if(ve2) g = g ? `${g},${ve2}` : ve2; g = addSetupTeardownGuests(g); const vDesc = [p.setupVehicle,p.setupVehicle2].filter(Boolean).join(', '); events.push({id:`${p.id}_setup`, title:makeTitle('設営'), startTime:r.start, endTime:r.end, location:loc, description:desc+(vDesc?`\n車両: ${vDesc}`:''), category:cat, guests:g, eventType: p.event_type || "", vehicleEmail:ve, vehicleName:p.setupVehicle}); } }
         if(p.teardownDate){ const r = calculateTimeRange(p.teardownDate, null, p.teardownEndTime); if(r){ const ve = getVehicleEmail(p.teardownVehicle); const ve2 = getVehicleEmail(p.teardownVehicle2); let g = ve ? (guests ? `${guests},${ve}` : ve) : guests; if(ve2) g = g ? `${g},${ve2}` : ve2; g = addSetupTeardownGuests(g); const vDesc = [p.teardownVehicle,p.teardownVehicle2].filter(Boolean).join(', '); events.push({id:`${p.id}_td`, title:makeTitle('撤収'), startTime:r.start, endTime:r.end, location:loc, description:desc+(vDesc?`\n車両: ${vDesc}`:''), category:cat, guests:g, eventType: p.event_type || "", vehicleEmail:ve, vehicleName:p.teardownVehicle}); } }
+        // 撮影可能期間 (開始/終了)
+        if(p.shootingRangeFrom){ const r = calculateTimeRange(p.shootingRangeFrom, null, null, true); if(r) events.push({id:`${p.id}_sr_from`, title:makeTitle('撮影可能(開始)'), startTime:r.start, endTime:r.end, location:loc, description:desc, category:cat, guests:guests, eventType: p.event_type || ""}); }
+        if(p.shootingRangeTo){ const r = calculateTimeRange(p.shootingRangeTo, null, null, true); if(r) events.push({id:`${p.id}_sr_to`, title:makeTitle('撮影可能(終了)'), startTime:r.start, endTime:r.end, location:loc, description:desc, category:cat, guests:guests, eventType: p.event_type || ""}); }
         // 見学会
         (p.openHouseDates&&p.openHouseDates.length>0?p.openHouseDates:(p.openHouseDate?[p.openHouseDate]:[])).forEach(d=>{
             if(!d)return;
