@@ -55,6 +55,38 @@ export const DowLabel = ({ ymd, className = '' }) => {
     return <span className={`text-xs font-bold whitespace-nowrap ${c} ${className}`}>({w})</span>;
 };
 
+// 撮影ステータス計算: 全日程の最古/最新と今日を比較
+// - 全て未来: 撮影予定 (blue)
+// - 開催期間中: 撮影中 (emerald)
+// - 全て過去: 撮影済 (gray)
+// - 撮影日無し / shootingTypes のみ: 撮影 (yellow フォールバック)
+// - 何もない: null
+export const computeShootStatus = (p) => {
+    const dates = [];
+    const norm = (d) => typeof d === 'string' ? d.split('T')[0] : (d instanceof Date ? d.toISOString().split('T')[0] : String(d || '').split('T')[0]);
+    const addArr = (arr) => (arr || []).filter(Boolean).forEach(d => { const v = norm(d); if (v) dates.push(v); });
+    const addOne = (d) => { const v = norm(d); if (v) dates.push(v); };
+    addArr(p.youtubeDates); addOne(p.youtubeDate);
+    addArr(p.photoDates); addOne(p.photoDate);
+    addArr(p.exteriorPhotoDates); addOne(p.exteriorPhotoDate);
+    addArr(p.instaLiveDates); addOne(p.instaLiveDate);
+    addArr(p.instaRegularDates); addOne(p.instaRegularDate);
+    addArr(p.instaPromoDates); addOne(p.instaPromoDate);
+    addArr(p.otherDates); addOne(p.otherDate);
+    addOne(p.shootingRangeFrom); addOne(p.shootingRangeTo);
+    const hasTypes = p.shootingTypes && p.shootingTypes.length > 0;
+    if (dates.length === 0) {
+        return hasTypes ? { label: '撮影', cls: 'bg-yellow-100 text-yellow-700 border-yellow-200' } : null;
+    }
+    const sorted = [...new Set(dates)].sort();
+    const first = sorted[0];
+    const last = sorted[sorted.length - 1];
+    const today = new Date().toISOString().split('T')[0];
+    if (today > last) return { label: '撮影済', cls: 'bg-gray-100 text-gray-500 border-gray-200' };
+    if (today >= first) return { label: '撮影中', cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' };
+    return { label: '撮影予定', cls: 'bg-blue-100 text-blue-700 border-blue-200' };
+};
+
 // 曜日ラベルを内側に重ねた date input ラッパー
 export const DateInputDow = ({ value, className = '', wrapperClassName = '', ...rest }) => (
     <span className={`relative inline-block ${wrapperClassName}`}>
