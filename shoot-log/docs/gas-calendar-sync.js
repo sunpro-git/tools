@@ -139,6 +139,7 @@ function doPost(e) {
       }
 
       // --- 登録 または 更新 ---
+      let savedEvent = null;
       if (isUpdate && targetEvent) {
         targetEvent.setTime(newStartTime, newEndTime);
         targetEvent.setTitle(title);
@@ -151,9 +152,25 @@ function doPost(e) {
             if(email && email.trim()) try { targetEvent.addGuest(email.trim()); } catch(e){}
           });
         }
+        savedEvent = targetEvent;
       } else {
-        calendar.createEvent(title, newStartTime, newEndTime, options);
+        savedEvent = calendar.createEvent(title, newStartTime, newEndTime, options);
       }
+
+      // extendedProperties.shared.eventType をセット（Rakumo等の連携用）
+      // Advanced Calendar API が必要: 「サービス追加 > Google Calendar API」
+      if (savedEvent && item.eventType) {
+        try {
+          const calendarId = calendar.getId();
+          const fullId = savedEvent.getId();
+          const shortId = fullId.split('@')[0];
+          const patch = { extendedProperties: { shared: { eventType: String(item.eventType) } } };
+          Calendar.Events.patch(patch, calendarId, shortId);
+        } catch (apiErr) {
+          response.errors.push('eventType patch失敗 (' + (item.id||'-') + '): ' + apiErr.toString());
+        }
+      }
+
       count++;
       Utilities.sleep(200);
     });
