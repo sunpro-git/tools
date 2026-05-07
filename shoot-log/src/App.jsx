@@ -101,9 +101,11 @@ const App = () => {
         setRequestSearched(true);
         let query = supabase.from('customers').select('id,andpad_id,name,name_kana,prefecture,address,staff_name,staff_store,latitude,longitude,phone1').limit(50).order('name', { ascending: true });
         if (reqSearch.keyword) {
-            // 半角/全角スペースを ilike のワイルドカード(%)に変換して、空白の種類差を吸収
-            const k = reqSearch.keyword.trim().replace(/[\s　]+/g, '%');
-            query = query.or(`name.ilike.%${k}%,name_kana.ilike.%${k}%,address.ilike.%${k}%,andpad_id.ilike.%${k}%`);
+            // 半角/全角スペースで区切ってAND検索 (各トークンが name/name_kana/address/andpad_id のいずれかに含まれる)
+            const tokens = reqSearch.keyword.trim().split(/[\s　]+/).filter(Boolean);
+            for (const t of tokens) {
+                query = query.or(`name.ilike.%${t}%,name_kana.ilike.%${t}%,address.ilike.%${t}%,andpad_id.ilike.%${t}%`);
+            }
         }
         const { data, error } = await query;
         if (error) console.error('customers search error:', error);
