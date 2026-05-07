@@ -33,7 +33,7 @@ const App = () => {
     const [eventTypeSettings, setEventTypeSettings] = useState({ event_type_ohirome_pattern: 'お披露目会|見学会' });
     const [isEventTypeSettingsOpen, setIsEventTypeSettingsOpen] = useState(false);
     const [editingTemplateType, setEditingTemplateType] = useState('create');
-    const [filterFrom, setFilterFrom] = useState(''); const [filterTo, setFilterTo] = useState(''); const [showNoDateProperties, setShowNoDateProperties] = useState(true); const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
+    const [filterFrom, setFilterFrom] = useState(''); const [filterTo, setFilterTo] = useState(''); const [showNoDateProperties, setShowNoDateProperties] = useState(false); const [currentCalendarDate, setCurrentCalendarDate] = useState(new Date());
     const [branchAssignments, setBranchAssignments] = useState([]);
     const [isBranchModalOpen, setIsBranchModalOpen] = useState(false);
     const [branchCategoryFilter, setBranchCategoryFilter] = useState('共通');
