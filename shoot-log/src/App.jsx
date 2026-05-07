@@ -684,7 +684,7 @@ const App = () => {
             sendChatworkNotification({...data, id: tid}, isNew);
         } catch(err) { alert('保存失敗: '+err.message); }
     };
-    const deleteEvent = async (id) => { const item = properties.find(p=>p.id===id); const name = item ? (item.customerName ? `${item.customerName} ${item.name||''}`.trim() : item.name||'') : ''; const ok = await showConfirm('データの削除', `「${name || 'この項目'}」を削除しますか？\nこの操作は取り消せません。`); if(!ok) return; const{error}=await supabase.from('events').delete().eq('id',id); if(error){alert('削除失敗');return;} showNotification('削除完了'); if(editingEventId===id) setIsEventModalOpen(false); if(editingId===id) setIsModalOpen(false); };
+    const deleteEvent = async (id) => { const item = properties.find(p=>p.id===id); const name = item ? (item.customerName ? `${item.customerName} ${item.name||''}`.trim() : item.name||'') : ''; const ok = await showConfirm('データの削除', `「${name || 'この項目'}」を削除しますか？\nこの操作は取り消せません。`); if(!ok) return; const{error}=await supabase.from('events').delete().eq('id',id); if(error){alert('削除失敗');return;} showNotification('削除完了'); if(editingEventId===id) setIsEventModalOpen(false); if(editingId===id) setIsModalOpen(false); if (CALENDAR_GAS_API_URL) { try { await fetch(CALENDAR_GAS_API_URL, { method:'POST', body: JSON.stringify([{ id, action: 'deleteAll' }]) }); } catch(e) { console.error('GCal cleanup failed:', e); } } };
     const addEventDate = () => setEventForm(p => ({...p, eventDates: [...p.eventDates, '']}));
     const updateEventDate = (i, v) => { const n = [...eventForm.eventDates]; n[i] = v; setEventForm({...eventForm, eventDates: n}); };
     const removeEventDate = (i) => { setEventForm(p => ({...p, eventDates: p.eventDates.filter((_, idx) => idx !== i)})); };
