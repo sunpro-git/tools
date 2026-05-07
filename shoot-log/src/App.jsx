@@ -643,13 +643,15 @@ const App = () => {
     const updateShootingDate = (type, idx, val) => setForm(prev => { const dates = [...(prev[`${type}Dates`]||[])]; dates[idx] = val; return {...prev, [`${type}Dates`]: dates}; });
     const resetEventForm = () => { setEventForm({ name:'', category:'新築', subCategory:'', customerName:'', customerAndpadId:'', event_type:'', address:'', googleMapUrl:'', setupDate_date:'', setupDate_time:'', setupEndTime:'', setupVehicle:'', setupVehicle2:'', teardownDate_date:'', teardownDate_time:'', teardownEndTime:'', teardownVehicle:'', teardownVehicle2:'', eventName:'', eventDates:['',''], handoverDate:'', notificationStaff:[], propertyId:'', propertyName:'', requester:'', shootingTypes:[], shootingRange_from_date:'', shootingRange_from_time:'', shootingRange_to_date:'', shootingRange_to_time:'', instructionFileUrl:'', instructionFileName:'', overviewFileUrl:'', overviewFileName:'', witnessStaff:'', ownerPresence:'', shootingNotes:'', systemId:'', salesRep:'', icRep:'', constructionRep:'' }); setShowEventPropertySearch(false); setEventPropertySearch(''); };
     const openNewEventModal = () => { setRequestMode('event'); setIsRequestModalOpen(true); setReqSearch({keyword:'', category:'新築', staff:'', contractFrom:'2020-01', contractTo:'', handoverFrom:'', handoverTo:''}); setRequestResults([]); setRequestSearched(false); };
-    // 顧客の deals.label_office から事業部・ブランドを判定
+    // 顧客の deals.label_office から事業部・ブランドを判定 (優先順)
     const fetchCustomerBrand = async (andpadId) => {
         if (!andpadId) return null;
         const { data } = await supabase.from('deals').select('label_office').eq('customer_andpad_id', String(andpadId));
         const offices = (data || []).map(d => d.label_office || '').join(',');
         if (/ライフィット/.test(offices)) return { category: '新築', subCategory: 'LIFIT' };
         if (/建築設計/.test(offices)) return { category: '新築', subCategory: '建築設計' };
+        if (/リフォーム/.test(offices)) return { category: 'リフォーム', subCategory: '' };
+        if (/不動産/.test(offices)) return { category: '不動産', subCategory: '' };
         return null;
     };
     const selectCustomerForEvent = async (customer) => {
