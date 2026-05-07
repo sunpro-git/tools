@@ -643,9 +643,19 @@ const App = () => {
     const updateShootingDate = (type, idx, val) => setForm(prev => { const dates = [...(prev[`${type}Dates`]||[])]; dates[idx] = val; return {...prev, [`${type}Dates`]: dates}; });
     const resetEventForm = () => { setEventForm({ name:'', category:'新築', subCategory:'', customerName:'', customerAndpadId:'', event_type:'', address:'', googleMapUrl:'', setupDate_date:'', setupDate_time:'', setupEndTime:'', setupVehicle:'', setupVehicle2:'', teardownDate_date:'', teardownDate_time:'', teardownEndTime:'', teardownVehicle:'', teardownVehicle2:'', eventName:'', eventDates:['',''], handoverDate:'', notificationStaff:[], propertyId:'', propertyName:'', requester:'', shootingTypes:[], shootingRange_from_date:'', shootingRange_from_time:'', shootingRange_to_date:'', shootingRange_to_time:'', instructionFileUrl:'', instructionFileName:'', overviewFileUrl:'', overviewFileName:'', witnessStaff:'', ownerPresence:'', shootingNotes:'', systemId:'', salesRep:'', icRep:'', constructionRep:'' }); setShowEventPropertySearch(false); setEventPropertySearch(''); };
     const openNewEventModal = () => { setRequestMode('event'); setIsRequestModalOpen(true); setReqSearch({keyword:'', category:'新築', staff:'', contractFrom:'2020-01', contractTo:'', handoverFrom:'', handoverTo:''}); setRequestResults([]); setRequestSearched(false); };
+    // 顧客の deals.label_office から事業部・ブランドを判定
+    const fetchCustomerBrand = async (andpadId) => {
+        if (!andpadId) return null;
+        const { data } = await supabase.from('deals').select('label_office').eq('customer_andpad_id', String(andpadId));
+        const offices = (data || []).map(d => d.label_office || '').join(',');
+        if (/ライフィット/.test(offices)) return { category: '新築', subCategory: 'LIFIT' };
+        if (/建築設計/.test(offices)) return { category: '新築', subCategory: '建築設計' };
+        return null;
+    };
     const selectCustomerForEvent = async (customer) => {
         setIsRequestModalOpen(false);
         const address = [customer.prefecture, customer.address].filter(Boolean).join('');
+        const brand = await fetchCustomerBrand(customer.andpad_id);
         setEditingEventId(null); resetEventForm();
         setEventForm(prev => ({ ...prev,
             customerName: customer.name || '',
@@ -653,6 +663,7 @@ const App = () => {
             address,
             propertyId: '', propertyName: '',
             name: '',
+            ...(brand || {}),
         }));
         setShowEventPropertySearch(false); setEventPropertySearch('');
         setIsEventModalOpen(true);
@@ -696,16 +707,18 @@ const App = () => {
     // 既存編集モーダルから顧客を選び直すためのピッカーを開く
     const openCustomerPickerForPatch = (mode) => { setRequestMode(mode); setIsRequestModalOpen(true); setReqSearch({keyword:'', category:'新築', staff:'', contractFrom:'2020-01', contractTo:'', handoverFrom:'', handoverTo:''}); setRequestResults([]); setRequestSearched(false); };
     // ピッカーで選んだ顧客情報を編集中フォームに反映 (モーダルは維持)
-    const selectCustomerForPatch = (customer) => {
+    const selectCustomerForPatch = async (customer) => {
         setIsRequestModalOpen(false);
         const address = [customer.prefecture, customer.address].filter(Boolean).join('');
+        const brand = await fetchCustomerBrand(customer.andpad_id);
         const updates = {
             customerName: customer.name || '',
             customerAndpadId: customer.andpad_id ? String(customer.andpad_id) : '',
             address,
             customerLat: customer.latitude || '',
             customerLon: customer.longitude || '',
-            mainStore: customer.staff_store || ''
+            mainStore: customer.staff_store || '',
+            ...(brand || {})
         };
         if (requestMode === 'patch_property') setForm(prev => ({...prev, ...updates}));
         else if (requestMode === 'patch_event') setEventForm(prev => ({...prev, ...updates}));
@@ -713,10 +726,12 @@ const App = () => {
     const selectCustomerForRequest = async (customer) => {
         setIsRequestModalOpen(false);
         const address = [customer.prefecture, customer.address].filter(Boolean).join('');
+        const brand = await fetchCustomerBrand(customer.andpad_id);
         const customerAsProp = {
             id: null, name: '', customerName: customer.name || '', customerAndpadId: customer.andpad_id ? String(customer.andpad_id) : '', address,
             customerLat: customer.latitude || '', customerLon: customer.longitude || '',
-            category: '新築', salesRep: '', icRep: '', constructionRep: '',
+            category: brand?.category || '新築', subCategory: brand?.subCategory || '',
+            salesRep: '', icRep: '', constructionRep: '',
             contractDate: '', handoverDate: '', contractAmount: '', systemId: '', mainStore: customer.staff_store || ''
         };
         openEditModal(customerAsProp); setScrollToRequest(true);
