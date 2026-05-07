@@ -347,6 +347,7 @@ const App = () => {
         // A: 事業部 (建/L/R/不/新) / B: 顧客苗字 or イベント名から抽出 / C: 市町村名 (市町村なし) / D: 種別
         const catCode = cat === 'リフォーム' ? 'R'
             : cat === '不動産' ? '不'
+            : cat === '共通' ? '共'
             : cat === '新築' ? (p.subCategory === '建築設計' ? '建' : p.subCategory === 'LIFIT' ? 'L' : '新')
             : '';
         const cityMatch = (p.address || '').match(/[都道府県](.+?)[市区町村郡]/);
