@@ -8,9 +8,10 @@
  */
 import "dotenv/config";
 import { createClient } from "@supabase/supabase-js";
-import { getDriveClient, downloadFile, getDriveName } from "../server/services/drive.js";
+import { getDriveClient, downloadFile, getDriveName, IMAGE_MIME_TYPES, CONVERTIBLE_MIME_TYPES } from "../server/services/drive.js";
 import { computeMd5, computePhash } from "../server/services/hasher.js";
 import { computeEmbedding } from "../server/services/embedder.js";
+import { isConvertibleFile, convertToImages } from "../server/services/converter.js";
 import sharp from "sharp";
 
 const CONCURRENCY = 1; // 直列処理（Supabase接続プール枯渇防止）
@@ -20,14 +21,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const IMAGE_MIME_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/tiff",
-  "image/bmp",
-  "image/gif",
-];
+const ALL_INDEXABLE_MIME_TYPES = [...IMAGE_MIME_TYPES, ...CONVERTIBLE_MIME_TYPES];
 
 async function main() {
   const args = process.argv.slice(2);
@@ -153,6 +147,10 @@ async function processFile(
   try {
     const buffer = await downloadFile(file.id!);
 
+    if (isConvertibleFile(file.mimeType!)) {
+      return await processConvertibleFile(buffer, file, driveId);
+    }
+
     // 画像として読み込めるか検証
     try {
       await sharp(buffer).metadata();
@@ -160,55 +158,98 @@ async function processFile(
       return { ok: false, error: "unsupported image format" };
     }
 
-    // ハッシュ、embedding、サムネイルを並列実行
-    const [md5, phash, embeddingResult, thumbnailResult] = await Promise.all([
-      computeMd5(buffer),
-      computePhash(buffer),
-      computeEmbedding(buffer).catch((err: any) => {
-        console.warn(`\n  embedding error (${file.name}): ${err.message}`);
-        return null;
-      }),
-      generateThumbnail(buffer, file.id!),
-    ]);
-
-    // DB保存（メタデータ — 軽量、リトライ付き）
-    await withRetry(async () => {
-      const { error } = await supabase.from("image_index").upsert(
-        {
-          drive_file_id: file.id!,
-          name: file.name!,
-          mime_type: file.mimeType!,
-          md5_hash: md5,
-          phash,
-          thumbnail_url: thumbnailResult,
-          web_view_link: file.webViewLink ?? null,
-          file_size: file.size ? parseInt(file.size) : null,
-          folder_path: "",
-          source_drive_id: driveId,
-          indexed_at: new Date().toISOString(),
-        },
-        { onConflict: "drive_file_id" }
-      );
-      if (error) throw new Error(error.message);
-    });
-
-    // embedding保存（別途update — 大きいデータなので分離）
-    if (embeddingResult) {
-      await withRetry(async () => {
-        const { error } = await supabase
-          .from("image_index")
-          .update({ embedding: JSON.stringify(embeddingResult) })
-          .eq("drive_file_id", file.id!);
-        if (error) throw new Error(error.message);
-      });
-    }
-
-    // DB負荷軽減
-    await new Promise((r) => setTimeout(r, 500));
-    return { ok: true };
+    return await processImageBuffer(buffer, file.id!, file.name!, file.mimeType!, file, driveId);
   } catch (err: any) {
     return { ok: false, error: err.message };
   }
+}
+
+/**
+ * PDF/AI ファイルを変換して各ページをインデックス
+ */
+async function processConvertibleFile(
+  buffer: Buffer,
+  file: any,
+  driveId: string
+): Promise<{ ok: boolean; error?: string }> {
+  const pages = await convertToImages(buffer, file.mimeType!);
+  if (pages.length === 0) {
+    return { ok: false, error: "no pages extracted" };
+  }
+
+  const isSinglePage = pages.length === 1;
+  for (const { page, buffer: pageBuffer } of pages) {
+    const syntheticId = isSinglePage ? file.id! : `${file.id!}_p${page}`;
+    const displayName = isSinglePage ? file.name! : `${file.name!} (p.${page})`;
+
+    if (pages.length > 1) {
+      process.stdout.write(
+        `\r    → page ${page}/${pages.length} `.padEnd(60)
+      );
+    }
+
+    const result = await processImageBuffer(pageBuffer, syntheticId, displayName, file.mimeType!, file, driveId);
+    if (!result.ok) {
+      console.warn(`\n  Page ${page} error: ${result.error}`);
+    }
+  }
+
+  return { ok: true };
+}
+
+/**
+ * 画像バッファを処理（ハッシュ→embedding→サムネイル→DB保存）
+ */
+async function processImageBuffer(
+  buffer: Buffer,
+  fileId: string,
+  displayName: string,
+  mimeType: string,
+  file: any,
+  driveId: string
+): Promise<{ ok: boolean; error?: string }> {
+  const [md5, phash, embeddingResult, thumbnailResult] = await Promise.all([
+    computeMd5(buffer),
+    computePhash(buffer),
+    computeEmbedding(buffer).catch((err: any) => {
+      console.warn(`\n  embedding error (${displayName}): ${err.message}`);
+      return null;
+    }),
+    generateThumbnail(buffer, fileId),
+  ]);
+
+  await withRetry(async () => {
+    const { error } = await supabase.from("image_index").upsert(
+      {
+        drive_file_id: fileId,
+        name: displayName,
+        mime_type: mimeType,
+        md5_hash: md5,
+        phash,
+        thumbnail_url: thumbnailResult,
+        web_view_link: file.webViewLink ?? null,
+        file_size: file.size ? parseInt(file.size) : null,
+        folder_path: "",
+        source_drive_id: driveId,
+        indexed_at: new Date().toISOString(),
+      },
+      { onConflict: "drive_file_id" }
+    );
+    if (error) throw new Error(error.message);
+  });
+
+  if (embeddingResult) {
+    await withRetry(async () => {
+      const { error } = await supabase
+        .from("image_index")
+        .update({ embedding: JSON.stringify(embeddingResult) })
+        .eq("drive_file_id", fileId);
+      if (error) throw new Error(error.message);
+    });
+  }
+
+  await new Promise((r) => setTimeout(r, 500));
+  return { ok: true };
 }
 
 /**
@@ -221,13 +262,13 @@ async function generateThumbnail(
   try {
     const thumb = await sharp(buffer)
       .resize(200, 200, { fit: "cover" })
-      .jpeg({ quality: 70 })
+      .webp({ quality: 75 })
       .toBuffer();
-    const thumbPath = `${fileId}.jpg`;
+    const thumbPath = `${fileId}.webp`;
     await withRetry(() =>
       supabase.storage
         .from("thumbnails")
-        .upload(thumbPath, thumb, { contentType: "image/jpeg", upsert: true })
+        .upload(thumbPath, thumb, { contentType: "image/webp", upsert: true })
         .then(({ error }) => { if (error) throw error; })
     );
     const { data } = supabase.storage
@@ -268,7 +309,7 @@ async function processDrive(
   globalOffset: number
 ): Promise<{ processed: number; skipped: number; errors: number }> {
   const drive = getDriveClient();
-  const mimeQuery = IMAGE_MIME_TYPES.map((m) => `mimeType='${m}'`).join(" or ");
+  const mimeQuery = ALL_INDEXABLE_MIME_TYPES.map((m) => `mimeType='${m}'`).join(" or ");
 
   let pageToken: string | undefined;
   let processed = 0;
@@ -295,14 +336,19 @@ async function processDrive(
     if (!forceReindex) {
       const filtered = [];
       for (const file of files) {
-        const { data: existing } = await supabase
+        const isConvertible = isConvertibleFile(file.mimeType!);
+        let query = supabase
           .from("image_index")
-          .select("id, thumbnail_url, embedding")
-          .eq("drive_file_id", file.id!)
-          .limit(1);
+          .select("id, thumbnail_url, embedding");
+        if (isConvertible) {
+          query = query.like("drive_file_id", `${file.id!}%`);
+        } else {
+          query = query.eq("drive_file_id", file.id!);
+        }
+        const { data: existing } = await query.limit(1);
+
         if (existing && existing.length > 0) {
           if (fillMissing && (!existing[0].thumbnail_url || !existing[0].embedding)) {
-            // サムネイルかembeddingが欠損 → 再処理
             filtered.push(file);
           } else {
             skipped++;

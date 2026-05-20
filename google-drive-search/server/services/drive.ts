@@ -21,7 +21,7 @@ export function getDriveClient(): drive_v3.Drive {
   return driveClient;
 }
 
-const IMAGE_MIME_TYPES = [
+export const IMAGE_MIME_TYPES = [
   "image/jpeg",
   "image/png",
   "image/webp",
@@ -29,6 +29,14 @@ const IMAGE_MIME_TYPES = [
   "image/bmp",
   "image/gif",
 ];
+
+export const CONVERTIBLE_MIME_TYPES = [
+  "application/pdf",
+  "application/postscript",
+  "application/illustrator",
+];
+
+const ALL_INDEXABLE_MIME_TYPES = [...IMAGE_MIME_TYPES, ...CONVERTIBLE_MIME_TYPES];
 
 /**
  * 共有ドライブの名前を取得
@@ -65,7 +73,7 @@ export async function listImageFiles(
   const allFiles: (DriveFile & { folderPath: string })[] = [];
   const seenIds = new Set<string>();
 
-  const mimeQuery = IMAGE_MIME_TYPES.map(
+  const mimeQuery = ALL_INDEXABLE_MIME_TYPES.map(
     (m) => `mimeType='${m}'`
   ).join(" or ");
 

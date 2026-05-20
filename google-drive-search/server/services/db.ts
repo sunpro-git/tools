@@ -70,6 +70,15 @@ export async function imageExists(driveFileId: string): Promise<boolean> {
   return (data?.length ?? 0) > 0;
 }
 
+export async function imageExistsByPrefix(driveFileIdPrefix: string): Promise<boolean> {
+  const { data } = await getSupabase()
+    .from("image_index")
+    .select("id")
+    .like("drive_file_id", `${driveFileIdPrefix}%`)
+    .limit(1);
+  return (data?.length ?? 0) > 0;
+}
+
 export async function findByMd5(md5: string) {
   const { data, error } = await getSupabase()
     .from("image_index")

@@ -2,9 +2,13 @@ import { Router } from "express";
 import { listImageFiles, downloadFile } from "../services/drive.js";
 import { computeMd5, computePhash } from "../services/hasher.js";
 import { computeEmbedding } from "../services/embedder.js";
+import { isConvertibleFile, convertToImages } from "../services/converter.js";
+import sharp from "sharp";
+import { createClient } from "@supabase/supabase-js";
 import {
   upsertImage,
   imageExists,
+  imageExistsByPrefix,
   getIndexStatus,
   updateIndexStatus,
   getTotalImageCount,
@@ -44,6 +48,67 @@ router.get("/status", async (_req, res) => {
   res.json({ ...status, total_indexed: totalIndexed });
 });
 
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+async function generateThumbnail(
+  buffer: Buffer,
+  fileId: string
+): Promise<string | null> {
+  try {
+    const thumb = await sharp(buffer)
+      .resize(200, 200, { fit: "cover" })
+      .webp({ quality: 75 })
+      .toBuffer();
+    const thumbPath = `${fileId}.webp`;
+    const { error } = await supabase.storage
+      .from("thumbnails")
+      .upload(thumbPath, thumb, { contentType: "image/webp", upsert: true });
+    if (error) throw error;
+    const { data } = supabase.storage
+      .from("thumbnails")
+      .getPublicUrl(thumbPath);
+    return data.publicUrl;
+  } catch {
+    return null;
+  }
+}
+
+async function processPageBuffer(
+  buffer: Buffer,
+  fileId: string,
+  displayName: string,
+  mimeType: string,
+  file: any
+) {
+  const md5 = computeMd5(buffer);
+  const phash = await computePhash(buffer);
+  const thumbnailUrl = await generateThumbnail(buffer, fileId);
+
+  let embedding: number[] | undefined;
+  try {
+    embedding = await computeEmbedding(buffer);
+  } catch (err) {
+    console.warn(`embedding計算失敗 (${displayName}):`, err);
+  }
+
+  await upsertImage({
+    drive_file_id: fileId,
+    name: displayName,
+    mime_type: mimeType,
+    md5_hash: md5,
+    phash,
+    embedding,
+    thumbnail_url: thumbnailUrl ?? undefined,
+    web_view_link: file.webViewLink,
+    file_size: file.size ? parseInt(file.size) : undefined,
+    folder_path: file.folderPath || undefined,
+    source_drive_id: file.source_drive_id,
+  });
+}
+
 async function runIndexing(driveIds: string[]) {
   const forceReindex = process.env.FORCE_REINDEX === "true";
 
@@ -66,17 +131,24 @@ async function runIndexing(driveIds: string[]) {
       });
       allFiles.push(...files.map((f) => ({ ...f, source_drive_id: driveId })));
     }
-    console.log(`${allFiles.length}件の画像ファイルを検出`);
+    console.log(`${allFiles.length}件のファイルを検出`);
 
     await updateIndexStatus({ phase: "processing", total_files: allFiles.length, scanned_files: allFiles.length });
 
     let processed = 0;
     for (const file of allFiles) {
       try {
-        if (!forceReindex && (await imageExists(file.id))) {
-          processed++;
-          await updateIndexStatus({ processed_files: processed });
-          continue;
+        const isConvertible = isConvertibleFile(file.mimeType);
+
+        if (!forceReindex) {
+          const exists = isConvertible
+            ? await imageExistsByPrefix(file.id)
+            : await imageExists(file.id);
+          if (exists) {
+            processed++;
+            await updateIndexStatus({ processed_files: processed });
+            continue;
+          }
         }
 
         console.log(
@@ -84,34 +156,22 @@ async function runIndexing(driveIds: string[]) {
         );
 
         const buffer = await downloadFile(file.id);
-        const md5 = computeMd5(buffer);
-        const phash = await computePhash(buffer);
 
-        let embedding: number[] | undefined;
-        try {
-          embedding = await computeEmbedding(buffer);
-        } catch (err) {
-          console.warn(`embedding計算失敗 (${file.name}):`, err);
+        if (isConvertible) {
+          const pages = await convertToImages(buffer, file.mimeType);
+          const isSinglePage = pages.length === 1;
+          for (const { page, buffer: pageBuffer } of pages) {
+            const syntheticId = isSinglePage ? file.id : `${file.id}_p${page}`;
+            const displayName = isSinglePage ? file.name : `${file.name} (p.${page})`;
+            await processPageBuffer(pageBuffer, syntheticId, displayName, file.mimeType, file);
+          }
+        } else {
+          await processPageBuffer(buffer, file.id, file.name, file.mimeType, file);
         }
-
-        await upsertImage({
-          drive_file_id: file.id,
-          name: file.name,
-          mime_type: file.mimeType,
-          md5_hash: md5,
-          phash,
-          embedding,
-          thumbnail_url: file.thumbnailLink,
-          web_view_link: file.webViewLink,
-          file_size: file.size ? parseInt(file.size) : undefined,
-          folder_path: file.folderPath || undefined,
-          source_drive_id: file.source_drive_id,
-        });
 
         processed++;
         await updateIndexStatus({ processed_files: processed });
 
-        // Drive API レート制限対策
         await new Promise((r) => setTimeout(r, 100));
       } catch (err: any) {
         console.error(`ファイル処理エラー (${file.name}):`, err.message);
